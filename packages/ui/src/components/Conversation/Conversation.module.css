@@ -1,0 +1,223 @@
+/*
+ * Conversation — the main and almost only column.
+ *
+ * 640px = 20 × --pc-space-32, the same arithmetic CommandPalette uses for its 640px shell. The
+ * ribbon scrolls; the footer (the composer) sits outside the scroll, so the field never walks off
+ * the bottom of the screen while reading back a long session.
+ */
+
+.root {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  height: 100%;
+}
+
+.stream {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  display: flex;
+  justify-content: center;
+  padding: calc(var(--pc-space-24) + var(--pc-space-2)) 0 0;
+}
+
+.column {
+  box-sizing: border-box;
+  flex: none;
+  width: calc(var(--pc-space-32) * 20);
+  max-width: 100%;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: calc(var(--pc-space-20) + var(--pc-space-2));
+}
+
+/* Nothing to scroll through — the one block centres in the pane instead of hugging the top. */
+.stream[data-mode='empty'],
+.stream[data-mode='loading'],
+.stream[data-mode='error'] {
+  padding-top: 0;
+}
+
+.stream[data-mode='empty'] .column,
+.stream[data-mode='loading'] .column,
+.stream[data-mode='error'] .column {
+  justify-content: center;
+}
+
+/* --- items --------------------------------------------------------------------------------- */
+
+.prompt {
+  display: flex;
+  gap: calc(var(--pc-space-8) + var(--pc-space-2));
+  min-width: 0;
+}
+
+.promptText {
+  margin: 0;
+  min-width: 0;
+  font: var(--pc-type-read);
+  color: var(--pc-text-1);
+  overflow-wrap: anywhere;
+}
+
+/* The agent's own voice: no avatar, no name. Only the person is attributed. */
+.reply {
+  margin: 0;
+  min-width: 0;
+  font: var(--pc-type-read);
+  color: var(--pc-text-read);
+  overflow-wrap: anywhere;
+}
+
+/*
+ * A teammate's move. The 2px left edge is identity role #2 and arrives inline from
+ * zoneEdgeStyle() — it overrides the neutral border-left declared here.
+ */
+.presence {
+  box-sizing: border-box;
+  display: flex;
+  gap: calc(var(--pc-space-8) + var(--pc-space-2));
+  min-width: 0;
+  padding: calc(var(--pc-space-12) - var(--pc-border-width)) calc(var(--pc-space-12) + var(--pc-border-width));
+  background: var(--pc-bg-panel);
+  border: var(--pc-border-width) solid var(--pc-border-subtle);
+  border-radius: var(--pc-radius-md);
+}
+
+.presenceBody {
+  display: flex;
+  flex-direction: column;
+  gap: var(--pc-space-2);
+  min-width: 0;
+}
+
+.presenceText {
+  margin: 0;
+  font: var(--pc-type-body);
+  color: var(--pc-text-read);
+  overflow-wrap: anywhere;
+}
+
+.presenceMeta {
+  font: var(--pc-type-note);
+  color: var(--pc-text-3);
+}
+
+/*
+ * Something is running. A pill in the status colour — one of its four allowed roles; the fill is a
+ * ~10% wash of the same token rather than a solid area, which is the shape the rule permits.
+ */
+.run {
+  box-sizing: border-box;
+  align-self: flex-start;
+  display: inline-flex;
+  align-items: center;
+  gap: var(--pc-space-8);
+  max-width: 100%;
+  min-width: 0;
+  height: calc(var(--pc-row-height) + var(--pc-space-2));
+  padding: 0 calc(var(--pc-space-12) - var(--pc-border-width));
+  background: color-mix(in srgb, var(--pc-status-running) 10%, transparent);
+  border: var(--pc-border-width) solid color-mix(in srgb, var(--pc-status-running) 25%, transparent);
+  border-radius: var(--pc-radius-md);
+}
+
+.runDot {
+  flex: none;
+  width: var(--pc-space-6);
+  height: var(--pc-space-6);
+  border-radius: 50%;
+  background: var(--pc-status-running);
+  animation: global(pc-pulse) 1.6s ease-in-out infinite;
+}
+
+.runLabel {
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  font: var(--pc-type-label);
+  color: var(--pc-status-running);
+}
+
+.runHint {
+  flex: none;
+  font: var(--pc-type-figure);
+  color: var(--pc-text-3);
+}
+
+/* --- empty --------------------------------------------------------------------------------- */
+
+.empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: calc(var(--pc-space-12) + var(--pc-space-2));
+  padding: 0 var(--pc-space-32);
+  text-align: center;
+}
+
+.emptyTitle {
+  margin: 0;
+  font: var(--pc-type-title);
+  letter-spacing: var(--pc-tracking-title);
+  color: var(--pc-text-heading);
+}
+
+.emptyBody {
+  margin: 0;
+  font: var(--pc-type-read);
+  color: var(--pc-text-2);
+}
+
+/* --- footer (outside the scroll) ------------------------------------------------------------ */
+
+.footer {
+  flex: none;
+  display: flex;
+  justify-content: center;
+  padding: var(--pc-space-16) 0 calc(var(--pc-space-16) + var(--pc-space-2));
+}
+
+.footerColumn {
+  box-sizing: border-box;
+  width: calc(var(--pc-space-32) * 20);
+  max-width: 100%;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: calc(var(--pc-space-8) + var(--pc-space-2));
+}
+
+.footnote {
+  font: var(--pc-type-note);
+  color: var(--pc-text-3);
+  text-align: center;
+}
+
+/* --- narrow pane (screen 04) ---------------------------------------------------------------- */
+
+.root[data-variant='narrow'] .stream {
+  padding: var(--pc-space-20) var(--pc-space-24) 0;
+}
+
+.root[data-variant='narrow'] .column {
+  width: 100%;
+  gap: calc(var(--pc-space-16) + var(--pc-space-2));
+}
+
+.root[data-variant='narrow'] .prompt,
+.root[data-variant='narrow'] .presence {
+  gap: calc(var(--pc-space-8) + var(--pc-space-2));
+}
+
+.root[data-variant='narrow'] .footer {
+  padding: var(--pc-space-12) var(--pc-space-16) calc(var(--pc-space-12) + var(--pc-space-2));
+}
+
+.root[data-variant='narrow'] .footerColumn {
+  width: 100%;
+}

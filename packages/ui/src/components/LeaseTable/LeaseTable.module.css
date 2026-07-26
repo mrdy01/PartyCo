@@ -1,0 +1,744 @@
+/*
+ * Active-lease table. Design source: «Leases · активные лизы» and «Leases · группировка по
+ * состоянию».
+ *
+ * Colour rules honoured here:
+ *  - identity colour enters only through identity.ts helpers (inline styles from the component):
+ *    the 2px left edge of the boundary cell, the avatar fill, the exclusive-mode chip and the
+ *    own-row gutter tint. This stylesheet never names an --pc-id-* token;
+ *  - status colour stays in the dot / pill / text / outline roles. The reclaim row — the loudest
+ *    state on the screen — is built from a marching top border, a warning outline on the rest of
+ *    its perimeter, a pulsing dot and bold text, on a NEUTRAL raised background. The design filled
+ *    that row with amber and moved its left edge to amber; both are forbidden by §5, and the
+ *    outline role (added to the spec with the ownership map) reproduces the same loudness legally.
+ *
+ * `border-collapse: separate` with zero spacing: visually identical to a collapsed table here,
+ * because every separator is a cell border-bottom — but a collapsed table does not paint
+ * `box-shadow` on a `<tr>`, and the focus ring must be visible on the focused row.
+ */
+
+.panel {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  background: var(--pc-bg-panel);
+  border: var(--pc-border-width) solid var(--pc-border);
+  border-radius: var(--pc-radius-md);
+  overflow: hidden;
+  color: var(--pc-text-1);
+}
+
+/* ----------------------------------------------------------------- header */
+
+.header {
+  display: flex;
+  align-items: center;
+  gap: var(--pc-row-gap);
+  flex: none;
+  min-height: var(--pc-row-height);
+  padding: 0 var(--pc-row-padding-x);
+  background: var(--pc-bg-window);
+  border-bottom: var(--pc-border-width) solid var(--pc-border-subtle);
+}
+
+.eyebrow {
+  font: var(--pc-type-eyebrow);
+  letter-spacing: var(--pc-tracking-eyebrow);
+  text-transform: uppercase;
+  color: var(--pc-text-3);
+  white-space: nowrap;
+}
+
+.grouping {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--pc-space-6);
+  margin-left: auto;
+}
+
+.groupingLabel {
+  font: var(--pc-type-eyebrow);
+  letter-spacing: 0;
+  color: var(--pc-text-4);
+  white-space: nowrap;
+}
+
+.segmented {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--pc-space-2);
+  padding: var(--pc-space-2);
+  background: var(--pc-bg-panel);
+  border: var(--pc-border-width) solid var(--pc-border-subtle);
+  border-radius: var(--pc-radius-sm);
+}
+
+.segment {
+  padding: var(--pc-space-2) var(--pc-space-8);
+  background: none;
+  border: none;
+  border-radius: var(--pc-radius-xs);
+  font: var(--pc-type-eyebrow);
+  letter-spacing: 0;
+  color: var(--pc-text-3);
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.segment:hover {
+  color: var(--pc-text-2);
+}
+
+.segment[aria-pressed='true'] {
+  background: var(--pc-border);
+  color: var(--pc-text-1);
+}
+
+.segment:focus-visible {
+  outline: none;
+  box-shadow: var(--pc-focus-ring);
+}
+
+/* ------------------------------------------------------------------ table */
+
+.scroll {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+}
+
+.table {
+  width: 100%;
+  border-collapse: separate;
+  border-spacing: 0;
+  table-layout: fixed;
+}
+
+/*
+ * Widths in `ch` rather than px — there is no width token, and `ch` keeps the table legible when
+ * the host bumps its base font size. They land within a few px of the design's
+ * 200 / 34 / 92 / 74 / 108 / 1fr / 122 grid at 1096px.
+ */
+.colBoundary {
+  width: 26ch;
+}
+
+.colMode {
+  width: 5ch;
+}
+
+.colOwner {
+  width: 13ch;
+}
+
+.colClaim {
+  width: 10ch;
+}
+
+.colActivity {
+  width: 16ch;
+}
+
+.colState {
+  width: auto;
+}
+
+.colActions {
+  width: 17ch;
+}
+
+.head {
+  background: var(--pc-bg-window);
+}
+
+.headCell {
+  height: calc(var(--pc-row-height) - var(--pc-space-4));
+  padding: 0 var(--pc-space-4);
+  font: var(--pc-type-eyebrow);
+  letter-spacing: var(--pc-tracking-eyebrow);
+  text-transform: uppercase;
+  text-align: left;
+  color: var(--pc-text-3);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  border-bottom: var(--pc-border-width) solid var(--pc-border-subtle);
+}
+
+.headCell[data-align='end'] {
+  text-align: right;
+}
+
+.headCell:first-child {
+  padding-left: var(--pc-row-padding-x);
+}
+
+.headCell:last-child {
+  padding-right: var(--pc-row-padding-x);
+}
+
+/* ------------------------------------------------------------ group header */
+
+.groupRow > .groupCell {
+  height: var(--pc-row-height);
+  padding: 0;
+  text-align: left;
+  font-weight: 400;
+  background: var(--pc-bg-window);
+  --state-color: var(--pc-text-3);
+}
+
+/*
+ * A tinted group strip, not a tinted row: the same ~8% wash `SessionFrame` uses on its mode header.
+ * It marks a heading, never a data area, so it stays inside the "no large fill" rule.
+ */
+.groupCell[data-tone='danger'] {
+  --state-color: var(--pc-status-danger);
+  background: color-mix(in srgb, var(--pc-status-danger) 7%, transparent);
+}
+
+.groupCell[data-tone='warning'] {
+  --state-color: var(--pc-status-warning);
+  background: color-mix(in srgb, var(--pc-status-warning) 5%, transparent);
+}
+
+.groupCell[data-tone='success'] {
+  --state-color: var(--pc-status-success);
+}
+
+.groupInner,
+.groupToggle {
+  display: flex;
+  align-items: center;
+  gap: var(--pc-space-6);
+  width: 100%;
+  height: var(--pc-row-height);
+  padding: 0 var(--pc-row-padding-x);
+  min-width: 0;
+}
+
+.groupToggle {
+  background: none;
+  border: none;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.groupToggle:focus-visible {
+  outline: none;
+  box-shadow: var(--pc-focus-ring);
+}
+
+.groupName {
+  font: var(--pc-type-ui);
+  color: var(--pc-text-2);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* status colour, text role */
+.groupTitle {
+  font: var(--pc-type-eyebrow);
+  font-weight: 600;
+  letter-spacing: var(--pc-tracking-eyebrow);
+  text-transform: uppercase;
+  color: var(--state-color);
+  white-space: nowrap;
+}
+
+.groupMeta {
+  font: var(--pc-type-eyebrow);
+  letter-spacing: 0;
+  color: var(--pc-text-4);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.groupChevron {
+  margin-left: auto;
+  flex: none;
+  color: var(--pc-text-4);
+  transition: transform var(--pc-duration-fast) var(--pc-ease);
+}
+
+.groupChevronOpen {
+  transform: rotate(90deg);
+}
+
+/* -------------------------------------------------------------------- rows */
+
+.row {
+  height: var(--pc-row-height);
+}
+
+.row > td,
+.row > th {
+  height: var(--pc-row-height);
+  padding: 0 var(--pc-space-4);
+  border-bottom: var(--pc-border-width) solid var(--pc-bg-raised);
+  vertical-align: middle;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* The note carries the bottom rule for the pair, so the row above it must not draw one. */
+.row[data-note='true'] > td,
+.row[data-note='true'] > th {
+  border-bottom-color: transparent;
+}
+
+.row[data-lease-row='true'] {
+  cursor: pointer;
+}
+
+.row[data-lease-row='true']:hover > td,
+.row[data-lease-row='true']:hover > th {
+  background: var(--pc-bg-raised);
+}
+
+/* Selection is the running/focus colour — never the owner's identity colour. */
+.row[data-selected='true'] > td,
+.row[data-selected='true'] > th {
+  background: var(--pc-selected-row-bg);
+}
+
+.row:focus-visible {
+  outline: none;
+  box-shadow: var(--pc-focus-ring);
+}
+
+/* `.row > .cellX` (0,2,0) deliberately outranks `.row > td` (0,1,1) — no !important needed. */
+.row > .cellBoundary {
+  /* the 2px identity edge is applied inline by zoneEdgeStyle() */
+  padding-left: calc(var(--pc-row-padding-x) - var(--pc-zone-edge-width));
+  font: var(--pc-type-path);
+  font-weight: 500;
+  color: var(--pc-text-1);
+  text-align: left;
+}
+
+.cellBoundary[data-nested='true'] {
+  font-weight: 400;
+  color: var(--pc-text-2);
+}
+
+.boundary {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.cellBoundary[data-nested='true'] .boundary {
+  padding-left: var(--pc-space-12);
+}
+
+/* ------------------------------------------------------------- mode badge */
+
+.mode {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: var(--pc-space-2) var(--pc-space-4);
+  border-radius: var(--pc-radius-xs);
+  background: var(--pc-bg-input);
+  font: var(--pc-type-eyebrow);
+  font-weight: 600;
+  letter-spacing: 0;
+  color: var(--pc-text-2);
+  user-select: none;
+}
+
+/* status colour, pill role — a guarded path belongs to nobody, so it never takes identity colour */
+.mode[data-mode='guarded'] {
+  background: color-mix(in srgb, var(--pc-status-warning) 16%, transparent);
+  color: var(--pc-status-warning);
+}
+
+/* --------------------------------------------------------------- cells */
+
+.owner {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--pc-space-6);
+  min-width: 0;
+}
+
+.ownerName {
+  font: var(--pc-type-meta);
+  color: var(--pc-text-2);
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.row > .cellClaim {
+  font: var(--pc-type-status);
+  color: var(--pc-text-2);
+}
+
+.row > .cellActivity {
+  font: var(--pc-type-status);
+  color: var(--pc-text-2);
+}
+
+/* status colour, text role */
+.cellActivity[data-tone='warning'] {
+  color: var(--pc-status-warning);
+}
+
+.cellActivity[data-tone='danger'] {
+  color: var(--pc-status-danger);
+}
+
+.cellActivity[data-tone='running'] {
+  color: var(--pc-status-running);
+}
+
+.cellActivity[data-tone='success'] {
+  color: var(--pc-status-success);
+}
+
+/* ---------------------------------------------------------- state cell */
+
+.cellState {
+  --state-color: var(--pc-text-3);
+}
+
+.cellState[data-tone='success'] {
+  --state-color: var(--pc-status-success);
+}
+
+.cellState[data-tone='warning'] {
+  --state-color: var(--pc-status-warning);
+}
+
+.cellState[data-tone='danger'] {
+  --state-color: var(--pc-status-danger);
+}
+
+.cellState[data-tone='running'] {
+  --state-color: var(--pc-status-running);
+}
+
+.state {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--pc-space-6);
+  min-width: 0;
+  width: 100%;
+}
+
+.dot {
+  flex: none;
+  width: var(--pc-space-6);
+  height: var(--pc-space-6);
+  border-radius: 50%;
+  /* status colour, dot role */
+  background: var(--state-color);
+}
+
+.dot[data-pulse='true'] {
+  animation: global(pc-pulse) 1.4s ease-in-out infinite;
+}
+
+.stateIcon {
+  flex: none;
+  /* the glyph inherits the row's status colour — it never carries one of its own */
+  color: var(--state-color);
+}
+
+/* status colour, text role */
+.stateText {
+  font: var(--pc-type-meta);
+  color: var(--state-color);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.cellState[data-emphasis='muted'] .stateText {
+  color: var(--pc-text-2);
+}
+
+.cellState[data-emphasis='strong'] .stateText {
+  font-weight: 600;
+}
+
+/* A 3px meter, not a fill: the reclaim window draining in real time. */
+.meter {
+  flex: 1;
+  min-width: var(--pc-space-32);
+  height: var(--pc-space-4);
+  border-radius: var(--pc-radius-xs);
+  background: color-mix(in srgb, var(--state-color) 22%, transparent);
+  overflow: hidden;
+}
+
+.meterFill {
+  display: block;
+  height: 100%;
+  background: var(--state-color);
+  transition: width var(--pc-duration-base) var(--pc-ease);
+}
+
+/* ------------------------------------------------------------- actions */
+
+.row > .cellActions {
+  padding-right: var(--pc-row-padding-x);
+  text-align: right;
+}
+
+.actions {
+  display: inline-flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: var(--pc-space-6);
+}
+
+.actionNote {
+  font: var(--pc-type-eyebrow);
+  letter-spacing: 0;
+  color: var(--pc-text-4);
+  white-space: nowrap;
+}
+
+.muted {
+  color: var(--pc-text-4);
+}
+
+/* ------------------------------------------------------- the reclaim row */
+
+/*
+ * Neutral raised background — loudness comes from the border, the dot and the type, never from a
+ * status-coloured area.
+ */
+.row[data-state='reclaim'] > td,
+.row[data-state='reclaim'] > th,
+.noteRow[data-state='reclaim'] > .noteCell {
+  background: var(--pc-bg-raised);
+}
+
+/* status colour, outline role — the left edge stays the holder's identity */
+.row[data-state='reclaim'] > *:last-child,
+.noteRow[data-state='reclaim'] > .noteCell {
+  border-right: var(--pc-border-width) solid
+    color-mix(in srgb, var(--pc-status-warning) 45%, transparent);
+}
+
+.noteRow[data-state='reclaim'] > .noteCell {
+  border-bottom-color: color-mix(in srgb, var(--pc-status-warning) 45%, transparent);
+}
+
+.marchRow > .marchCell {
+  height: var(--pc-zone-edge-width);
+  padding: 0;
+  border: none;
+}
+
+/*
+ * The marching hatch that says "this window is running out". 14px period matches the pc-march
+ * keyframe, so the dashes never jump.
+ */
+.march {
+  display: block;
+  height: var(--pc-zone-edge-width);
+  background: repeating-linear-gradient(
+    90deg,
+    var(--pc-status-warning) 0 var(--pc-space-6),
+    transparent var(--pc-space-6) calc(var(--pc-space-6) + var(--pc-space-8))
+  );
+  animation: global(pc-march) 1s linear infinite;
+}
+
+/* ---------------------------------------------------------- second line */
+
+.noteRow > .noteCell {
+  padding: 0 var(--pc-row-padding-x) var(--pc-space-8);
+  border-bottom: var(--pc-border-width) solid var(--pc-bg-raised);
+}
+
+.note {
+  margin: 0;
+  font: var(--pc-type-meta);
+  line-height: 1.45;
+  color: var(--pc-text-2);
+  max-width: 92ch;
+  white-space: normal;
+}
+
+/* status colour, text role — warm enough to belong to the amber row, quiet enough to be prose */
+.noteRow[data-state='reclaim'] .note {
+  color: color-mix(in srgb, var(--pc-status-warning) 45%, var(--pc-text-2));
+}
+
+.code {
+  font-family: var(--pc-font-mono);
+  color: var(--pc-text-1);
+}
+
+.strong {
+  font-weight: 600;
+  color: var(--pc-text-1);
+}
+
+/* ---------------------------------------------------------------- chips */
+
+.chipsRow > .chipsCell {
+  padding: var(--pc-space-6) var(--pc-row-padding-x);
+  border-bottom: var(--pc-border-width) solid var(--pc-bg-raised);
+}
+
+.chips {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--pc-space-6);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.chip {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--pc-space-6);
+  min-height: calc(var(--pc-row-height) - var(--pc-space-8));
+  padding: 0 var(--pc-space-8);
+  background: var(--pc-bg-panel);
+  border: var(--pc-border-width) solid var(--pc-border-subtle);
+  border-radius: var(--pc-radius-sm);
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+}
+
+.chip[data-free='true'] {
+  border-style: dashed;
+  border-color: var(--pc-border);
+  cursor: default;
+}
+
+button.chip:hover {
+  border-color: var(--pc-border-strong);
+}
+
+.chip:focus-visible {
+  outline: none;
+  box-shadow: var(--pc-focus-ring);
+}
+
+.chip[data-selected='true'] {
+  background: var(--pc-selected-row-bg);
+  border-color: var(--pc-border-strong);
+}
+
+.chipPath {
+  font: var(--pc-type-status);
+  color: var(--pc-text-1);
+  white-space: nowrap;
+}
+
+.chipPath[data-free='true'] {
+  color: var(--pc-text-2);
+}
+
+.chipFree {
+  font: var(--pc-type-eyebrow);
+  letter-spacing: 0;
+  color: var(--pc-text-4);
+}
+
+.chipMode {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: var(--pc-space-2) var(--pc-space-4);
+  border-radius: var(--pc-radius-xs);
+  background: var(--pc-border);
+  font: var(--pc-type-eyebrow);
+  font-weight: 600;
+  letter-spacing: 0;
+  color: var(--pc-text-1);
+}
+
+.chipMode[data-mode='guarded'] {
+  background: color-mix(in srgb, var(--pc-status-warning) 16%, transparent);
+  color: var(--pc-status-warning);
+}
+
+/* ------------------------------------------------------ guarded footer */
+
+.foot > tr > .footCell {
+  padding: var(--pc-space-12) var(--pc-row-padding-x);
+  background: var(--pc-bg-window);
+  border-top: var(--pc-border-width) solid var(--pc-border-subtle);
+}
+
+.guarded {
+  display: flex;
+  flex-direction: column;
+  gap: var(--pc-space-8);
+}
+
+.guardedHead {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--pc-space-8);
+}
+
+/* status colour, text role: the lock is the one amber mark in the footer */
+.guardedIcon {
+  color: var(--pc-status-warning);
+}
+
+.guardedTitle {
+  font: var(--pc-type-ui);
+  font-weight: 600;
+  color: var(--pc-text-1);
+}
+
+.guardedStat {
+  font: var(--pc-type-status);
+  color: var(--pc-text-4);
+}
+
+.guardedSource {
+  margin-left: auto;
+  font: var(--pc-type-status);
+  color: var(--pc-text-3);
+}
+
+.guardedBody {
+  margin: 0;
+  font: var(--pc-type-meta);
+  line-height: 1.55;
+  color: var(--pc-text-2);
+  max-width: 96ch;
+  white-space: normal;
+}
+
+/* ------------------------------------------- empty / loading / error cell */
+
+.stateCell {
+  padding: 0;
+}
+
+/* --------------------------------------------------------------- a11y util */
+
+.srOnly {
+  position: absolute;
+  width: var(--pc-space-2);
+  height: var(--pc-space-2);
+  margin: calc(-1 * var(--pc-space-2));
+  padding: 0;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+  border: 0;
+}

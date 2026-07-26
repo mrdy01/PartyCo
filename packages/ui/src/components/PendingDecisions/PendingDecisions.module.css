@@ -1,0 +1,171 @@
+/*
+ * Pending decisions. Status colour appears only as the count pill, the "blocking" dot and the
+ * error text — never as a fill or a left edge (spec §01).
+ */
+
+.panel {
+  display: flex;
+  flex-direction: column;
+  gap: var(--pc-space-8);
+  padding: var(--pc-space-12) var(--pc-space-16);
+  background: var(--pc-bg-panel);
+  border: var(--pc-border-width) solid var(--pc-border-subtle);
+  border-radius: var(--pc-radius-md);
+}
+
+.header {
+  display: flex;
+  align-items: center;
+  gap: var(--pc-space-8);
+}
+
+.title {
+  margin: 0;
+  font: var(--pc-type-eyebrow);
+  letter-spacing: var(--pc-tracking-eyebrow);
+  text-transform: uppercase;
+  color: var(--pc-text-3);
+}
+
+.count {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: var(--pc-space-16);
+  height: var(--pc-space-16);
+  padding: 0 var(--pc-space-4);
+  background: color-mix(in srgb, var(--pc-status-warning) 16%, transparent);
+  border-radius: var(--pc-radius-sm);
+  font: var(--pc-type-eyebrow);
+  font-weight: 600;
+  color: var(--pc-status-warning);
+}
+
+.count[data-blocking] {
+  background: color-mix(in srgb, var(--pc-status-danger) 16%, transparent);
+  color: var(--pc-status-danger);
+}
+
+/* ---------- list ---------- */
+
+.list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--pc-space-4);
+}
+
+.item {
+  display: flex;
+  align-items: center;
+  gap: var(--pc-row-gap);
+  min-height: var(--pc-row-height);
+  padding: 0 var(--pc-space-4);
+  border-radius: var(--pc-radius-sm);
+}
+
+.item:hover {
+  background: var(--pc-bg-raised);
+}
+
+.text {
+  display: inline-flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: var(--pc-space-4);
+  flex: 1;
+  min-width: 0;
+  font: var(--pc-type-body);
+  color: var(--pc-text-2);
+}
+
+.text::before {
+  content: '·';
+  color: var(--pc-text-4);
+}
+
+.blockingDot {
+  align-self: center;
+  width: var(--pc-space-4);
+  height: var(--pc-space-4);
+  flex: none;
+  border-radius: 50%;
+  background: var(--pc-status-danger);
+}
+
+.topic {
+  color: var(--pc-text-2);
+}
+
+.choice {
+  font-weight: 600;
+  color: var(--pc-text-1);
+}
+
+.note {
+  color: var(--pc-text-3);
+}
+
+.waiting {
+  flex: none;
+  font: var(--pc-type-path);
+  color: var(--pc-text-4);
+  white-space: nowrap;
+}
+
+.actions {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--pc-space-4);
+  flex: none;
+}
+
+.primary,
+.ghost {
+  appearance: none;
+  -webkit-appearance: none;
+  margin: 0;
+  display: inline-flex;
+  align-items: center;
+  height: calc(var(--pc-row-height) - var(--pc-space-8));
+  padding: 0 var(--pc-space-8);
+  border-radius: var(--pc-radius-sm);
+  font: var(--pc-type-meta);
+  font-weight: 500;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.primary {
+  background: var(--pc-bg-input);
+  border: var(--pc-border-width) solid var(--pc-border-strong);
+  color: var(--pc-text-1);
+}
+
+.primary:hover {
+  background: var(--pc-bg-raised);
+  border-color: var(--pc-text-4);
+}
+
+.primary:active {
+  background: var(--pc-bg-window);
+}
+
+.ghost {
+  background: none;
+  border: var(--pc-border-width) solid transparent;
+  color: var(--pc-text-2);
+}
+
+.ghost:hover {
+  color: var(--pc-text-1);
+  border-color: var(--pc-border);
+}
+
+.primary:focus-visible,
+.ghost:focus-visible {
+  outline: none;
+  box-shadow: var(--pc-focus-ring);
+}

@@ -1,0 +1,223 @@
+/*
+ * ActivityStream — one line per event: avatar · action · target · (outcome) · time.
+ *
+ * Event rows are one 4px step shorter than a list row (24px against the 28px --pc-row-height),
+ * matching the design while still following density.
+ */
+
+.stream {
+  display: flex;
+  flex-direction: column;
+  gap: var(--pc-space-8);
+  min-width: 0;
+}
+
+.header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--pc-space-8);
+}
+
+.title {
+  font: var(--pc-type-eyebrow);
+  letter-spacing: var(--pc-tracking-eyebrow);
+  text-transform: uppercase;
+  color: var(--pc-text-3);
+}
+
+.filter {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  gap: var(--pc-space-2);
+  color: var(--pc-text-4);
+}
+
+.select {
+  -webkit-appearance: none;
+  appearance: none;
+  max-width: calc(var(--pc-space-32) * 5);
+  padding: var(--pc-space-2) var(--pc-space-4);
+  border: 0;
+  border-radius: var(--pc-radius-sm);
+  background: transparent;
+  color: inherit;
+  font: var(--pc-type-status);
+  cursor: pointer;
+  text-overflow: ellipsis;
+}
+
+.select:hover {
+  color: var(--pc-text-2);
+}
+
+.select:focus-visible {
+  outline: none;
+  box-shadow: var(--pc-focus-ring);
+}
+
+/* The native popup is painted by the OS — pin it to the panel surface so it is not a white flash. */
+.select option {
+  background: var(--pc-bg-panel);
+  color: var(--pc-text-1);
+}
+
+.caret {
+  flex: none;
+  font: var(--pc-type-status);
+  pointer-events: none;
+}
+
+.groups {
+  display: flex;
+  flex-direction: column;
+  gap: var(--pc-space-8);
+}
+
+.groupHead {
+  display: flex;
+  align-items: center;
+  gap: var(--pc-space-6);
+  height: calc(var(--pc-row-height) - var(--pc-space-4));
+  font: var(--pc-type-eyebrow);
+  letter-spacing: var(--pc-tracking-eyebrow);
+  text-transform: uppercase;
+  color: var(--pc-text-3);
+}
+
+.list {
+  display: flex;
+  flex-direction: column;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.event {
+  display: flex;
+  align-items: center;
+  gap: var(--pc-space-8);
+  min-width: 0;
+  height: calc(var(--pc-row-height) - var(--pc-space-4));
+}
+
+.action {
+  flex: none;
+  font: var(--pc-type-status);
+  font-family: var(--pc-font-sans);
+  color: var(--pc-text-2);
+  white-space: nowrap;
+}
+
+.target {
+  flex: 0 1 auto;
+  min-width: 0;
+  font: var(--pc-type-status);
+  color: var(--pc-text-1);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* Outcome — status colour in its text role only. */
+.result {
+  flex: none;
+  font: var(--pc-type-status);
+  color: var(--pc-text-2);
+  white-space: nowrap;
+}
+
+.resultSuccess {
+  color: var(--pc-status-success);
+}
+
+.resultWarning {
+  color: var(--pc-status-warning);
+}
+
+.resultDanger {
+  color: var(--pc-status-danger);
+}
+
+.resultRunning {
+  color: var(--pc-status-running);
+}
+
+.time {
+  flex: none;
+  margin-left: auto;
+  padding-left: var(--pc-space-8);
+  font: var(--pc-type-status);
+  color: var(--pc-text-4);
+  white-space: nowrap;
+}
+
+.empty {
+  display: flex;
+  align-items: center;
+  min-height: calc(var(--pc-row-height) - var(--pc-space-4));
+  font: var(--pc-type-meta);
+  color: var(--pc-text-3);
+}
+
+.error {
+  display: flex;
+  align-items: center;
+  gap: var(--pc-space-6);
+  min-height: calc(var(--pc-row-height) - var(--pc-space-4));
+  font: var(--pc-type-meta);
+  color: var(--pc-status-danger);
+}
+
+.retry {
+  padding: var(--pc-space-2) var(--pc-space-6);
+  border: var(--pc-border-width) solid var(--pc-border);
+  border-radius: var(--pc-radius-sm);
+  background: transparent;
+  color: var(--pc-text-2);
+  font: var(--pc-type-meta);
+  cursor: pointer;
+}
+
+.retry:hover {
+  background: var(--pc-bg-raised);
+  color: var(--pc-text-1);
+}
+
+.retry:focus-visible {
+  outline: none;
+  box-shadow: var(--pc-focus-ring);
+}
+
+.skeletonRow {
+  display: flex;
+  align-items: center;
+  gap: var(--pc-space-8);
+  height: calc(var(--pc-row-height) - var(--pc-space-4));
+}
+
+.skeletonAvatar,
+.skeletonLine {
+  border-radius: var(--pc-radius-xs);
+  background: linear-gradient(
+    90deg,
+    var(--pc-bg-raised) 0%,
+    var(--pc-bg-input) 50%,
+    var(--pc-bg-raised) 100%
+  );
+  background-size: 220% 100%;
+  animation: global(pc-shimmer) 1.6s linear infinite;
+}
+
+.skeletonAvatar {
+  flex: none;
+  width: var(--pc-avatar-size);
+  height: var(--pc-avatar-size);
+}
+
+.skeletonLine {
+  flex: 1 1 auto;
+  max-width: calc(var(--pc-space-32) * 6);
+  height: var(--pc-space-8);
+}

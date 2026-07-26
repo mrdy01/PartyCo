@@ -1,0 +1,156 @@
+/*
+ * Shell title bar — 36px of window chrome.
+ *
+ * Geometry note: like `AppTitleBar`, this strip must NOT scale with the density tokens. Its height
+ * is fixed by the window frame — 36px, matching `titleBarOverlay.height` in the main process and
+ * the `.pc-titlebar` rule in the desktop app's global stylesheet. The export draws 34; we keep 36
+ * so the native window buttons land exactly on the strip reserved for them. Boxes are therefore
+ * built from the spacing scale; type still comes from the ramp and follows --pc-font-delta.
+ *
+ * Specificity note: the root also carries the app's global `.pc-titlebar` class, which sets its own
+ * height, padding, gap and background. That is a single-class rule from another stylesheet whose
+ * load order we do not control, so every root declaration here is written as `.bar.bar` to win
+ * outright instead of by luck.
+ *
+ * Colour note: the export paints the bar one step darker than the window, which is what
+ * --pc-bg-chrome is; the chips sit on --pc-bg-panel above it. `AppTitleBar` and `NavRail` still use
+ * --pc-bg-window for the same surface because they belong to the three older screens and their own
+ * export has not been re-read against this step.
+ *
+ * Window controls: deliberately absent. See ShellTitleBar.tsx.
+ */
+
+.bar.bar {
+  box-sizing: border-box;
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: var(--pc-space-8);
+  width: 100%;
+  height: calc(var(--pc-space-32) + var(--pc-space-4));
+  padding-block: 0;
+  padding-inline-start: var(--pc-space-12);
+  background: var(--pc-bg-chrome);
+  border-bottom: var(--pc-border-width) solid var(--pc-border-subtle);
+  color: var(--pc-text-2);
+  -webkit-app-region: drag;
+  -webkit-user-select: none;
+  user-select: none;
+}
+
+/*
+ * The whole bar is a drag region; anything meant to be clicked has to opt back out or the click is
+ * swallowed by the window move.
+ */
+.bar [data-no-drag] {
+  -webkit-app-region: no-drag;
+}
+
+/* ---------- identity mark ---------- */
+
+.logo {
+  position: relative;
+  flex: none;
+  width: calc(var(--pc-space-16) - var(--pc-border-width));
+  height: calc(var(--pc-space-16) - var(--pc-border-width));
+  border-radius: var(--pc-radius-sm);
+  /* Chrome accent, not an identity colour — the mark stands for the app, not for a person. */
+  background: var(--pc-accent);
+}
+
+.pip {
+  position: absolute;
+  width: var(--pc-space-4);
+  height: var(--pc-space-4);
+  border-radius: var(--pc-radius-xs);
+  background: var(--pc-accent-on);
+}
+
+.pip[data-pip='a'] {
+  inset-inline-start: var(--pc-space-2);
+  inset-block-start: var(--pc-space-2);
+}
+
+.pip[data-pip='b'] {
+  inset-inline-end: var(--pc-space-2);
+  inset-block-start: var(--pc-space-2);
+  opacity: 0.5;
+}
+
+.pip[data-pip='c'] {
+  inset-inline-start: var(--pc-space-2);
+  inset-block-end: var(--pc-space-2);
+  opacity: 0.5;
+}
+
+/* ---------- project switcher ---------- */
+
+.project {
+  appearance: none;
+  -webkit-appearance: none;
+  box-sizing: border-box;
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  gap: var(--pc-space-6);
+  height: calc(var(--pc-space-20) + var(--pc-space-4));
+  margin: 0;
+  padding-inline: var(--pc-space-8);
+  background: var(--pc-bg-panel);
+  border: var(--pc-border-width) solid var(--pc-border-subtle);
+  border-radius: var(--pc-radius-sm);
+  color: var(--pc-text-1);
+  cursor: pointer;
+  white-space: nowrap;
+  transition: background var(--pc-duration-fast) var(--pc-ease);
+}
+
+.project:hover {
+  background: var(--pc-bg-raised);
+}
+
+.project:focus-visible {
+  outline: none;
+  box-shadow: var(--pc-focus-ring);
+}
+
+.projectName {
+  font: var(--pc-type-label);
+  color: var(--pc-text-1);
+}
+
+.caret {
+  width: calc(var(--pc-icon-size) - var(--pc-space-4));
+  height: calc(var(--pc-icon-size) - var(--pc-space-4));
+  color: var(--pc-text-4);
+}
+
+/* ---------- search ---------- */
+
+/*
+ * `.search` lands on the SearchField frame. Doubled so it beats both the component's own
+ * single-class rules and its `[data-dense]` rules regardless of stylesheet order.
+ *
+ * `margin-inline: auto` centres the field in what is left between the switcher and the strip
+ * reserved for the window buttons — the same optical centre the export draws.
+ */
+.bar .search.search {
+  flex: 0 1 auto;
+  width: auto;
+  min-width: calc(var(--pc-space-32) * 10);
+  height: calc(var(--pc-space-20) + var(--pc-space-4));
+  margin-inline: auto;
+  padding-inline: calc(var(--pc-space-8) + var(--pc-space-2));
+  gap: var(--pc-space-8);
+  background: var(--pc-bg-panel);
+  border-color: var(--pc-border-subtle);
+  -webkit-app-region: no-drag;
+}
+
+.bar .search.search input {
+  font: var(--pc-type-note);
+}
+
+.bar .search.search input::placeholder {
+  color: var(--pc-text-3);
+}

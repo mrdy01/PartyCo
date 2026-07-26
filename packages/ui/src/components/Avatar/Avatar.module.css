@@ -1,0 +1,140 @@
+/*
+ * Avatar — identity role #1 (fill) plus the status dot (status role #1).
+ *
+ * Geometry: every size is derived from --pc-avatar-size so both densities shrink together.
+ * The design draws 14 / 20 / 24 px boxes; the token scale gives 15 / 19 / 23 px in comfortable
+ * and 13 / 17 / 21 px in compact. There is no per-size avatar token to hit the design exactly.
+ * The initials size is a ratio of the box for the same reason — the type ramp has no
+ * semibold sans step below 12px.
+ */
+
+.avatar {
+  --avatar-box: var(--pc-avatar-size);
+  --avatar-corner: var(--pc-avatar-radius);
+  --avatar-text: calc(var(--avatar-box) * 0.54);
+
+  position: relative;
+  box-sizing: border-box;
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: var(--avatar-box);
+  height: var(--avatar-box);
+  padding: 0;
+  border: 0;
+  border-radius: var(--avatar-corner);
+  font-family: var(--pc-font-sans);
+  font-weight: 600;
+  font-size: var(--avatar-text);
+  line-height: 1;
+  text-align: center;
+  text-transform: uppercase;
+  overflow: visible;
+  -webkit-user-select: none;
+  user-select: none;
+}
+
+.xs {
+  --avatar-box: var(--pc-avatar-size);
+  --avatar-corner: var(--pc-avatar-radius);
+  --avatar-text: calc(var(--avatar-box) * 0.54);
+}
+
+.sm {
+  --avatar-box: calc(var(--pc-avatar-size) + var(--pc-space-4));
+  --avatar-corner: var(--pc-radius-sm);
+  --avatar-text: calc(var(--avatar-box) * 0.47);
+}
+
+.md {
+  --avatar-box: calc(var(--pc-avatar-size) + var(--pc-space-8));
+  --avatar-corner: var(--pc-radius-md);
+  --avatar-text: calc(var(--avatar-box) * 0.44);
+}
+
+/* Overlapping avatars need a surface-coloured ring to stay separate. */
+.ring {
+  box-shadow: 0 0 0 var(--pc-space-2) var(--pc-bg-panel);
+}
+
+.button {
+  cursor: pointer;
+  -webkit-appearance: none;
+  appearance: none;
+}
+
+.button:focus-visible {
+  outline: none;
+  box-shadow: var(--pc-focus-ring);
+}
+
+.initials {
+  display: block;
+  /* The glyphs are optically small inside a 15px box; nudge them off the descender line. */
+  transform: translateY(-0.02em);
+}
+
+/*
+ * Status dot. Colour arrives as inline `color` from memberStatusColor(), so the dot itself only
+ * ever says `currentColor` — the status palette keeps its three allowed roles (dot, pill, text).
+ */
+.dot {
+  position: absolute;
+  right: calc(-1 * var(--pc-space-2));
+  bottom: calc(-1 * var(--pc-space-2));
+  box-sizing: border-box;
+  width: calc(var(--avatar-box) / 3);
+  height: calc(var(--avatar-box) / 3);
+  border-radius: 50%;
+  background: currentColor;
+  box-shadow: 0 0 0 var(--pc-space-2) var(--pc-bg-panel);
+}
+
+.dotHollow {
+  background: transparent;
+  border: var(--pc-border-width) solid currentColor;
+}
+
+.dotLive {
+  animation: global(pc-pulse) 1.4s ease-in-out infinite;
+}
+
+/*
+ * Overflow chip: "+2". Neutral fill — it carries no identity. Geometry comes from the same
+ * .xs / .sm / .md size class the sibling avatars use, so the chip always matches them.
+ */
+.count {
+  box-sizing: border-box;
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: var(--avatar-box);
+  height: var(--avatar-box);
+  padding: 0;
+  border: 0;
+  border-radius: var(--avatar-corner);
+  background: var(--pc-bg-input);
+  color: var(--pc-text-2);
+  font-family: var(--pc-font-mono);
+  font-weight: 500;
+  font-size: var(--avatar-text);
+  line-height: 1;
+  white-space: nowrap;
+}
+
+.countButton {
+  cursor: pointer;
+  -webkit-appearance: none;
+  appearance: none;
+}
+
+.countButton:hover {
+  color: var(--pc-text-1);
+}
+
+.countButton:focus-visible {
+  outline: none;
+  box-shadow: var(--pc-focus-ring);
+}

@@ -1,0 +1,127 @@
+/*
+ * The sign-in window. Screen 01 of the shell export, lines 408–443.
+ *
+ * One centred column and nothing else: no panel frame, no card, no second surface. The window's own
+ * background is the background of the screen, which is why the column carries no fill of its own.
+ */
+
+.screen {
+  box-sizing: border-box;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  /* Fills whichever way the host gives it room: a flex child of the window, or a plain block. */
+  flex: 1 1 auto;
+  min-width: 0;
+  min-height: 100%;
+  padding: var(--pc-space-24);
+  background: var(--pc-bg-window);
+}
+
+/* 404px — arithmetic on the spacing scale, so no raw width appears here (CONVENTIONS §1). */
+.column {
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  gap: calc(var(--pc-space-20) + var(--pc-space-2));
+  width: min(100%, calc(var(--pc-space-32) * 12 + var(--pc-space-20)));
+  min-width: 0;
+}
+
+/* ---------- mark and name ---------- */
+
+.brand {
+  display: flex;
+  align-items: center;
+  gap: var(--pc-space-12);
+  min-width: 0;
+}
+
+/*
+ * 30px, the same three squares as the title bar's 15px mark and the panel's 24px one. Accent, never
+ * an identity colour: the mark stands for the product, and identity colour means "a person owns
+ * this" everywhere else in the app (CONVENTIONS §5).
+ */
+.mark {
+  position: relative;
+  flex: none;
+  width: calc(var(--pc-space-24) + var(--pc-space-6));
+  height: calc(var(--pc-space-24) + var(--pc-space-6));
+  border-radius: var(--pc-radius-lg);
+  background: var(--pc-accent);
+}
+
+.pip {
+  position: absolute;
+  width: var(--pc-space-8);
+  height: var(--pc-space-8);
+  border-radius: var(--pc-radius-xs);
+  background: var(--pc-accent-on);
+}
+
+.pip[data-pip='a'] {
+  inset-inline-start: var(--pc-space-6);
+  inset-block-start: var(--pc-space-6);
+}
+
+.pip[data-pip='b'] {
+  inset-inline-end: var(--pc-space-6);
+  inset-block-start: var(--pc-space-6);
+  opacity: 0.45;
+}
+
+.pip[data-pip='c'] {
+  inset-inline-start: var(--pc-space-6);
+  inset-block-end: var(--pc-space-6);
+  opacity: 0.45;
+}
+
+.wordmark {
+  display: flex;
+  flex-direction: column;
+  gap: var(--pc-space-4);
+  min-width: 0;
+}
+
+.productName {
+  margin: 0;
+  font: var(--pc-type-title);
+  letter-spacing: var(--pc-tracking-title);
+  color: var(--pc-text-heading);
+}
+
+.tagline {
+  margin: 0;
+  font: var(--pc-type-body);
+  color: var(--pc-text-2);
+}
+
+/* ---------- keychain promise ---------- */
+
+/*
+ * A rule and a paragraph. The shield carries the success colour as a glyph — status colour in one
+ * of its four allowed roles, never as a fill behind the text.
+ */
+.guarantee {
+  display: flex;
+  align-items: flex-start;
+  gap: calc(var(--pc-space-8) + var(--pc-border-width));
+  padding-top: var(--pc-space-12);
+  border-top: var(--pc-border-width) solid var(--pc-border-subtle);
+  min-width: 0;
+}
+
+.guaranteeGlyph {
+  flex: none;
+  width: calc(var(--pc-icon-size) - var(--pc-space-2));
+  height: calc(var(--pc-icon-size) - var(--pc-space-2));
+  margin-block-start: var(--pc-space-4);
+  color: var(--pc-status-success);
+}
+
+.guaranteeText {
+  margin: 0;
+  min-width: 0;
+  font: var(--pc-type-note);
+  color: var(--pc-text-2);
+}

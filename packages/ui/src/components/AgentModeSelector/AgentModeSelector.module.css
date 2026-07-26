@@ -1,0 +1,453 @@
+/*
+ * Agent mode selector. Mode colour: plan = running (cool, muted), accept edits = neutral,
+ * auto = warning + motion. Mode edges are 4px wide on purpose — the 2px left edge belongs to
+ * identity (spec §01), so a mode edge must never be mistaken for an ownership edge.
+ */
+
+.wrap {
+  display: inline-flex;
+  flex-direction: column;
+  gap: var(--pc-space-6);
+  align-items: flex-start;
+}
+
+/* ---------- shared ---------- */
+
+.icon {
+  width: var(--pc-space-12);
+  height: var(--pc-space-12);
+  flex: none;
+}
+
+.dot {
+  width: var(--pc-space-4);
+  height: var(--pc-space-4);
+  flex: none;
+  border-radius: 50%;
+  background: var(--pc-status-warning);
+  animation: global(pc-pulse) 1.6s ease-in-out infinite;
+}
+
+/* Same indicator, but sitting on top of the amber fill of the active segment. */
+.dotOnFill {
+  width: var(--pc-space-4);
+  height: var(--pc-space-4);
+  flex: none;
+  border-radius: 50%;
+  background: var(--pc-bg-window);
+  animation: global(pc-pulse) 1.6s ease-in-out infinite;
+}
+
+.hint {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--pc-space-6);
+  font: var(--pc-type-status);
+  color: var(--pc-text-3);
+}
+
+.keys {
+  display: inline-flex;
+  gap: var(--pc-space-2);
+}
+
+.kbd {
+  font: var(--pc-type-eyebrow);
+  color: var(--pc-text-3);
+  background: var(--pc-bg-input);
+  border: var(--pc-border-width) solid var(--pc-border);
+  border-radius: var(--pc-radius-xs);
+  padding: var(--pc-space-2) var(--pc-space-4);
+}
+
+/* ---------- variant A · segmented ---------- */
+
+.segmented {
+  display: inline-flex;
+  align-items: stretch;
+  gap: var(--pc-space-2);
+  width: fit-content;
+  padding: var(--pc-space-2);
+  background: var(--pc-bg-window);
+  border: var(--pc-border-width) solid var(--pc-border);
+  border-radius: var(--pc-radius-sm);
+}
+
+.segmented[data-active-mode='plan'] {
+  border-color: color-mix(in srgb, var(--pc-status-running) 40%, var(--pc-border));
+}
+
+.segmented[data-active-mode='auto'] {
+  border-color: color-mix(in srgb, var(--pc-status-warning) 45%, var(--pc-border));
+}
+
+.segment {
+  appearance: none;
+  -webkit-appearance: none;
+  margin: 0;
+  border: 0;
+  background: none;
+  display: inline-flex;
+  align-items: center;
+  gap: var(--pc-space-4);
+  height: calc(var(--pc-row-height) - var(--pc-space-6));
+  padding: 0 var(--pc-space-8);
+  border-radius: var(--pc-radius-xs);
+  font: var(--pc-type-meta);
+  color: var(--pc-text-3);
+  white-space: nowrap;
+  cursor: pointer;
+  transition:
+    background 90ms linear,
+    color 90ms linear;
+}
+
+.segment:hover:not(:disabled):not([data-active]) {
+  color: var(--pc-text-2);
+  background: var(--pc-bg-raised);
+}
+
+.segment:active:not(:disabled) {
+  background: var(--pc-bg-input);
+}
+
+.segment:focus-visible {
+  outline: none;
+  box-shadow: var(--pc-focus-ring);
+}
+
+.segment:disabled {
+  color: var(--pc-text-4);
+  cursor: not-allowed;
+}
+
+.segment[data-active] {
+  font-weight: 600;
+  color: var(--pc-text-1);
+  background: var(--pc-border);
+}
+
+.segment[data-active][data-mode='plan'] {
+  color: var(--pc-status-running);
+  background: color-mix(in srgb, var(--pc-status-running) 16%, transparent);
+}
+
+.segment[data-active][data-mode='auto'] {
+  color: var(--pc-bg-window);
+  background: var(--pc-status-warning);
+}
+
+/* ---------- variant B · compact ---------- */
+
+.compactWrap {
+  position: relative;
+  display: inline-flex;
+}
+
+.compact {
+  appearance: none;
+  -webkit-appearance: none;
+  margin: 0;
+  background: var(--pc-bg-window);
+  display: inline-flex;
+  align-items: center;
+  gap: var(--pc-space-8);
+  height: var(--pc-row-height);
+  padding: 0 var(--pc-space-6) 0 0;
+  border: var(--pc-border-width) solid var(--pc-border);
+  border-left: var(--pc-space-4) solid var(--pc-text-3);
+  border-radius: 0 var(--pc-radius-sm) var(--pc-radius-sm) 0;
+  cursor: pointer;
+  transition: background 90ms linear;
+}
+
+.compact:hover:not(:disabled) {
+  background: var(--pc-bg-raised);
+}
+
+.compact:focus-visible {
+  outline: none;
+  box-shadow: var(--pc-focus-ring);
+}
+
+.compact:disabled {
+  cursor: not-allowed;
+  opacity: 0.6;
+}
+
+.compact[data-mode='plan'] {
+  border-left-color: var(--pc-status-running);
+}
+
+.compact[data-mode='auto'] {
+  background: color-mix(in srgb, var(--pc-status-warning) 10%, transparent);
+  border-color: color-mix(in srgb, var(--pc-status-warning) 50%, var(--pc-border));
+  border-left-color: var(--pc-status-warning);
+}
+
+.compact[data-mode='auto']:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--pc-status-warning) 16%, transparent);
+}
+
+.compactName {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--pc-space-4);
+  padding-left: var(--pc-space-8);
+}
+
+.compactNameText {
+  font: var(--pc-type-eyebrow);
+  letter-spacing: var(--pc-tracking-eyebrow);
+  text-transform: uppercase;
+  color: var(--pc-text-1);
+}
+
+.compact[data-mode='plan'] .compactNameText {
+  color: var(--pc-status-running);
+}
+
+.compact[data-mode='auto'] .compactNameText {
+  color: var(--pc-status-warning);
+  font-weight: 600;
+}
+
+.compactScope {
+  font: var(--pc-type-status);
+  color: var(--pc-text-3);
+  white-space: nowrap;
+}
+
+.compact[data-mode='auto'] .compactScope {
+  color: color-mix(in srgb, var(--pc-status-warning) 55%, var(--pc-text-1));
+}
+
+.chevron {
+  font: var(--pc-type-eyebrow);
+  color: var(--pc-text-4);
+  line-height: 1;
+}
+
+.compact[data-mode='auto'] .chevron {
+  color: color-mix(in srgb, var(--pc-status-warning) 70%, var(--pc-text-3));
+}
+
+.menu {
+  position: absolute;
+  top: calc(100% + var(--pc-space-4));
+  left: 0;
+  z-index: 20;
+  min-width: 100%;
+  display: flex;
+  flex-direction: column;
+  padding: var(--pc-space-4);
+  background: var(--pc-bg-raised);
+  border: var(--pc-border-width) solid var(--pc-border);
+  border-radius: var(--pc-radius-md);
+}
+
+.menuItem {
+  appearance: none;
+  -webkit-appearance: none;
+  margin: 0;
+  border: 0;
+  background: none;
+  display: flex;
+  align-items: center;
+  gap: var(--pc-row-gap);
+  justify-content: space-between;
+  height: var(--pc-row-height);
+  padding: 0 var(--pc-row-padding-x);
+  border-left: var(--pc-space-4) solid transparent;
+  border-radius: var(--pc-radius-xs);
+  cursor: pointer;
+  text-align: left;
+  white-space: nowrap;
+}
+
+.menuItem:hover:not(:disabled) {
+  background: var(--pc-bg-input);
+}
+
+.menuItem:focus-visible {
+  outline: none;
+  box-shadow: var(--pc-focus-ring);
+}
+
+.menuItem:disabled {
+  cursor: not-allowed;
+  opacity: 0.5;
+}
+
+.menuItem[data-active] {
+  background: var(--pc-selected-row-bg);
+}
+
+.menuItem[data-mode='plan'][data-active] {
+  border-left-color: var(--pc-status-running);
+}
+
+.menuItem[data-mode='accept-edits'][data-active] {
+  border-left-color: var(--pc-text-3);
+}
+
+.menuItem[data-mode='auto'][data-active] {
+  border-left-color: var(--pc-status-warning);
+}
+
+.menuName {
+  font: var(--pc-type-ui);
+  color: var(--pc-text-1);
+}
+
+.menuItem[data-mode='auto'] .menuName {
+  color: var(--pc-status-warning);
+}
+
+.menuAllowance {
+  font: var(--pc-type-status);
+  color: var(--pc-text-3);
+}
+
+/* ---------- variant C · allowance bars ---------- */
+
+.bars {
+  display: flex;
+  flex-direction: column;
+  gap: var(--pc-space-2);
+  width: fit-content;
+  /* design: 238px — expressed off the spacing scale so nothing raw sneaks in */
+  min-width: calc(var(--pc-space-32) * 7 + var(--pc-space-16));
+}
+
+.bar {
+  appearance: none;
+  -webkit-appearance: none;
+  margin: 0;
+  border: 0;
+  background: var(--pc-bg-window);
+  display: flex;
+  align-items: center;
+  gap: var(--pc-row-gap);
+  height: calc(var(--pc-row-height) - var(--pc-space-8));
+  padding: 0 var(--pc-space-8);
+  border-left: var(--pc-space-4) solid var(--pc-border);
+  border-radius: var(--pc-radius-sm);
+  cursor: pointer;
+  transition:
+    height 120ms linear,
+    background 120ms linear;
+}
+
+.bar:hover:not(:disabled):not([data-active]) {
+  background: var(--pc-bg-raised);
+}
+
+.bar:focus-visible {
+  outline: none;
+  box-shadow: var(--pc-focus-ring);
+}
+
+.bar:disabled {
+  cursor: not-allowed;
+  opacity: 0.55;
+}
+
+.bar[data-active] {
+  height: calc(var(--pc-row-height) - var(--pc-space-2));
+}
+
+.bar[data-active][data-mode='plan'] {
+  background: color-mix(in srgb, var(--pc-status-running) 11%, transparent);
+  border-left-color: var(--pc-status-running);
+}
+
+.bar[data-active][data-mode='accept-edits'] {
+  background: var(--pc-bg-raised);
+  border-left-color: var(--pc-text-2);
+}
+
+.bar[data-active][data-mode='auto'] {
+  background: color-mix(in srgb, var(--pc-status-warning) 11%, transparent);
+  border-left-color: var(--pc-status-warning);
+}
+
+.barName {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--pc-space-4);
+  /* design: 38px label column */
+  width: calc(var(--pc-space-32) + var(--pc-space-6));
+  flex: none;
+}
+
+.barNameText {
+  font: var(--pc-type-eyebrow);
+  letter-spacing: var(--pc-tracking-eyebrow);
+  text-transform: uppercase;
+  color: var(--pc-text-4);
+}
+
+.bar[data-active] .barNameText {
+  font-weight: 600;
+  color: var(--pc-text-1);
+}
+
+.bar[data-active][data-mode='plan'] .barNameText {
+  color: var(--pc-status-running);
+}
+
+.bar[data-active][data-mode='auto'] .barNameText {
+  color: var(--pc-status-warning);
+}
+
+/* The track is the "how much authority" reading: thin and grey when idle, thick and moving when
+   the mode is active. Movement means autonomy. */
+.track {
+  flex: 1;
+  height: var(--pc-space-2);
+  border-radius: var(--pc-radius-xs);
+  background: var(--pc-border-subtle);
+}
+
+.bar[data-active] .track {
+  height: var(--pc-space-4);
+}
+
+.bar[data-active][data-mode='plan'] .track {
+  background: color-mix(in srgb, var(--pc-status-running) 50%, transparent);
+}
+
+.bar[data-active][data-mode='accept-edits'] .track {
+  background: var(--pc-border-strong);
+}
+
+.bar[data-active][data-mode='auto'] .track {
+  /* 14px period matches the pc-march keyframe exactly, so the hatch never jumps. */
+  background: repeating-linear-gradient(
+    90deg,
+    var(--pc-status-warning) 0 var(--pc-space-6),
+    transparent var(--pc-space-6) calc(var(--pc-space-6) + var(--pc-space-8))
+  );
+  animation: global(pc-march) 1s linear infinite;
+}
+
+.barAllowance {
+  font: var(--pc-type-eyebrow);
+  color: var(--pc-text-4);
+  flex: none;
+  white-space: nowrap;
+}
+
+.bar[data-active] .barAllowance {
+  color: var(--pc-text-2);
+}
+
+.bar[data-active][data-mode='plan'] .barAllowance {
+  color: var(--pc-status-running);
+}
+
+.bar[data-active][data-mode='auto'] .barAllowance {
+  color: var(--pc-status-warning);
+  font-weight: 600;
+}

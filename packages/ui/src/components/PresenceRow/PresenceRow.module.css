@@ -1,0 +1,148 @@
+/*
+ * PresenceRow — one member, their live status and the model they are driving.
+ *
+ * The design row is 32px tall against a 28px --pc-row-height, so the height is expressed as
+ * row-height + one 4px step: the row still shrinks with compact density instead of freezing.
+ * Both text columns are fixed-width (104px = 3 × 32 + 8) so statuses line up across rows, and
+ * both may shrink below that when the panel is narrow — nothing is ever dropped, only truncated.
+ */
+
+.row {
+  --presence-col: calc(var(--pc-space-32) * 3 + var(--pc-space-8));
+
+  box-sizing: border-box;
+  display: flex;
+  align-items: center;
+  gap: var(--pc-row-gap);
+  width: 100%;
+  min-width: 0;
+  height: calc(var(--pc-row-height) + var(--pc-space-4));
+  padding: 0 var(--pc-row-padding-x);
+  border: 0;
+  border-radius: var(--pc-radius-sm);
+  background: transparent;
+  color: var(--pc-text-1);
+  font: var(--pc-type-ui);
+  text-align: left;
+}
+
+.interactive {
+  cursor: pointer;
+  -webkit-appearance: none;
+  appearance: none;
+}
+
+.interactive:hover {
+  background: var(--pc-bg-raised);
+}
+
+.interactive:focus-visible {
+  outline: none;
+  box-shadow: var(--pc-focus-ring);
+}
+
+.selected {
+  background: var(--pc-bg-raised);
+}
+
+/* Offline dims the whole row uniformly — it never removes a column. */
+.offline {
+  opacity: 0.55;
+}
+
+.name {
+  flex: 0 1 auto;
+  width: var(--presence-col);
+  min-width: 0;
+  font: var(--pc-type-ui);
+  color: var(--pc-text-1);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.self {
+  margin-left: var(--pc-space-4);
+  color: var(--pc-text-3);
+}
+
+/*
+ * Status: dot + text, both in the status colour (roles #1 and #3). Never a fill, never an edge.
+ * The dot is sized in `em` so it tracks the status type step through both densities.
+ */
+.status {
+  flex: 0 1 auto;
+  display: inline-flex;
+  align-items: center;
+  gap: var(--pc-space-4);
+  width: var(--presence-col);
+  min-width: 0;
+  font: var(--pc-type-status);
+  font-family: var(--pc-font-sans);
+  white-space: nowrap;
+  overflow: hidden;
+}
+
+.statusText {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.dot {
+  box-sizing: border-box;
+  flex: none;
+  width: 0.5em;
+  height: 0.5em;
+  border-radius: 50%;
+  background: currentColor;
+}
+
+.dotHollow {
+  background: transparent;
+  border: var(--pc-border-width) solid currentColor;
+}
+
+.dotLive {
+  animation: global(pc-pulse) 1.4s ease-in-out infinite;
+}
+
+.model {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  gap: var(--pc-space-4);
+  margin-left: auto;
+}
+
+/* Provider glyph — a neutral chip, one letter, mono. */
+.glyph {
+  box-sizing: border-box;
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: var(--pc-avatar-size);
+  height: var(--pc-avatar-size);
+  border-radius: var(--pc-radius-xs);
+  background: var(--pc-border);
+  color: var(--pc-text-1);
+  font-family: var(--pc-font-mono);
+  font-weight: 600;
+  font-size: calc(var(--pc-avatar-size) * 0.5);
+  line-height: 1;
+  text-transform: uppercase;
+}
+
+.modelName {
+  font: var(--pc-type-status);
+  color: var(--pc-text-3);
+  white-space: nowrap;
+}
+
+.modelEmpty {
+  flex: none;
+  margin-left: auto;
+  font: var(--pc-type-status);
+  color: var(--pc-text-4);
+}

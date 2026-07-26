@@ -1,0 +1,81 @@
+.root {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--pc-space-12);
+  padding: var(--pc-space-24) var(--pc-space-20);
+  text-align: center;
+}
+
+/*
+ * The single danger-coloured element. Status colour stays on the glyph, the pill and the text — it
+ * never becomes a fill or a left edge, those roles belong to identity.
+ */
+.glyph {
+  width: calc(var(--pc-icon-size) + var(--pc-space-8));
+  height: calc(var(--pc-icon-size) + var(--pc-space-8));
+  color: var(--pc-status-danger);
+}
+
+.title {
+  margin: 0;
+  font: var(--pc-type-ui);
+  color: var(--pc-text-1);
+}
+
+.description {
+  margin: 0;
+  font: var(--pc-type-meta);
+  color: var(--pc-text-3);
+}
+
+.actions {
+  display: flex;
+  align-items: center;
+  gap: var(--pc-space-6);
+  flex-wrap: wrap;
+  justify-content: center;
+}
+
+.meta {
+  font: var(--pc-type-status);
+  color: var(--pc-text-4);
+}
+
+.details {
+  align-self: stretch;
+  text-align: left;
+}
+
+/* The native disclosure marker is kept — it is the affordance — but pulled inside the box so the
+   focus ring wraps it instead of the marker hanging outside the panel. */
+.summary {
+  list-style-position: inside;
+  width: fit-content;
+  font: var(--pc-type-meta);
+  color: var(--pc-text-2);
+  cursor: pointer;
+  border-radius: var(--pc-radius-xs);
+  padding: var(--pc-space-2) var(--pc-space-4);
+}
+
+.summary:hover {
+  color: var(--pc-text-1);
+}
+
+.summary:focus-visible {
+  box-shadow: var(--pc-focus-ring);
+}
+
+.detailBody {
+  margin: var(--pc-space-6) 0 0;
+  padding: var(--pc-space-8);
+  background: var(--pc-bg-raised);
+  border: var(--pc-border-width) solid var(--pc-border-subtle);
+  border-radius: var(--pc-radius-sm);
+  font: var(--pc-type-code);
+  color: var(--pc-text-2);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  overflow-x: auto;
+}

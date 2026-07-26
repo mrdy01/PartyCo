@@ -1,0 +1,243 @@
+/*
+ * First run — two cards, 520px. Screen 02 of the shell export, lines 477–523.
+ *
+ * This is the one surface where the reading type is the point: a 22px line, a 14.5px paragraph and
+ * two 42px targets, because the person is being asked one question and has nothing else on screen.
+ * Every size is a token or arithmetic on the token scale (CONVENTIONS §1).
+ */
+
+.screen {
+  box-sizing: border-box;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  /* Fills whichever way the host gives it room: a flex child of the window, or a plain block. */
+  flex: 1 1 auto;
+  min-width: 0;
+  min-height: 100%;
+  padding: var(--pc-space-24);
+  background: var(--pc-bg-window);
+}
+
+/* 520px = 32 × 16 + 8. */
+.panel {
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  gap: var(--pc-space-20);
+  width: min(100%, calc(var(--pc-space-32) * 16 + var(--pc-space-8)));
+  min-width: 0;
+  padding: calc(var(--pc-space-24) + var(--pc-space-2)) calc(var(--pc-space-24) + var(--pc-space-4));
+  background: var(--pc-bg-panel);
+  border: var(--pc-border-width) solid var(--pc-border-subtle);
+  border-radius: var(--pc-radius-lg);
+  /* The door is a comfortable surface — same one-step-up field height as AuthPanel. */
+  --pc-field-height: calc(var(--pc-row-height) + var(--pc-space-8));
+}
+
+/* ---------- «Первый запуск · Шаг N из 2» ---------- */
+
+.head {
+  display: flex;
+  align-items: center;
+  gap: var(--pc-space-8);
+  min-width: 0;
+}
+
+.heading {
+  font: var(--pc-type-label);
+  color: var(--pc-text-2);
+  white-space: nowrap;
+}
+
+.progress {
+  margin-inline-start: auto;
+  font: var(--pc-type-note);
+  color: var(--pc-text-3);
+  white-space: nowrap;
+}
+
+.bars {
+  display: flex;
+  flex: none;
+  gap: var(--pc-space-4);
+}
+
+/*
+ * 18 × 3. Chrome accent for the step reached, the input well for the one still ahead — progress is
+ * not a status, so no status colour comes near it.
+ */
+.bar {
+  width: calc(var(--pc-space-16) + var(--pc-space-2));
+  height: calc(var(--pc-space-2) + var(--pc-border-width));
+  border-radius: var(--pc-radius-xs);
+  background: var(--pc-bg-input);
+}
+
+.bar[data-done='true'] {
+  background: var(--pc-accent);
+}
+
+/* ---------- the question ---------- */
+
+.intro {
+  display: flex;
+  flex-direction: column;
+  gap: calc(var(--pc-space-8) + var(--pc-space-2));
+  min-width: 0;
+}
+
+.title {
+  margin: 0;
+  font: var(--pc-type-display);
+  letter-spacing: var(--pc-tracking-display);
+  color: var(--pc-text-heading);
+  overflow-wrap: anywhere;
+}
+
+/* The product's reading size — the same paragraph tone the conversation column uses. */
+.body {
+  margin: 0;
+  font: var(--pc-type-read);
+  color: var(--pc-text-read);
+  min-width: 0;
+}
+
+.footnote {
+  margin: 0;
+  font: var(--pc-type-note);
+  color: var(--pc-text-3);
+  min-width: 0;
+}
+
+/* ---------- provider row and key ---------- */
+
+.form {
+  display: flex;
+  flex-direction: column;
+  gap: var(--pc-space-20);
+  min-width: 0;
+}
+
+.picker {
+  display: flex;
+  flex-direction: column;
+  gap: calc(var(--pc-space-8) + var(--pc-space-2));
+  min-width: 0;
+}
+
+/*
+ * Hands the comfortable height to Input through the density token it already reads. Scoped to the
+ * field alone — the provider chips above it keep the row height of the rest of the app.
+ */
+.keyField {
+  --pc-row-height: var(--pc-field-height);
+}
+
+.providers {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--pc-space-6);
+  min-width: 0;
+}
+
+/* The chip at the size this screen draws it: one step taller, label at the control size. */
+.provider[data-labelled='true'] {
+  min-height: calc(var(--pc-row-height) + var(--pc-space-2));
+  padding-inline-end: calc(var(--pc-space-8) + var(--pc-space-2));
+  font: var(--pc-type-label);
+}
+
+/* ---------- actions ---------- */
+
+.actions {
+  display: flex;
+  flex-direction: column;
+  gap: calc(var(--pc-space-8) + var(--pc-space-2));
+  min-width: 0;
+}
+
+/*
+ * 42px. `size="lg"` is 30 and these are the only things to press on the screen. min-height rather
+ * than height, so the Button's own rule is clamped whatever order the stylesheets land in.
+ */
+.cta {
+  min-height: calc(var(--pc-space-32) + var(--pc-space-8) + var(--pc-space-2));
+}
+
+.skip {
+  align-self: center;
+}
+
+/* ---------- the answer, when it is bad news ---------- */
+
+/*
+ * Status colour as a pill — a low-alpha tint plus the label, the same recipe as `AuthPanel.status`
+ * and `Button.danger`. Never a filled block, never a left edge (CONVENTIONS §5). Empty, it leaves
+ * the flow entirely so the gap does not grow while nothing has gone wrong.
+ */
+.status {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--pc-space-8);
+  min-width: 0;
+  padding: calc(var(--pc-space-8) + var(--pc-space-2)) calc(var(--pc-space-8) + var(--pc-space-4));
+  border-radius: var(--pc-radius-md);
+  background: color-mix(in srgb, var(--pc-status-danger) 9%, transparent);
+}
+
+/*
+ * Same treatment as `AuthPanel.status:empty`, for the same reason: `display: none` takes the live
+ * region out of the accessibility tree, so the message would arrive together with the region that
+ * is supposed to announce it. Out of flow and clipped keeps it mounted and costs no layout.
+ */
+.status:empty {
+  position: absolute;
+  width: var(--pc-border-width);
+  height: var(--pc-border-width);
+  padding: 0;
+  background: none;
+  overflow: hidden;
+  clip-path: inset(50%);
+}
+
+.statusGlyph {
+  flex: none;
+  width: var(--pc-icon-size);
+  height: var(--pc-icon-size);
+  color: var(--pc-status-danger);
+}
+
+.statusText {
+  min-width: 0;
+  font: var(--pc-type-note);
+  color: var(--pc-status-danger);
+  overflow-wrap: anywhere;
+}
+
+/* ---------- where the key goes ---------- */
+
+.guarantee {
+  display: flex;
+  align-items: flex-start;
+  gap: calc(var(--pc-space-8) + var(--pc-border-width));
+  padding-top: calc(var(--pc-space-12) + var(--pc-space-2));
+  border-top: var(--pc-border-width) solid var(--pc-border-subtle);
+  min-width: 0;
+}
+
+/* Success colour on the shield only. The promise is the sentence, not a green box. */
+.guaranteeGlyph {
+  flex: none;
+  width: calc(var(--pc-icon-size) - var(--pc-space-2));
+  height: calc(var(--pc-icon-size) - var(--pc-space-2));
+  margin-block-start: var(--pc-space-2);
+  color: var(--pc-status-success);
+}
+
+.guaranteeText {
+  margin: 0;
+  min-width: 0;
+  font: var(--pc-type-note);
+  color: var(--pc-text-2);
+}

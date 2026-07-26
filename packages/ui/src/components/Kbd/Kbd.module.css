@@ -1,0 +1,40 @@
+/*
+ * Shortcut hint chip. Spec §03 ("подсказка шортката · всегда рядом с действием"):
+ * mono 10px, keycap surface, hairline border with a 2px bottom edge that fakes a keycap, radius 3px.
+ */
+
+.group {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--pc-space-2);
+  flex: none;
+}
+
+.key {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: none;
+  padding: var(--pc-space-2) var(--pc-space-4);
+  /* Nearest step to the design's 500 10px mono. `--pc-type-eyebrow` carries its letter-spacing in a
+     separate token, which we deliberately do not apply here — keycaps are not eyebrows. */
+  font: var(--pc-type-eyebrow);
+  color: var(--pc-text-2);
+  background: var(--pc-keycap-bg);
+  border: var(--pc-border-width) solid var(--pc-border-strong);
+  /* The keycap detail from spec §03: the bottom edge is twice as thick. */
+  border-bottom-width: var(--pc-space-2);
+  border-radius: var(--pc-radius-sm);
+  white-space: nowrap;
+}
+
+/* Muted variant for chips that sit inside an already-busy row (search field, list rows). */
+.muted .key {
+  color: var(--pc-text-3);
+  border-color: var(--pc-border);
+}
+
+.muted.key {
+  color: var(--pc-text-3);
+  border-color: var(--pc-border);
+}

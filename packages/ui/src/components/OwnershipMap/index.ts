@@ -1,0 +1,17 @@
+export {
+  OwnershipMap,
+  packOwnershipLines,
+  OWNERSHIP_MAP_COLOR_BY,
+  OWNERSHIP_MAP_LABELS,
+  OWNERSHIP_AGE_BUCKETS,
+  OWNERSHIP_MODE_NAME,
+  type OwnershipMapProps,
+  type OwnershipMapRow,
+  type OwnershipMapLine,
+  type OwnershipMapColorBy,
+  type OwnershipMapTone,
+  type OwnershipMapError,
+  type OwnershipMapLabels,
+  type OwnershipMapLabelsInput,
+  type OwnershipAgeBucket,
+} from './OwnershipMap.tsx';

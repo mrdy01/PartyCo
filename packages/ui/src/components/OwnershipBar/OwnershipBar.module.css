@@ -1,0 +1,92 @@
+/*
+ * Ownership proportion bar. Design «Владение · 6 границ»: a 6px stacked bar over a wrapped legend.
+ * The bar carries no text of its own — every number is repeated in the legend, so the colours are
+ * a shortcut, never the only channel.
+ */
+
+.root {
+  display: flex;
+  flex-direction: column;
+  gap: var(--pc-space-6);
+  min-width: 0;
+  box-sizing: border-box;
+}
+
+.title {
+  font: var(--pc-type-eyebrow);
+  letter-spacing: var(--pc-tracking-eyebrow);
+  text-transform: uppercase;
+  color: var(--pc-text-3);
+}
+
+.track {
+  display: flex;
+  overflow: hidden;
+  height: var(--pc-space-6);
+  border-radius: var(--pc-radius-sm);
+  background: var(--pc-bg-raised);
+}
+
+.segment {
+  display: block;
+  flex: none;
+  height: 100%;
+  /* width and the identity fill are inline: both come from data, not from the theme. */
+}
+
+.freeSegment {
+  background: var(--pc-bg-input);
+}
+
+.legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--pc-space-4) var(--pc-space-8);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+/*
+ * Fixed-column legend. Opt-in: a wrapped legend is right under a wide bar, but in a narrow rail the
+ * captions must line up in columns or the eye cannot compare the counts.
+ */
+.legend[data-columns='2'] {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.legend[data-columns='3'] {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.legend[data-columns='4'] {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+
+.legend[data-columns] .item {
+  min-width: 0;
+  overflow: hidden;
+}
+
+.item {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--pc-space-4);
+  font: var(--pc-type-status);
+  color: var(--pc-text-2);
+  white-space: nowrap;
+}
+
+.itemFree {
+  color: var(--pc-text-3);
+}
+
+.swatch {
+  flex: none;
+  width: var(--pc-space-8);
+  height: var(--pc-space-8);
+  border-radius: var(--pc-radius-xs);
+}

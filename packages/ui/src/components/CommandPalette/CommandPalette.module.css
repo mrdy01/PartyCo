@@ -1,0 +1,375 @@
+/*
+ * Палитра команд. Геометрия из плотностных токенов: строка = --pc-row-height + 4,
+ * шапка = --pc-row-height + 8, подвал = --pc-row-height + 2, внутренний отступ =
+ * --pc-row-padding-x + 2. Радиус — максимум по спеке (--pc-radius-lg).
+ */
+
+.scrim {
+  position: fixed;
+  inset: 0;
+  z-index: 60;
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  padding: calc(var(--pc-space-32) * 2) var(--pc-space-24) var(--pc-space-32);
+  /* нет токена тени/затемнения — берём оконный фон с прозрачностью */
+  background: color-mix(in srgb, var(--pc-bg-window) 72%, transparent);
+}
+
+.panel {
+  --pc-palette-pad-x: calc(var(--pc-row-padding-x) + var(--pc-space-2));
+  --pc-palette-row-h: calc(var(--pc-row-height) + var(--pc-space-4));
+  --pc-palette-gap: calc(var(--pc-row-gap) + var(--pc-space-2));
+  /* ширина правой колонки; специализации (ModelPicker) её расширяют */
+  --pc-palette-trailing-w: calc(var(--pc-space-32) * 2);
+
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  width: 100%;
+  max-width: calc(var(--pc-space-32) * 20);
+  background: var(--pc-bg-panel);
+  border: var(--pc-border-width) solid var(--pc-border-strong);
+  border-radius: var(--pc-radius-lg);
+  box-shadow:
+    0 var(--pc-space-16) calc(var(--pc-space-32) + var(--pc-space-12))
+      color-mix(in srgb, var(--pc-bg-window) 62%, transparent);
+  overflow: hidden;
+  font-family: var(--pc-font-sans);
+}
+
+.panelInline {
+  max-width: 100%;
+}
+
+/* ── шапка с полем ввода ─────────────────────────────────────────────── */
+
+.header {
+  display: flex;
+  align-items: center;
+  gap: var(--pc-row-gap);
+  flex: none;
+  height: calc(var(--pc-row-height) + var(--pc-space-8));
+  padding: 0 var(--pc-palette-pad-x);
+  border-bottom: var(--pc-border-width) solid var(--pc-border-subtle);
+  color: var(--pc-text-3);
+}
+
+.input {
+  flex: 1 1 auto;
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  appearance: none;
+  background: transparent;
+  font: var(--pc-type-body);
+  color: var(--pc-text-1);
+  caret-color: var(--pc-status-running);
+}
+
+.input::placeholder {
+  color: var(--pc-text-4);
+}
+
+.input:focus {
+  outline: none;
+}
+
+.input:focus-visible {
+  border-radius: var(--pc-radius-xs);
+  box-shadow: var(--pc-focus-ring);
+}
+
+.count {
+  flex: none;
+  margin-left: auto;
+  font: var(--pc-type-status);
+  color: var(--pc-text-4);
+  font-variant-numeric: tabular-nums;
+}
+
+/* ── результаты ──────────────────────────────────────────────────────── */
+
+.results {
+  min-height: 0;
+  max-height: calc(var(--pc-palette-row-h) * 11);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding: var(--pc-space-6) 0 var(--pc-space-4);
+}
+
+.group + .group .groupHead {
+  padding-top: var(--pc-space-8);
+}
+
+.groupHead {
+  display: flex;
+  align-items: center;
+  gap: var(--pc-space-6);
+  padding: var(--pc-space-6) var(--pc-palette-pad-x) var(--pc-space-4);
+}
+
+.badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: none;
+  width: calc(var(--pc-row-height) / 2);
+  height: calc(var(--pc-row-height) / 2);
+  border-radius: var(--pc-radius-xs);
+  background: var(--pc-border);
+  color: var(--pc-text-1);
+  font: var(--pc-type-eyebrow);
+  text-transform: uppercase;
+}
+
+.badgeDashed {
+  background: transparent;
+  border: 1px dashed var(--pc-border-strong);
+  color: var(--pc-text-3);
+}
+
+.groupLabel {
+  font: var(--pc-type-eyebrow);
+  letter-spacing: var(--pc-tracking-eyebrow);
+  color: var(--pc-text-3);
+  text-transform: uppercase;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* ── строка ──────────────────────────────────────────────────────────── */
+
+.row {
+  display: flex;
+  align-items: center;
+  gap: var(--pc-palette-gap);
+  height: var(--pc-palette-row-h);
+  padding: 0 var(--pc-palette-pad-x);
+  border-left: var(--pc-zone-edge-width) solid transparent;
+  color: var(--pc-text-3);
+  cursor: default;
+  user-select: none;
+}
+
+.row:hover {
+  background: var(--pc-bg-raised);
+}
+
+/* выбранная строка: кромка 2px + подложка выделения */
+.rowActive,
+.rowActive:hover {
+  background: var(--pc-selected-row-bg);
+  border-left-color: var(--pc-status-running);
+}
+
+.rowDisabled,
+.rowDisabled:hover {
+  background: none;
+  cursor: not-allowed;
+}
+
+.rowIcon {
+  flex: none;
+  color: var(--pc-text-3);
+}
+
+.rowActive .rowIcon {
+  color: var(--pc-text-2);
+}
+
+.name {
+  flex: none;
+  font: var(--pc-type-path);
+  color: var(--pc-text-2);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.rowActive .name {
+  color: var(--pc-text-1);
+}
+
+.rowDisabled .name {
+  color: var(--pc-text-4);
+}
+
+.description {
+  min-width: 0;
+  font: var(--pc-type-meta);
+  color: var(--pc-text-3);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.rowDisabled .description {
+  color: var(--pc-text-4);
+}
+
+.tags {
+  display: inline-flex;
+  gap: var(--pc-space-2);
+  flex: none;
+}
+
+.tag {
+  padding: var(--pc-space-2) var(--pc-space-4);
+  border-radius: var(--pc-radius-xs);
+  background: var(--pc-bg-raised);
+  font: var(--pc-type-eyebrow);
+  color: var(--pc-text-3);
+}
+
+.rowActive .tag {
+  background: var(--pc-bg-input);
+  color: var(--pc-text-2);
+}
+
+.rowEnd {
+  display: flex;
+  align-items: center;
+  gap: var(--pc-palette-gap);
+  flex: none;
+  margin-left: auto;
+}
+
+.meta {
+  flex: none;
+  font: var(--pc-type-status);
+  color: var(--pc-text-3);
+  font-variant-numeric: tabular-nums;
+}
+
+.trailing {
+  flex: none;
+  min-width: var(--pc-palette-trailing-w);
+  text-align: right;
+  font: var(--pc-type-status);
+  color: var(--pc-text-3);
+  font-variant-numeric: tabular-nums;
+}
+
+.trailingSuccess {
+  color: var(--pc-status-success);
+}
+
+.trailingWarning {
+  color: var(--pc-status-warning);
+}
+
+.trailingDanger {
+  color: var(--pc-status-danger);
+}
+
+.rowDisabled .meta,
+.rowDisabled .trailing,
+.rowDisabled .tag {
+  color: var(--pc-text-4);
+}
+
+/* ── пусто / загрузка / ошибка ───────────────────────────────────────── */
+
+.state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--pc-space-6);
+  padding: var(--pc-space-24) var(--pc-palette-pad-x);
+  text-align: center;
+  color: var(--pc-text-3);
+}
+
+.stateTitle {
+  font: var(--pc-type-ui);
+  color: var(--pc-text-2);
+}
+
+.stateHint {
+  font: var(--pc-type-meta);
+  color: var(--pc-text-4);
+}
+
+.stateError .stateTitle {
+  color: var(--pc-status-danger);
+}
+
+.loadingHead {
+  padding: var(--pc-space-6) var(--pc-palette-pad-x) var(--pc-space-4);
+}
+
+.skeletonRow {
+  display: flex;
+  align-items: center;
+  gap: var(--pc-palette-gap);
+  height: var(--pc-palette-row-h);
+  padding: 0 var(--pc-palette-pad-x);
+  border-left: var(--pc-zone-edge-width) solid transparent;
+}
+
+.skeletonBar {
+  height: var(--pc-space-8);
+  border-radius: var(--pc-radius-xs);
+  background: linear-gradient(
+    90deg,
+    var(--pc-bg-raised) 25%,
+    var(--pc-bg-input) 50%,
+    var(--pc-bg-raised) 75%
+  );
+  background-size: 220% 100%;
+  animation: global(pc-shimmer) 1.4s linear infinite;
+}
+
+.skeletonWide {
+  width: 34%;
+}
+
+.skeletonNarrow {
+  width: 12%;
+  margin-left: auto;
+}
+
+/* ── подвал с подсказками ────────────────────────────────────────────── */
+
+.footer {
+  display: flex;
+  align-items: center;
+  gap: calc(var(--pc-row-gap) + var(--pc-space-6));
+  flex: none;
+  height: calc(var(--pc-row-height) + var(--pc-space-2));
+  padding: 0 var(--pc-palette-pad-x);
+  border-top: var(--pc-border-width) solid var(--pc-border-subtle);
+  background: var(--pc-bg-window);
+}
+
+.hint {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--pc-space-4);
+}
+
+.hintEnd {
+  margin-left: auto;
+}
+
+.keys {
+  display: inline-flex;
+  gap: var(--pc-space-2);
+}
+
+.kbd {
+  padding: var(--pc-space-2) var(--pc-space-4);
+  border: var(--pc-border-width) solid var(--pc-border);
+  border-radius: var(--pc-radius-xs);
+  background: var(--pc-bg-input);
+  font: var(--pc-type-eyebrow);
+  color: var(--pc-text-3);
+}
+
+.hintLabel {
+  font: var(--pc-type-meta);
+  color: var(--pc-text-4);
+}

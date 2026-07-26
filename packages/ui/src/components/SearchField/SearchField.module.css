@@ -1,0 +1,98 @@
+/*
+ * Search field. Design §05 sits it on the window background rather than the input fill — it reads as
+ * a recessed slot in the panel, with the shortcut that focuses it pinned to the trailing edge.
+ */
+
+.frame {
+  display: flex;
+  align-items: center;
+  gap: var(--pc-row-gap);
+  box-sizing: border-box;
+  width: 100%;
+  height: var(--pc-row-height);
+  padding-inline: var(--pc-row-padding-x);
+  background: var(--pc-bg-window);
+  border: var(--pc-border-width) solid var(--pc-border);
+  border-radius: var(--pc-radius-sm);
+  color: var(--pc-text-1);
+  transition:
+    border-color 120ms ease,
+    background-color 120ms ease;
+}
+
+.frame:hover:not([data-disabled='true']) {
+  border-color: var(--pc-border-strong);
+}
+
+.frame:focus-within {
+  border-color: var(--pc-status-running);
+}
+
+.frame:has(.control:focus-visible) {
+  box-shadow: var(--pc-focus-ring);
+}
+
+.frame[data-disabled='true'] {
+  background: var(--pc-bg-raised);
+  border-color: var(--pc-border-subtle);
+  color: var(--pc-text-4);
+}
+
+.glyph {
+  width: calc(var(--pc-icon-size) - var(--pc-space-2));
+  height: calc(var(--pc-icon-size) - var(--pc-space-2));
+  flex: none;
+  color: var(--pc-text-3);
+}
+
+.control {
+  flex: 1 1 auto;
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font: var(--pc-type-meta);
+  appearance: none;
+}
+
+.control:focus {
+  outline: none;
+}
+
+.control::placeholder {
+  color: var(--pc-text-4);
+  opacity: 1;
+}
+
+.control:disabled {
+  color: var(--pc-text-4);
+  cursor: not-allowed;
+}
+
+/* Chromium draws its own clear button on type=search; the field owns that affordance instead. */
+.control::-webkit-search-cancel-button {
+  display: none;
+}
+
+.shortcut {
+  margin-left: auto;
+}
+
+/*
+ * Chrome scale. The title bar is a fixed 32px slot the window frame owns, so a field inside it
+ * cannot take its height from --pc-row-height — in comfortable density that would leave 2px of
+ * bar around it, and the field would still change size when the user flips density. Geometry here
+ * is therefore built from the spacing scale; type still follows --pc-font-delta.
+ */
+.frame[data-dense='true'] {
+  height: calc(var(--pc-space-20) + var(--pc-space-2));
+  padding-inline: var(--pc-space-8);
+  gap: var(--pc-space-6);
+}
+
+.frame[data-dense='true'] .glyph {
+  width: calc(var(--pc-icon-size) - var(--pc-space-4));
+  height: calc(var(--pc-icon-size) - var(--pc-space-4));
+}

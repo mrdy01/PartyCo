@@ -1,0 +1,10 @@
+/* Inline emphasis only — no block boxes, so these fragments compose inside any line of text. */
+
+.code {
+  font: var(--pc-type-path);
+  color: var(--pc-text-1);
+}
+
+.strong {
+  font-weight: 600;
+}

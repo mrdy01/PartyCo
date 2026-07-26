@@ -1,0 +1,152 @@
+/*
+ * Toast. Raised surface, hairline border, one status accent.
+ *
+ * `--toast-accent` is a component-local alias, not a design token: it lets one rule set style the
+ * icon, the accent pill and the tinted border while the variant chooses which status token flows in.
+ */
+
+.toast {
+  --toast-accent: var(--pc-status-success);
+  display: flex;
+  align-items: center;
+  gap: var(--pc-row-gap);
+  min-height: var(--pc-row-height);
+  padding: var(--pc-space-8) var(--pc-row-padding-x);
+  background: var(--pc-bg-raised);
+  border: var(--pc-border-width) solid color-mix(in srgb, var(--toast-accent) 30%, var(--pc-border));
+  border-radius: var(--pc-radius-sm);
+  box-shadow: 0 var(--pc-space-6) var(--pc-space-16)
+    color-mix(in srgb, var(--pc-bg-window) 55%, transparent);
+}
+
+.toast[data-variant='warning'] {
+  --toast-accent: var(--pc-status-warning);
+}
+
+.toast[data-variant='danger'] {
+  --toast-accent: var(--pc-status-danger);
+  border-color: color-mix(in srgb, var(--toast-accent) 40%, var(--pc-border));
+}
+
+.toastStacked {
+  align-items: flex-start;
+}
+
+.icon {
+  flex: none;
+  color: var(--toast-accent);
+  margin-top: var(--pc-space-2);
+}
+
+.toast:not(.toastStacked) .icon {
+  margin-top: 0;
+}
+
+.content {
+  display: flex;
+  flex-direction: column;
+  gap: var(--pc-space-4);
+  min-width: 0;
+}
+
+.message {
+  font: var(--pc-type-body);
+  color: var(--pc-text-1);
+  overflow-wrap: anywhere;
+}
+
+.meta {
+  flex: none;
+  margin-left: auto;
+  font: var(--pc-type-status);
+  color: var(--pc-text-4);
+}
+
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--pc-space-6);
+}
+
+.actionsInline {
+  flex: none;
+  margin-left: auto;
+}
+
+.action {
+  display: inline-flex;
+  align-items: center;
+  min-height: var(--pc-space-20);
+  padding: 0 var(--pc-space-8);
+  background: var(--pc-bg-input);
+  border: var(--pc-border-width) solid var(--pc-border-strong);
+  border-radius: var(--pc-radius-sm);
+  font: var(--pc-type-meta);
+  font-weight: 500;
+  color: var(--pc-text-1);
+  cursor: pointer;
+}
+
+.action:hover:not(:disabled) {
+  border-color: var(--pc-text-3);
+}
+
+.action:active:not(:disabled) {
+  background: var(--pc-bg-raised);
+}
+
+.accent {
+  background: color-mix(in srgb, var(--toast-accent) 15%, transparent);
+  border-color: color-mix(in srgb, var(--toast-accent) 45%, transparent);
+  color: var(--toast-accent);
+}
+
+.accent:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--toast-accent) 24%, transparent);
+  border-color: color-mix(in srgb, var(--toast-accent) 60%, transparent);
+}
+
+.quiet {
+  background: transparent;
+  border-color: transparent;
+  color: var(--pc-text-2);
+}
+
+.quiet:hover:not(:disabled) {
+  background: var(--pc-bg-input);
+  border-color: transparent;
+  color: var(--pc-text-1);
+}
+
+/* Last, so it also neutralises the accent and quiet tones. */
+.action:disabled {
+  background: transparent;
+  border-color: var(--pc-border);
+  color: var(--pc-text-4);
+  cursor: default;
+}
+
+.dismiss {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: var(--pc-space-20);
+  height: var(--pc-space-20);
+  background: transparent;
+  border: var(--pc-border-width) solid transparent;
+  border-radius: var(--pc-radius-sm);
+  color: var(--pc-text-3);
+  cursor: pointer;
+}
+
+.dismiss:hover {
+  background: var(--pc-bg-input);
+  color: var(--pc-text-1);
+}
+
+.action:focus-visible,
+.dismiss:focus-visible {
+  outline: none;
+  box-shadow: var(--pc-focus-ring);
+}

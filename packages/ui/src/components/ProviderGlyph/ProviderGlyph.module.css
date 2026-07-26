@@ -1,0 +1,121 @@
+/*
+ * Provider glyph. Design §"глифы провайдеров": a square slot on the icon grid holding a letter
+ * stub, optionally wrapped in a chip with the provider name. The `add` variant is dashed on both
+ * the slot and the chip.
+ *
+ * The slot uses --pc-icon-size so a real provider mark drawn on the 16px icon grid drops straight
+ * in with no geometry change.
+ */
+
+.root {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--pc-space-6);
+  box-sizing: border-box;
+  max-width: 100%;
+  margin: 0;
+  padding: 0;
+  border: none;
+  border-radius: var(--pc-radius-xs);
+  background: none;
+  color: var(--pc-text-1);
+  font: var(--pc-type-meta);
+  text-align: left;
+  vertical-align: middle;
+  appearance: none;
+}
+
+.root[data-labelled='true'] {
+  min-height: calc(var(--pc-icon-size) + var(--pc-space-6));
+  padding: var(--pc-space-2) var(--pc-space-8) var(--pc-space-2) var(--pc-space-2);
+  border: var(--pc-border-width) solid var(--pc-border);
+  border-radius: var(--pc-radius-sm);
+  background: var(--pc-bg-raised);
+}
+
+.glyph {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  width: var(--pc-icon-size);
+  height: var(--pc-icon-size);
+  border-radius: var(--pc-radius-xs);
+  background: var(--pc-border);
+  color: var(--pc-text-1);
+  font: var(--pc-type-eyebrow);
+  font-weight: 600;
+  letter-spacing: normal;
+  user-select: none;
+}
+
+/* A real mark fills the slot; the letter stub is centred text. */
+.glyph > svg,
+.glyph > img {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
+.name {
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+/* --- «Свой» ------------------------------------------------------------------------------- */
+
+.root[data-variant='add'] {
+  color: var(--pc-text-2);
+}
+
+.root[data-variant='add'][data-labelled='true'] {
+  border-style: dashed;
+  border-color: var(--pc-border-strong);
+  background: transparent;
+}
+
+.root[data-variant='add'] .glyph {
+  border: 1px dashed var(--pc-border-strong);
+  background: transparent;
+  color: var(--pc-text-3);
+}
+
+/* --- interaction -------------------------------------------------------------------------- */
+
+button.root {
+  cursor: pointer;
+}
+
+button.root:disabled {
+  cursor: default;
+  opacity: 0.55;
+}
+
+button.root[data-labelled='true']:hover:not(:disabled) {
+  border-color: var(--pc-border-strong);
+}
+
+button.root[data-labelled='true']:active:not(:disabled) {
+  background: var(--pc-bg-input);
+}
+
+button.root:not([data-labelled='true']):hover:not(:disabled) .glyph {
+  background: var(--pc-border-strong);
+}
+
+button.root:focus-visible {
+  outline: none;
+  box-shadow: var(--pc-focus-ring);
+}
+
+.root[data-selected='true'][data-labelled='true'] {
+  border-color: var(--pc-status-running);
+  background: var(--pc-selected-row-bg);
+}
+
+.root[data-selected='true']:not([data-labelled='true']) .glyph {
+  box-shadow: 0 0 0 1px var(--pc-status-running);
+}

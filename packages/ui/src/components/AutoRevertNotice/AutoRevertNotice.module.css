@@ -1,0 +1,139 @@
+/*
+ * Body of the auto-revert card — design 2.4 «Красный ствол и авто-revert».
+ *
+ * The red frame and the «Ствол красный · откат выполнен» header belong to the card above; this
+ * sheet paints only what sits under them. So there is deliberately no border, no background and no
+ * danger colour here: the block explains, it does not alarm a second time.
+ *
+ * Two numbers come from the design and have no token of their own — the 340px sidebar and the 820px
+ * measure of the story column. Both are expressed as arithmetic on the 2px spacing scale rather
+ * than written as raw pixels, and both are declared once, at the top.
+ */
+
+.root {
+  /* 32×10 + 20 = 340px */
+  --aside-width: calc(var(--pc-space-32) * 10 + var(--pc-space-20));
+  /* 32×25 + 20 = 820px — the line length the design gives the story, the strip and the plate. */
+  --measure: calc(var(--pc-space-32) * 25 + var(--pc-space-20));
+
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  gap: var(--pc-space-16);
+  padding: calc(var(--pc-space-12) + var(--pc-space-2)) var(--pc-space-16);
+}
+
+/* Nothing to put in two columns yet — the failure takes the whole width. */
+.root[data-state='error'] {
+  display: block;
+}
+
+/* ----------------------------------------------------------------- story column */
+
+.main {
+  /* Basis, not `auto`: it is what lets the sidebar wrap under the story in a narrow window. */
+  flex: 1 1 calc(var(--pc-space-32) * 10);
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--pc-space-12);
+}
+
+.story {
+  max-width: var(--measure);
+  margin: 0;
+  font: var(--pc-type-body);
+  color: var(--pc-text-2);
+  overflow-wrap: anywhere;
+}
+
+.strip {
+  max-width: var(--measure);
+}
+
+/*
+ * «Это не наказание». Success as a plate tint, its own outline and its glyph — the same three roles
+ * Badge uses, at plate scale. The text itself stays --pc-text-1: the tint says "this is fine", it
+ * never becomes a filled area that carries the meaning on its own.
+ */
+.reassurance {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--pc-row-gap);
+  max-width: var(--measure);
+  margin: 0;
+  padding: var(--pc-space-8) var(--pc-space-12);
+  background: color-mix(in srgb, var(--pc-status-success) 6%, transparent);
+  border: var(--pc-border-width) solid color-mix(in srgb, var(--pc-status-success) 28%, transparent);
+  border-radius: var(--pc-radius-sm);
+}
+
+.reassuranceGlyph {
+  flex: none;
+  /* 14px — one spacing step inside the 16px icon grid, as everywhere else in the library. */
+  width: calc(var(--pc-icon-size) - var(--pc-space-2));
+  height: calc(var(--pc-icon-size) - var(--pc-space-2));
+  margin-top: var(--pc-space-2);
+  color: var(--pc-status-success);
+}
+
+.reassuranceText {
+  min-width: 0;
+  font: var(--pc-type-meta);
+  color: var(--pc-text-1);
+  overflow-wrap: anywhere;
+}
+
+/* --------------------------------------------------------------- «Что дальше» */
+
+.aside {
+  flex: none;
+  width: var(--aside-width);
+  max-width: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: var(--pc-space-8);
+}
+
+.steps {
+  min-width: 0;
+}
+
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--pc-space-6);
+}
+
+/* --------------------------------------------------------------------- loading */
+
+.storySkeleton {
+  display: flex;
+  flex-direction: column;
+  gap: var(--pc-space-6);
+  max-width: var(--measure);
+}
+
+.blockSkeleton {
+  max-width: var(--measure);
+}
+
+.stepsSkeleton {
+  display: flex;
+  flex-direction: column;
+  gap: var(--pc-space-6);
+}
+
+/*
+ * Same box a ResolutionPath step gets — min-height, row padding and border — so the three real
+ * steps land exactly where their placeholders were.
+ */
+.stepSkeleton {
+  display: flex;
+  align-items: center;
+  gap: var(--pc-row-gap);
+  min-height: var(--pc-row-height);
+  padding: var(--pc-space-8) var(--pc-row-padding-x);
+  border: var(--pc-border-width) solid var(--pc-border-subtle);
+  border-radius: var(--pc-radius-sm);
+}

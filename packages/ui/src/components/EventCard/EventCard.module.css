@@ -1,0 +1,146 @@
+/*
+ * The interruption card — 640px in the stream, but width comes from the container so the same card
+ * is correct in a narrower column.
+ *
+ * Status colour lives in exactly two places here: the 7px dot and the 3px top stripe. There is no
+ * tinted fill and no left edge in a status colour — the left edge belongs to identity, and a card
+ * washed in amber would read as "you are in trouble" instead of "here is a thing to decide".
+ */
+
+.root {
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  min-width: 0;
+  background: var(--pc-bg-panel);
+  border: var(--pc-border-width) solid var(--pc-border);
+  border-radius: var(--pc-radius-md);
+  /* Clips the stripe to the corner radius. */
+  overflow: hidden;
+}
+
+/* ------------------------------------------------------------------ stripe */
+
+/* 3px, off the spacing scale rather than a literal. Top edge only — CONVENTIONS §5. */
+.stripe {
+  flex: none;
+  height: calc(var(--pc-space-4) - var(--pc-border-width));
+  background: var(--pc-border-strong);
+}
+
+.stripe[data-tone='warning'] {
+  background: var(--pc-status-warning);
+}
+
+.stripe[data-tone='danger'] {
+  background: var(--pc-status-danger);
+}
+
+.stripe[data-tone='running'] {
+  background: var(--pc-status-running);
+}
+
+/* -------------------------------------------------------------------- body */
+
+.inner {
+  display: flex;
+  flex-direction: column;
+  gap: var(--pc-space-12);
+  min-width: 0;
+  padding: var(--pc-space-12) var(--pc-space-16) calc(var(--pc-space-12) + var(--pc-space-2));
+}
+
+.head {
+  display: flex;
+  align-items: center;
+  gap: var(--pc-space-8);
+  min-width: 0;
+}
+
+/* 7px. Status role #1 — the dot. */
+.dot {
+  flex: none;
+  width: calc(var(--pc-space-8) - var(--pc-border-width));
+  height: calc(var(--pc-space-8) - var(--pc-border-width));
+  border-radius: 50%;
+  background: var(--pc-text-3);
+}
+
+.dot[data-tone='warning'] {
+  background: var(--pc-status-warning);
+}
+
+.dot[data-tone='danger'] {
+  background: var(--pc-status-danger);
+}
+
+/*
+ * `agent-waiting`: the agent is stopped and waiting on a person, so the dot breathes. Global
+ * keyframe — a bare name is localised by the bundler and silently never runs.
+ */
+.dot[data-tone='running'] {
+  background: var(--pc-status-running);
+  animation: global(pc-pulse) 1.6s ease-in-out infinite;
+}
+
+.avatar {
+  flex: none;
+}
+
+.title {
+  min-width: 0;
+  font: var(--pc-type-card);
+  color: var(--pc-text-heading);
+  overflow-wrap: anywhere;
+}
+
+/* Relative age, mono, the quietest thing in the header. */
+.age {
+  flex: none;
+  margin-left: auto;
+  font: var(--pc-type-figure);
+  color: var(--pc-text-4);
+}
+
+/*
+ * The paragraph. This is the product's main reading size — the same one the agent's answers use,
+ * so an event does not shout at the conversation it interrupts.
+ */
+.body {
+  margin: 0;
+  min-width: 0;
+  font: var(--pc-type-read);
+  color: var(--pc-text-read);
+  overflow-wrap: anywhere;
+}
+
+/*
+ * A path or a file name inside the sentence, produced by `Rich` from a `code` segment. One step up
+ * the mono ramp from the shared default: 11px mono set inside a 14.5px paragraph reads as a
+ * footnote, and here the path is the subject of the sentence. Leading stays the paragraph's so the
+ * lines of a wrapped sentence keep an even pitch.
+ */
+.body code {
+  font: var(--pc-type-code);
+  line-height: inherit;
+  color: var(--pc-text-1);
+}
+
+/* ------------------------------------------------------------------ footer */
+
+.footer {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--pc-space-8);
+  min-width: 0;
+}
+
+/* «Ответ уйдёт Марине сразу» — a promise about what happens, not a control. */
+.aside {
+  min-width: 0;
+  font: var(--pc-type-label);
+  font-weight: 400;
+  color: var(--pc-text-3);
+}

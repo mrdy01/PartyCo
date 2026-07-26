@@ -1,0 +1,233 @@
+.root {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-height: 0;
+}
+
+.body {
+  display: flex;
+  flex: 1;
+  min-height: 0;
+}
+
+/* ── titlebar ─────────────────────────────────────────────────────────────────────────────── */
+
+.brand {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--pc-space-8);
+  font: var(--pc-type-ui);
+  font-weight: 600;
+  color: var(--pc-text-1);
+}
+
+/* The logo mark. Uses the accent token, not an identity colour — see palette.ts › ACCENT. */
+.mark {
+  position: relative;
+  width: var(--pc-space-16);
+  height: var(--pc-space-16);
+  flex: none;
+  border-radius: var(--pc-radius-sm);
+  background: var(--pc-accent);
+}
+
+.mark::before,
+.mark::after {
+  content: '';
+  position: absolute;
+  width: 4px;
+  height: 4px;
+  border-radius: 1px;
+  background: var(--pc-accent-on);
+}
+
+.mark::before {
+  left: 3px;
+  top: 3px;
+}
+
+.mark::after {
+  right: 3px;
+  bottom: 3px;
+  opacity: 0.45;
+}
+
+.stage {
+  font: var(--pc-type-status);
+  letter-spacing: var(--pc-tracking-eyebrow);
+  color: var(--pc-text-3);
+  text-transform: uppercase;
+  padding: 3px var(--pc-space-6);
+  border: var(--pc-border-width) solid var(--pc-border);
+  border-radius: var(--pc-radius-xs);
+}
+
+/*
+ * Sections toggle. Lives in the harness bar rather than floating over the screen: the previewed
+ * screen owns every pixel below this line, and a floating button would land on its title bar — the
+ * exact overlap this toggle exists to remove.
+ */
+.navToggle {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: var(--pc-space-20);
+  height: var(--pc-space-20);
+  margin-right: var(--pc-space-6);
+  padding: 0;
+  border: var(--pc-border-width) solid transparent;
+  border-radius: var(--pc-radius-sm);
+  background: transparent;
+  color: var(--pc-text-3);
+  cursor: pointer;
+}
+
+.navToggle:hover {
+  color: var(--pc-text-1);
+  background: var(--pc-bg-raised);
+  border-color: var(--pc-border);
+}
+
+.navToggle:focus-visible {
+  outline: none;
+  box-shadow: var(--pc-focus-ring);
+}
+
+.navToggleIcon {
+  width: var(--pc-space-12);
+  height: var(--pc-space-12);
+  transition: transform var(--pc-duration-fast) var(--pc-ease);
+}
+
+/* Points at the rail it will collapse; flips to point at where the rail would reappear. */
+.navToggle[aria-expanded='true'] .navToggleIcon {
+  transform: rotate(180deg);
+}
+
+.titleBarActions {
+  margin-left: auto;
+  display: flex;
+  gap: var(--pc-space-6);
+  /* Leave room for the native window controls drawn by titleBarOverlay on Windows. */
+  padding-right: 140px;
+}
+
+.chip {
+  height: 22px;
+  padding: 0 var(--pc-space-8);
+  border: var(--pc-border-width) solid var(--pc-border);
+  border-radius: var(--pc-radius-sm);
+  background: var(--pc-control-bg);
+  color: var(--pc-text-2);
+  font: var(--pc-type-meta);
+  cursor: pointer;
+}
+
+.chip:hover {
+  color: var(--pc-text-1);
+  border-color: var(--pc-border-strong);
+}
+
+.chip:focus-visible {
+  outline: none;
+  box-shadow: var(--pc-focus-ring);
+}
+
+/* ── left rail ────────────────────────────────────────────────────────────────────────────── */
+
+.rail {
+  width: 208px;
+  flex: none;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: var(--pc-space-8);
+  border-right: var(--pc-border-width) solid var(--pc-border-subtle);
+  background: var(--pc-bg-panel);
+  overflow-y: auto;
+}
+
+.railItem {
+  display: flex;
+  align-items: center;
+  gap: var(--pc-space-8);
+  height: var(--pc-row-height);
+  padding: 0 var(--pc-space-8);
+  border: 0;
+  border-left: var(--pc-zone-edge-width) solid transparent;
+  border-radius: 0 var(--pc-radius-sm) var(--pc-radius-sm) 0;
+  background: transparent;
+  color: var(--pc-text-2);
+  font: var(--pc-type-ui);
+  text-align: left;
+  cursor: pointer;
+}
+
+.railItem:hover {
+  background: var(--pc-bg-raised);
+  color: var(--pc-text-1);
+}
+
+.railItem:focus-visible {
+  outline: none;
+  box-shadow: var(--pc-focus-ring);
+}
+
+/* Selected row treatment from spec §03: 2px left bar in the focus accent + tinted background. */
+.railItemActive {
+  background: var(--pc-selected-row-bg);
+  border-left-color: var(--pc-status-running);
+  color: var(--pc-text-1);
+}
+
+/* ── main ─────────────────────────────────────────────────────────────────────────────────── */
+
+.main {
+  flex: 1;
+  min-width: 0;
+  min-height: 0;
+  overflow-y: auto;
+  background: var(--pc-bg-window);
+}
+
+/* ── signed-in member ─────────────────────────────────────────────────────────────────────── */
+
+.gate {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  min-height: 0;
+  padding: var(--pc-space-24);
+  background: var(--pc-bg-window);
+  overflow-y: auto;
+}
+
+.member {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--pc-space-6);
+  font: var(--pc-type-meta);
+  color: var(--pc-text-2);
+  white-space: nowrap;
+}
+
+/* Identity role #1 — avatar fill. The colour arrives inline from the hub, never from this sheet. */
+.memberAvatar {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: var(--pc-avatar-size);
+  height: var(--pc-avatar-size);
+  flex: none;
+  border-radius: var(--pc-avatar-radius);
+  font: var(--pc-type-eyebrow);
+  font-weight: 600;
+}
+
+.memberName {
+  max-width: calc(var(--pc-space-32) * 5);
+  overflow: hidden;
+  text-overflow: ellipsis;
+}

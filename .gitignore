@@ -1,0 +1,28 @@
+node_modules/
+dist/
+out/
+build/
+*.tsbuildinfo
+.vite/
+.turbo/
+
+# generated from packages/tokens/src — never edit by hand, never review
+packages/tokens/dist/
+packages/tokens/src/tokens.generated.css
+
+# Electron build output
+apps/desktop/release/
+
+# hub database — created by `npm start -w @partyco/hub` next to wherever it is run from.
+# WAL journalling means two sidecar files exist alongside it whenever the daemon is live.
+hub.db
+hub.db-wal
+hub.db-shm
+
+# local state
+*.log
+.DS_Store
+Thumbs.db
+.env
+.env.*
+!.env.example

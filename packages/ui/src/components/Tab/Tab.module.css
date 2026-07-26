@@ -1,0 +1,83 @@
+/* One tab. Height comes from the strip; everything else from density tokens. */
+
+.tab {
+  box-sizing: border-box;
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  flex: none;
+  gap: var(--pc-row-gap);
+  height: 100%;
+  margin: 0;
+  padding: 0 var(--pc-row-padding-x);
+  background: transparent;
+  border: 0;
+  border-right: var(--pc-border-width) solid var(--pc-border);
+  /* Stays transparent until the tab is active, so nothing shifts when selection moves. */
+  border-top: var(--pc-zone-edge-width) solid transparent;
+  border-radius: 0;
+  font: var(--pc-type-path);
+  /* Root colour is the glyph colour — the icon inherits it via currentColor. */
+  color: var(--pc-text-4);
+  cursor: pointer;
+  white-space: nowrap;
+  appearance: none;
+  -webkit-appearance: none;
+}
+
+.label {
+  color: var(--pc-text-2);
+}
+
+.glyph {
+  width: var(--pc-icon-size);
+  height: var(--pc-icon-size);
+}
+
+.tab:hover:not(:disabled):not(.active) {
+  background: var(--pc-bg-raised);
+}
+
+.tab:focus-visible {
+  outline: none;
+  box-shadow: var(--pc-focus-ring);
+  z-index: 1;
+}
+
+.active {
+  background: var(--pc-bg-panel);
+  color: var(--pc-text-3);
+  /* Overridden inline with the zone owner's identity colour when the file sits in someone's zone. */
+  border-top-color: var(--pc-status-running);
+}
+
+.active .label {
+  color: var(--pc-text-1);
+}
+
+/* Live work behind the tab: status colour on the glyph only (text role). */
+.running {
+  color: var(--pc-status-running);
+}
+
+.tab:disabled {
+  color: var(--pc-text-4);
+  cursor: default;
+}
+
+.tab:disabled .label {
+  color: var(--pc-text-4);
+}
+
+.dot {
+  flex: none;
+  width: var(--pc-space-6);
+  height: var(--pc-space-6);
+  border-radius: 50%;
+  background: var(--pc-text-3);
+}
+
+.dotRunning {
+  background: var(--pc-status-running);
+  animation: global(pc-pulse) 1.4s ease-in-out infinite;
+}

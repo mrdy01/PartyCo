@@ -1,0 +1,101 @@
+.root {
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  background: var(--pc-bg-panel);
+  border: var(--pc-border-width) solid var(--pc-border);
+  border-radius: var(--pc-radius-md);
+  overflow: hidden;
+}
+
+.head {
+  box-sizing: border-box;
+  display: flex;
+  align-items: center;
+  gap: var(--pc-row-gap);
+  flex: none;
+  height: calc(var(--pc-row-height) + var(--pc-space-2));
+  padding: 0 var(--pc-row-padding-x);
+  background: var(--pc-bg-window);
+  border-bottom: var(--pc-border-width) solid var(--pc-border-subtle);
+  color: var(--pc-text-3);
+  white-space: nowrap;
+}
+
+.headGlyph,
+.filterGlyph {
+  flex: none;
+  width: var(--pc-icon-size);
+  height: var(--pc-icon-size);
+}
+
+.project {
+  font: var(--pc-type-path);
+  font-weight: 500;
+  color: var(--pc-text-1);
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.worktree {
+  font: var(--pc-type-status);
+  color: var(--pc-text-4);
+}
+
+.leases {
+  margin-left: auto;
+  font: var(--pc-type-status);
+  color: var(--pc-text-3);
+}
+
+.filterRow {
+  box-sizing: border-box;
+  display: flex;
+  align-items: center;
+  gap: var(--pc-row-gap);
+  flex: none;
+  height: var(--pc-row-height);
+  padding: 0 var(--pc-row-padding-x);
+  border-bottom: var(--pc-border-width) solid var(--pc-border-subtle);
+  color: var(--pc-text-3);
+}
+
+.filterInput {
+  flex: 1 1 auto;
+  min-width: 0;
+  height: 100%;
+  margin: 0;
+  padding: 0;
+  background: transparent;
+  border: 0;
+  font: var(--pc-type-path);
+  color: var(--pc-text-1);
+  appearance: none;
+  -webkit-appearance: none;
+}
+
+.filterInput::placeholder {
+  color: var(--pc-text-4);
+}
+
+.filterInput:focus-visible {
+  outline: none;
+  box-shadow: var(--pc-focus-ring);
+  border-radius: var(--pc-radius-xs);
+}
+
+.filterInput::-webkit-search-cancel-button {
+  appearance: none;
+  -webkit-appearance: none;
+}
+
+.rows {
+  display: flex;
+  flex-direction: column;
+  padding: var(--pc-space-4) 0;
+  overflow: auto;
+  min-height: 0;
+}
+
+/* empty / loading / error are rendered by the shared State components (CONVENTIONS §6). */

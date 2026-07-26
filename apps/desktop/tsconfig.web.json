@@ -1,0 +1,26 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "lib": [
+      "ES2023",
+      "DOM",
+      "DOM.Iterable"
+    ],
+    "types": [
+      "vite/client"
+    ],
+    "allowImportingTsExtensions": true,
+    "noEmit": true,
+    "composite": false,
+    "paths": {
+      "@/*": [
+        "./src/renderer/src/*"
+      ]
+    }
+  },
+  "include": [
+    "src/renderer/**/*.ts",
+    "src/renderer/**/*.tsx",
+    "src/preload/index.ts"
+  ]
+}

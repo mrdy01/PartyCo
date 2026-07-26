@@ -1,0 +1,68 @@
+/*
+ * PartyCo fonts — bundled locally, never from a CDN.
+ *
+ * The design source (`design/raw/PartyCo Design System.dc.html`) loads IBM Plex Sans and
+ * JetBrains Mono from fonts.googleapis.com. That cannot ship: the Electron renderer runs under a
+ * strict CSP with no external hosts, the app must work fully offline, and a self-hosted "box"
+ * must not phone home to Google on every launch.
+ *
+ * Both families are SIL Open Font Licence 1.1 — redistributable inside the app bundle.
+ * Place the .woff2 files in `packages/tokens/assets/fonts/` (see that directory's README for the
+ * exact filenames and where to get them). Until they are present the stacks in
+ * `palette.ts › FONT_STACKS` fall back to Segoe UI Variable / Cascadia Mono on Windows and
+ * SF Pro / SF Mono on macOS, which keeps metrics close enough to develop against.
+ *
+ * Only the weights the type ramp actually uses are declared: 400, 500, 600.
+ */
+
+/* ---------- IBM Plex Sans — interface ---------- */
+
+@font-face {
+  font-family: 'IBM Plex Sans';
+  font-style: normal;
+  font-weight: 400;
+  font-display: block;
+  src: url('../assets/fonts/IBMPlexSans-Regular.woff2') format('woff2');
+}
+
+@font-face {
+  font-family: 'IBM Plex Sans';
+  font-style: normal;
+  font-weight: 500;
+  font-display: block;
+  src: url('../assets/fonts/IBMPlexSans-Medium.woff2') format('woff2');
+}
+
+@font-face {
+  font-family: 'IBM Plex Sans';
+  font-style: normal;
+  font-weight: 600;
+  font-display: block;
+  src: url('../assets/fonts/IBMPlexSans-SemiBold.woff2') format('woff2');
+}
+
+/* ---------- JetBrains Mono — code, paths, IDs, diffs, terminal, token counters ---------- */
+
+@font-face {
+  font-family: 'JetBrains Mono';
+  font-style: normal;
+  font-weight: 400;
+  font-display: block;
+  src: url('../assets/fonts/JetBrainsMono-Regular.woff2') format('woff2');
+}
+
+@font-face {
+  font-family: 'JetBrains Mono';
+  font-style: normal;
+  font-weight: 500;
+  font-display: block;
+  src: url('../assets/fonts/JetBrainsMono-Medium.woff2') format('woff2');
+}
+
+@font-face {
+  font-family: 'JetBrains Mono';
+  font-style: normal;
+  font-weight: 600;
+  font-display: block;
+  src: url('../assets/fonts/JetBrainsMono-SemiBold.woff2') format('woff2');
+}

@@ -1,0 +1,316 @@
+/* ModeMatrix — справка «что уживается на одной границе».
+   Живёт и как строка-раскрытие в сайдбаре (inline), и как всплывающая карточка (popover). */
+
+.root {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  border-radius: var(--pc-radius-md);
+  overflow: hidden;
+  font-family: var(--pc-font-sans);
+}
+
+.root[data-variant='inline'] {
+  background: var(--pc-bg-panel);
+  border: var(--pc-border-width) solid var(--pc-border);
+}
+
+.root[data-variant='popover'] {
+  background: var(--pc-bg-raised);
+  border: var(--pc-border-width) solid var(--pc-border-strong);
+  box-shadow: 0 var(--pc-space-12) var(--pc-space-32)
+    color-mix(in srgb, var(--pc-bg-window) 64%, transparent);
+}
+
+/* ── шапка ───────────────────────────────────────────────────────────── */
+
+.header {
+  display: flex;
+  align-items: center;
+  gap: var(--pc-row-gap);
+  min-height: var(--pc-row-height);
+  padding: 0 var(--pc-row-padding-x);
+  border-bottom: var(--pc-border-width) solid var(--pc-border);
+}
+
+/* Свёрнутая справка — ровно одна строка, без разделителя под ней. */
+.root[data-open='false'] .header {
+  border-bottom: 0;
+}
+
+.disclosure {
+  display: flex;
+  flex: 1 1 auto;
+  align-items: center;
+  gap: var(--pc-row-gap);
+  min-width: 0;
+  height: var(--pc-row-height);
+  margin: 0;
+  padding: 0;
+  background: none;
+  border: 0;
+  border-radius: var(--pc-radius-sm);
+  color: var(--pc-text-1);
+  text-align: left;
+  cursor: pointer;
+}
+
+.disclosure:hover .title {
+  color: var(--pc-text-heading);
+}
+
+.disclosure:focus-visible {
+  outline: none;
+  box-shadow: var(--pc-focus-ring);
+}
+
+.titleStatic {
+  display: flex;
+  flex: 1 1 auto;
+  align-items: center;
+  gap: var(--pc-row-gap);
+  min-width: 0;
+}
+
+.titleGlyph,
+.twisty {
+  flex: none;
+  width: var(--pc-icon-size);
+  height: var(--pc-icon-size);
+  color: var(--pc-text-2);
+}
+
+.twisty {
+  transition: transform var(--pc-duration-fast) var(--pc-ease);
+}
+
+.twistyOpen {
+  transform: rotate(90deg);
+}
+
+.title {
+  min-width: 0;
+  font: var(--pc-type-status);
+  font-weight: 500;
+  color: var(--pc-text-1);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* Trailing hint on the header line — «R I X G» in the design's folded sidebar row. */
+.headerHint {
+  flex: none;
+  margin-left: auto;
+  font: var(--pc-type-status);
+  color: var(--pc-text-4);
+  white-space: nowrap;
+}
+
+.close {
+  flex: none;
+  margin-left: auto;
+}
+
+/* ── тело ────────────────────────────────────────────────────────────── */
+
+.body {
+  display: flex;
+  flex-direction: column;
+  gap: var(--pc-space-8);
+  padding: var(--pc-space-12) var(--pc-row-padding-x);
+  min-width: 0;
+}
+
+/* ── сетка ───────────────────────────────────────────────────────────── */
+
+.grid {
+  width: 100%;
+  table-layout: fixed;
+  border-collapse: separate;
+  border-spacing: var(--pc-space-2);
+}
+
+.corner {
+  width: calc(var(--pc-space-32) + var(--pc-space-6));
+  padding: 0;
+}
+
+.colHead,
+.rowHead {
+  font: var(--pc-type-eyebrow);
+  font-weight: 600;
+  color: var(--pc-text-3);
+  padding: 0;
+}
+
+.colHead {
+  text-align: center;
+  padding-bottom: var(--pc-space-2);
+}
+
+.rowHead {
+  width: calc(var(--pc-space-32) + var(--pc-space-6));
+  text-align: left;
+}
+
+/* Подсветка оси — нейтральная: цвет статуса берут только клетки. */
+.axisActive {
+  color: var(--pc-text-1);
+}
+
+.cell {
+  padding: 0;
+}
+
+/* Клетка: маленькая пилюля со статусным тоном + глиф. Глиф несёт смысл, тон — только скорость. */
+.chip {
+  --cell-color: var(--pc-text-3);
+
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: max(calc(var(--pc-row-height) - var(--pc-space-6)), var(--pc-space-20));
+  border-radius: var(--pc-radius-xs);
+  background: color-mix(in srgb, var(--cell-color) 14%, transparent);
+  color: var(--cell-color);
+  font: var(--pc-type-status);
+  font-weight: 600;
+}
+
+.chip[data-verdict='ok'] {
+  --cell-color: var(--pc-status-success);
+}
+
+.chip[data-verdict='deny'] {
+  --cell-color: var(--pc-status-danger);
+}
+
+.chip[data-verdict='conditional'] {
+  --cell-color: var(--pc-status-warning);
+}
+
+/* Обводка — четвёртая роль статусного цвета, заливка при этом остаётся тихой. */
+.chipHighlight {
+  box-shadow: inset 0 0 0 var(--pc-border-width)
+    color-mix(in srgb, var(--cell-color) 55%, transparent);
+}
+
+/* ── ключ к глифам ───────────────────────────────────────────────────── */
+
+.verdictKey {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--pc-space-4) var(--pc-space-12);
+  margin: 0;
+  font: var(--pc-type-status);
+  color: var(--pc-text-3);
+}
+
+.verdictKeyItem {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--pc-space-4);
+}
+
+.verdictKeyGlyph {
+  font-weight: 600;
+}
+
+.verdictKeyItem[data-verdict='ok'] .verdictKeyGlyph {
+  color: var(--pc-status-success);
+}
+
+.verdictKeyItem[data-verdict='deny'] .verdictKeyGlyph {
+  color: var(--pc-status-danger);
+}
+
+.verdictKeyItem[data-verdict='conditional'] .verdictKeyGlyph {
+  color: var(--pc-status-warning);
+}
+
+/* ── вывод ───────────────────────────────────────────────────────────── */
+
+.note {
+  margin: 0;
+  font: var(--pc-type-meta);
+  color: var(--pc-text-2);
+}
+
+.noteStrong {
+  color: var(--pc-text-1);
+  font-weight: 600;
+}
+
+.noteCode {
+  font-family: var(--pc-font-mono);
+  color: var(--pc-text-1);
+}
+
+/* ── легенда режимов ─────────────────────────────────────────────────── */
+
+.legend {
+  display: flex;
+  flex-direction: column;
+  gap: var(--pc-space-6);
+  padding-top: var(--pc-space-8);
+  border-top: var(--pc-border-width) solid var(--pc-border-subtle);
+}
+
+.legendTitle {
+  font: var(--pc-type-eyebrow);
+  letter-spacing: var(--pc-tracking-eyebrow);
+  color: var(--pc-text-3);
+  text-transform: uppercase;
+}
+
+.legendList {
+  display: flex;
+  flex-direction: column;
+  gap: var(--pc-space-4);
+  margin: 0;
+}
+
+.legendItem {
+  display: flex;
+  align-items: baseline;
+  gap: var(--pc-space-8);
+  min-width: 0;
+}
+
+.legendKey {
+  flex: none;
+  width: calc(var(--pc-space-16) + var(--pc-space-2));
+  padding: 0;
+  border-radius: var(--pc-radius-xs);
+  background: var(--pc-bg-input);
+  color: var(--pc-text-2);
+  font: var(--pc-type-status);
+  font-weight: 600;
+  text-align: center;
+}
+
+.legendText {
+  min-width: 0;
+  margin: 0;
+  font: var(--pc-type-meta);
+  color: var(--pc-text-2);
+}
+
+.legendName {
+  color: var(--pc-text-1);
+}
+
+/* --------------------------------------------------------------- a11y util */
+
+.srOnly {
+  position: absolute;
+  width: var(--pc-space-2);
+  height: var(--pc-space-2);
+  margin: calc(-1 * var(--pc-space-2));
+  padding: 0;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+  border: 0;
+}

@@ -1,0 +1,765 @@
+/*
+ * Agent session panel.
+ *
+ * Three constants of this surface, in order of importance:
+ *  1. A session that can write to the repo announces it — 2px marching amber across the top edge,
+ *     amber tint under the header, pulsing dot on the active allowance bar (that one belongs to
+ *     AgentModeSelector). None of the three is data-driven; they follow `data-mode` alone.
+ *  2. Every tool call is one --pc-row-height row, so the transcript scans as a list, not as prose.
+ *  3. Status colour appears as text, as a 5px dot, or as a ≤12% pill tint — never as a fill of a
+ *     large area and never as a left edge, which belongs to identity (spec §01).
+ */
+
+.panel {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  min-width: 0;
+  background: var(--pc-bg-window);
+  border-left: var(--pc-border-width) solid var(--pc-border-subtle);
+}
+
+/* ---------- the autonomy edge ---------- */
+
+.march {
+  position: absolute;
+  inset: 0 0 auto;
+  height: var(--pc-space-2);
+  z-index: 2;
+  background: var(--pc-text-3);
+  pointer-events: none;
+}
+
+.panel[data-mode='plan'] .march {
+  background: var(--pc-status-running);
+}
+
+.panel[data-mode='auto'] .march {
+  background: var(--pc-status-warning);
+}
+
+/* The hatch is drawn on top of the solid edge and marches; the 14px period matches pc-march. */
+.panel[data-mode='auto'] .march::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: repeating-linear-gradient(
+    90deg,
+    color-mix(in srgb, var(--pc-bg-window) 60%, transparent) 0 var(--pc-space-6),
+    transparent var(--pc-space-6) calc(var(--pc-space-6) + var(--pc-space-8))
+  );
+  animation: global(pc-march) 1s linear infinite;
+}
+
+/* ---------- header ---------- */
+
+.header {
+  flex: none;
+  display: flex;
+  flex-direction: column;
+  gap: calc(var(--pc-space-8) + var(--pc-space-2));
+  padding: calc(var(--pc-space-8) + var(--pc-space-2)) var(--pc-space-12);
+  border-bottom: var(--pc-border-width) solid var(--pc-border-subtle);
+}
+
+.panel[data-mode='auto'] .header {
+  background: color-mix(in srgb, var(--pc-status-warning) 6%, transparent);
+}
+
+.panel[data-mode='plan'] .header {
+  background: color-mix(in srgb, var(--pc-status-running) 5%, transparent);
+}
+
+.titleRow {
+  display: flex;
+  align-items: center;
+  gap: var(--pc-space-8);
+  min-width: 0;
+}
+
+.agentGlyph {
+  flex: none;
+  width: calc(var(--pc-icon-size) - var(--pc-space-2));
+  height: calc(var(--pc-icon-size) - var(--pc-space-2));
+  color: var(--pc-text-3);
+}
+
+.panel[data-mode='auto'] .agentGlyph {
+  color: var(--pc-status-warning);
+}
+
+.panel[data-mode='plan'] .agentGlyph {
+  color: var(--pc-status-running);
+}
+
+.title {
+  margin: 0;
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  font: var(--pc-type-ui);
+  font-weight: 600;
+  color: var(--pc-text-heading);
+}
+
+.claim {
+  margin-left: auto;
+  flex: none;
+  font: var(--pc-type-eyebrow);
+  font-weight: 400;
+  color: var(--pc-text-4);
+}
+
+.headSpinner {
+  flex: none;
+  width: var(--pc-space-12);
+  height: var(--pc-space-12);
+  border: calc(var(--pc-icon-stroke) * 1px) solid var(--pc-border-subtle);
+  border-top-color: var(--pc-status-running);
+  border-radius: 50%;
+  animation: global(pc-spin) var(--pc-duration-spin) linear infinite;
+}
+
+/* The bars want the full panel width; flex-grow beats their own `width: fit-content`. */
+.modeWrap {
+  display: flex;
+}
+
+.modeSelector {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.metaRow {
+  display: flex;
+  align-items: center;
+  gap: var(--pc-space-6);
+  min-width: 0;
+}
+
+/* ---------- model chip ---------- */
+
+.modelChip {
+  appearance: none;
+  -webkit-appearance: none;
+  margin: 0;
+  display: inline-flex;
+  align-items: center;
+  gap: var(--pc-space-6);
+  flex: none;
+  height: var(--pc-space-20);
+  padding: 0 var(--pc-space-6) 0 var(--pc-space-2);
+  background: var(--pc-bg-panel);
+  border: var(--pc-border-width) solid var(--pc-border-subtle);
+  border-radius: var(--pc-radius-sm);
+  cursor: pointer;
+}
+
+.modelChip:hover {
+  background: var(--pc-bg-raised);
+}
+
+.modelChip:focus-visible {
+  outline: none;
+  box-shadow: var(--pc-focus-ring);
+}
+
+.modelGlyph {
+  flex: none;
+}
+
+.modelName {
+  font: var(--pc-type-status);
+  color: var(--pc-text-1);
+  white-space: nowrap;
+}
+
+.modelCaret {
+  flex: none;
+  width: calc(var(--pc-icon-size) - var(--pc-space-6));
+  height: calc(var(--pc-icon-size) - var(--pc-space-6));
+  color: var(--pc-text-4);
+}
+
+.meter {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--pc-space-4);
+  margin-left: auto;
+  flex: none;
+  font: var(--pc-type-status);
+}
+
+.meterTokens {
+  color: var(--pc-text-2);
+}
+
+.meterDot {
+  color: var(--pc-border-strong);
+}
+
+.meterCost {
+  color: var(--pc-text-1);
+  font-weight: 500;
+}
+
+/* ---------- transcript ---------- */
+
+.body {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  padding: var(--pc-space-12) var(--pc-space-12) 0;
+}
+
+.transcript {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: calc(var(--pc-space-8) + var(--pc-space-2));
+  padding-bottom: var(--pc-space-12);
+}
+
+/* Consecutive tool calls read as one block: they close up to 2px. */
+.turn[data-kind='tool'] + .turn[data-kind='tool'] {
+  margin-top: calc(var(--pc-space-8) * -1);
+}
+
+/* A proposal answers the call above it, so it sits closer than a new turn would. */
+.turn[data-kind='tool'] + .turn[data-kind='proposal'] {
+  margin-top: calc(var(--pc-space-4) * -1);
+}
+
+/* ---------- user turn ---------- */
+
+.userTurn {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--pc-space-8);
+}
+
+.userText {
+  margin: 0;
+  min-width: 0;
+  font: var(--pc-type-meta);
+  line-height: 1.55;
+  color: var(--pc-text-1);
+}
+
+/* ---------- reasoning ---------- */
+
+.reasoning {
+  border-left: var(--pc-border-width) solid var(--pc-border-subtle);
+  padding-left: var(--pc-space-12);
+}
+
+.reasoningSummary {
+  display: flex;
+  align-items: center;
+  gap: var(--pc-space-6);
+  list-style: none;
+  cursor: pointer;
+  border-radius: var(--pc-radius-xs);
+}
+
+.reasoningSummary::-webkit-details-marker {
+  display: none;
+}
+
+.reasoningSummary:focus-visible {
+  outline: none;
+  box-shadow: var(--pc-focus-ring);
+}
+
+.reasoningLabel {
+  font: var(--pc-type-eyebrow);
+  letter-spacing: var(--pc-tracking-eyebrow);
+  text-transform: uppercase;
+  color: var(--pc-text-3);
+}
+
+.reasoningMeta {
+  font: var(--pc-type-eyebrow);
+  font-weight: 400;
+  color: var(--pc-border-strong);
+}
+
+.reasoningBody {
+  margin: var(--pc-space-4) 0 0;
+  font: var(--pc-type-meta);
+  line-height: 1.6;
+  color: var(--pc-text-3);
+}
+
+/* Collapsed reasoning keeps the twisty honest. */
+.reasoning:not([open]) .twisty {
+  transform: rotate(-90deg);
+}
+
+/* ---------- assistant ---------- */
+
+.assistant {
+  margin: 0;
+  border-left: var(--pc-border-width) solid var(--pc-border-subtle);
+  padding-left: var(--pc-space-12);
+  font: var(--pc-type-meta);
+  line-height: 1.6;
+  color: var(--pc-text-1);
+}
+
+/* Status colour as a 6px mark, not as a fill — the "still typing" tell. */
+.caret {
+  display: inline-block;
+  width: var(--pc-space-6);
+  height: var(--pc-space-12);
+  margin-left: var(--pc-space-2);
+  vertical-align: text-bottom;
+  background: var(--pc-status-warning);
+  animation: global(pc-caret) 1s step-end infinite;
+}
+
+/* ---------- tool row ---------- */
+
+.toolRow {
+  display: flex;
+  align-items: center;
+  gap: var(--pc-row-gap);
+  height: var(--pc-row-height);
+  padding: 0 var(--pc-row-padding-x);
+  background: var(--pc-bg-panel);
+  border: var(--pc-border-width) solid var(--pc-border-subtle);
+  border-radius: var(--pc-radius-sm);
+  min-width: 0;
+}
+
+.toolRow[data-state='failed'] {
+  border-color: color-mix(in srgb, var(--pc-status-danger) 30%, transparent);
+}
+
+.toolRow[data-state='running'] {
+  background: color-mix(in srgb, var(--pc-status-warning) 7%, transparent);
+  border-color: color-mix(in srgb, var(--pc-status-warning) 28%, transparent);
+}
+
+.toolRow[data-state='passed'] {
+  background: color-mix(in srgb, var(--pc-status-success) 7%, transparent);
+  border-color: color-mix(in srgb, var(--pc-status-success) 30%, transparent);
+}
+
+.twisty {
+  flex: none;
+  width: calc(var(--pc-icon-size) - var(--pc-space-4));
+  height: calc(var(--pc-icon-size) - var(--pc-space-4));
+  color: var(--pc-text-4);
+}
+
+.twistyPass {
+  color: var(--pc-status-success);
+}
+
+.spinner {
+  flex: none;
+  width: calc(var(--pc-icon-size) - var(--pc-space-6));
+  height: calc(var(--pc-icon-size) - var(--pc-space-6));
+  border: calc(var(--pc-icon-stroke) * 1px) solid var(--pc-border);
+  border-top-color: var(--pc-status-warning);
+  border-radius: 50%;
+  animation: global(pc-spin) var(--pc-duration-spin) linear infinite;
+}
+
+.toolName {
+  flex: none;
+  font: var(--pc-type-status);
+  color: var(--pc-text-2);
+  white-space: nowrap;
+}
+
+.toolTarget {
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  font: var(--pc-type-eyebrow);
+  font-weight: 400;
+  color: var(--pc-text-3);
+}
+
+.toolResult {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--pc-space-4);
+  margin-left: auto;
+  flex: none;
+  padding-left: var(--pc-space-4);
+}
+
+.resultIcon {
+  flex: none;
+  width: calc(var(--pc-icon-size) - var(--pc-space-6));
+  height: calc(var(--pc-icon-size) - var(--pc-space-6));
+  color: var(--pc-text-3);
+}
+
+.resultLabel {
+  font: var(--pc-type-eyebrow);
+  font-weight: 400;
+  color: var(--pc-text-3);
+  white-space: nowrap;
+}
+
+.resultLabel[data-tone='success'],
+.resultIcon[data-tone='success'] {
+  color: var(--pc-status-success);
+}
+
+.resultLabel[data-tone='warning'],
+.resultIcon[data-tone='warning'] {
+  color: var(--pc-status-warning);
+}
+
+.resultLabel[data-tone='danger'],
+.resultIcon[data-tone='danger'] {
+  color: var(--pc-status-danger);
+}
+
+.resultMeta {
+  font: var(--pc-type-eyebrow);
+  font-weight: 400;
+  color: var(--pc-text-4);
+  white-space: nowrap;
+}
+
+.progress {
+  display: inline-block;
+  flex: none;
+  width: calc(var(--pc-space-32) + var(--pc-space-12));
+  height: var(--pc-space-4);
+  border-radius: var(--pc-radius-xs);
+  background: var(--pc-bg-input);
+  overflow: hidden;
+}
+
+.progressFill {
+  display: block;
+  height: 100%;
+  background: var(--pc-status-warning);
+}
+
+/* ---------- edit turn + mini diff ---------- */
+
+.edit {
+  display: flex;
+  flex-direction: column;
+}
+
+.editHead {
+  appearance: none;
+  -webkit-appearance: none;
+  margin: 0;
+  display: flex;
+  align-items: center;
+  gap: var(--pc-row-gap);
+  width: 100%;
+  height: var(--pc-row-height);
+  padding: 0 var(--pc-row-padding-x);
+  background: var(--pc-bg-panel);
+  border: var(--pc-border-width) solid var(--pc-border-subtle);
+  border-radius: var(--pc-radius-sm);
+  cursor: pointer;
+  text-align: left;
+  min-width: 0;
+}
+
+.edit[data-open] .editHead {
+  border-bottom-color: transparent;
+  border-radius: var(--pc-radius-sm) var(--pc-radius-sm) 0 0;
+}
+
+.editHead:focus-visible {
+  outline: none;
+  box-shadow: var(--pc-focus-ring);
+}
+
+.editName {
+  flex: none;
+  font: var(--pc-type-status);
+  color: var(--pc-text-1);
+}
+
+.editCounts {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--pc-space-6);
+  margin-left: auto;
+  flex: none;
+  font: var(--pc-type-eyebrow);
+  font-weight: 400;
+}
+
+.countAdd {
+  color: var(--pc-status-success);
+}
+
+.countDel {
+  color: var(--pc-status-danger);
+}
+
+.diff {
+  border: var(--pc-border-width) solid var(--pc-border-subtle);
+  border-top: none;
+  border-radius: 0 0 var(--pc-radius-sm) var(--pc-radius-sm);
+  background: var(--pc-bg-window);
+  overflow: hidden;
+}
+
+.diffLine {
+  display: flex;
+}
+
+/* ≤12% tint plus status-coloured text — the same budget the badge pill gets. */
+.diffLine[data-kind='del'] {
+  background: color-mix(in srgb, var(--pc-status-danger) 9%, transparent);
+}
+
+.diffLine[data-kind='add'] {
+  background: color-mix(in srgb, var(--pc-status-success) 9%, transparent);
+}
+
+.diffNo,
+.diffCode {
+  font: var(--pc-type-eyebrow);
+  font-weight: 400;
+  line-height: calc(var(--pc-space-16) + var(--pc-space-2));
+}
+
+.diffNo {
+  flex: none;
+  width: var(--pc-space-32);
+  padding-right: var(--pc-space-8);
+  text-align: right;
+  color: var(--pc-border-strong);
+  user-select: none;
+}
+
+.diffCode {
+  padding-left: var(--pc-space-8);
+  white-space: pre;
+  color: var(--pc-text-2);
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.diffLine[data-kind='del'] .diffCode {
+  color: color-mix(in srgb, var(--pc-status-danger) 55%, var(--pc-text-1));
+}
+
+.diffLine[data-kind='add'] .diffCode {
+  color: color-mix(in srgb, var(--pc-status-success) 55%, var(--pc-text-1));
+}
+
+.diffFoot {
+  display: flex;
+  align-items: center;
+  gap: var(--pc-space-8);
+  height: calc(var(--pc-space-20) + var(--pc-space-2));
+  padding: 0 var(--pc-row-padding-x);
+  border-top: var(--pc-border-width) solid var(--pc-border-subtle);
+}
+
+.diffMore {
+  font: var(--pc-type-eyebrow);
+  font-weight: 400;
+  color: var(--pc-text-4);
+}
+
+.diffNote {
+  margin-left: auto;
+  font: var(--pc-type-eyebrow);
+  font-weight: 400;
+  color: var(--pc-text-3);
+}
+
+/* ---------- proposal ---------- */
+
+.proposal {
+  display: flex;
+  align-items: center;
+  gap: var(--pc-space-8);
+  padding: calc(var(--pc-space-8) + var(--pc-space-2)) var(--pc-row-padding-x);
+  background: color-mix(in srgb, var(--pc-status-success) 6%, transparent);
+  border: var(--pc-border-width) solid color-mix(in srgb, var(--pc-status-success) 28%, transparent);
+  border-radius: var(--pc-radius-sm);
+}
+
+.proposalText {
+  min-width: 0;
+  font: var(--pc-type-meta);
+  line-height: 1.45;
+  color: var(--pc-text-1);
+}
+
+/*
+ * The affirmative action of a *green* outcome. Rather than forking Button, the accent pair is
+ * re-pointed for this one control, so hover, active, disabled and focus all keep working.
+ */
+.proposalAction {
+  --pc-accent: var(--pc-status-success);
+  --pc-accent-on: var(--pc-bg-window);
+
+  margin-left: auto;
+  flex: none;
+  font-family: var(--pc-font-mono);
+}
+
+/* ---------- states ---------- */
+
+.skeleton {
+  display: flex;
+  flex-direction: column;
+  gap: calc(var(--pc-space-8) + var(--pc-space-2));
+  padding-bottom: var(--pc-space-12);
+}
+
+.skeletonUser {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--pc-space-8);
+}
+
+.skeletonLines {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: var(--pc-space-4);
+  min-width: 0;
+}
+
+.skeletonCaption {
+  margin-top: var(--pc-space-4);
+  font: var(--pc-type-eyebrow);
+  font-weight: 400;
+  line-height: 1.45;
+  color: var(--pc-text-4);
+}
+
+.error {
+  padding-bottom: var(--pc-space-12);
+}
+
+/* ---------- composer ---------- */
+
+.composer {
+  flex: none;
+  display: flex;
+  flex-direction: column;
+  gap: var(--pc-space-8);
+  padding: calc(var(--pc-space-8) + var(--pc-space-2)) var(--pc-space-12);
+  border-top: var(--pc-border-width) solid var(--pc-border-subtle);
+  background: var(--pc-bg-window);
+}
+
+.inputBox {
+  display: flex;
+  flex-direction: column;
+  gap: var(--pc-space-6);
+  padding: var(--pc-space-8);
+  background: var(--pc-bg-panel);
+  border: var(--pc-border-width) solid var(--pc-border);
+  border-radius: var(--pc-radius-md);
+}
+
+.inputBox:focus-within {
+  border-color: var(--pc-border-strong);
+}
+
+.textarea {
+  width: 100%;
+  min-height: calc(var(--pc-row-height) - var(--pc-space-8));
+  margin: 0;
+  padding: 0;
+  border: 0;
+  background: none;
+  resize: none;
+  font: var(--pc-type-meta);
+  line-height: 1.4;
+  color: var(--pc-text-1);
+  field-sizing: content;
+}
+
+.textarea::placeholder {
+  color: var(--pc-text-4);
+}
+
+.textarea:focus-visible {
+  outline: none;
+  box-shadow: var(--pc-focus-ring);
+}
+
+.textarea:disabled {
+  cursor: not-allowed;
+}
+
+.chips {
+  display: flex;
+  align-items: center;
+  gap: var(--pc-space-6);
+  flex-wrap: wrap;
+}
+
+.chip {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--pc-space-4);
+  height: calc(var(--pc-space-16) + var(--pc-space-2));
+  padding: 0 var(--pc-space-6);
+  background: var(--pc-bg-raised);
+  border: var(--pc-border-width) solid var(--pc-border);
+  border-radius: var(--pc-radius-sm);
+}
+
+.chipIcon {
+  flex: none;
+  width: calc(var(--pc-icon-size) - var(--pc-space-6));
+  height: calc(var(--pc-icon-size) - var(--pc-space-6));
+  color: var(--pc-text-3);
+}
+
+/* Identity role #1 (fill) — the colour itself arrives inline from avatarStyle(). */
+.chipSwatch {
+  flex: none;
+  width: var(--pc-space-8);
+  height: var(--pc-space-8);
+  border-radius: var(--pc-radius-xs);
+}
+
+.chipLabel {
+  font: var(--pc-type-eyebrow);
+  font-weight: 400;
+  color: var(--pc-text-2);
+}
+
+.footerRow {
+  display: flex;
+  align-items: center;
+  gap: var(--pc-space-8);
+}
+
+.hint {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--pc-space-4);
+}
+
+.hintLabel {
+  font: var(--pc-type-meta);
+  color: var(--pc-text-4);
+}
+
+.stop {
+  margin-left: auto;
+  flex: none;
+}

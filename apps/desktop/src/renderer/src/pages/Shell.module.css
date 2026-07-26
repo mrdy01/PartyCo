@@ -1,0 +1,111 @@
+/*
+ * Layout glue for the shell page. Nothing here styles a component — every surface on this page is a
+ * component from @partyco/ui, and this file only decides where two of them sit next to each other.
+ */
+
+/**
+ * Screen 04: the conversation does not disappear when a file opens, it narrows. 560px is the
+ * export's figure and it is a floor as much as a width — below it the column stops being readable
+ * and the split stops being worth having.
+ */
+.split {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  align-items: stretch;
+}
+
+.narrowColumn {
+  flex: none;
+  width: calc(var(--pc-space-32) * 17 + var(--pc-space-16));
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  border-right: var(--pc-border-width) solid var(--pc-border-subtle);
+}
+
+/* ---------- settings (scaffolding — see SettingsView) ---------- */
+
+.settings {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  display: flex;
+  justify-content: center;
+  padding: var(--pc-space-32) 0;
+}
+
+.settingsColumn {
+  width: var(--pc-column-read);
+  max-width: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: var(--pc-space-20);
+  padding: 0 var(--pc-space-24);
+}
+
+.settingsTitle {
+  margin: 0;
+  font: var(--pc-type-title);
+  letter-spacing: var(--pc-tracking-title);
+  color: var(--pc-text-heading);
+}
+
+.settingsLead {
+  margin: 0;
+  font: var(--pc-type-read);
+  color: var(--pc-text-read);
+}
+
+.block {
+  display: flex;
+  flex-direction: column;
+  gap: var(--pc-space-8);
+}
+
+.blockTitle {
+  margin: 0;
+  font: var(--pc-type-card);
+  color: var(--pc-text-1);
+}
+
+.row {
+  display: flex;
+  align-items: center;
+  gap: var(--pc-space-12);
+  min-height: calc(var(--pc-row-height) + var(--pc-space-12));
+  padding: 0 var(--pc-space-12);
+  background: var(--pc-bg-panel);
+  border: var(--pc-border-width) solid var(--pc-border-subtle);
+  border-radius: var(--pc-radius-md);
+}
+
+.rowLabel {
+  font: var(--pc-type-body);
+  color: var(--pc-text-1);
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.rowAction {
+  margin-left: auto;
+  flex: none;
+  padding: var(--pc-space-4) var(--pc-space-8);
+  background: none;
+  border: 0;
+  border-radius: var(--pc-radius-sm);
+  font: var(--pc-type-label);
+  color: var(--pc-link);
+  cursor: pointer;
+}
+
+.rowAction:hover {
+  color: var(--pc-link-hover);
+}
+
+.rowAction:focus-visible {
+  outline: none;
+  box-shadow: var(--pc-focus-ring);
+}

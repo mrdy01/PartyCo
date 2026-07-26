@@ -1,0 +1,319 @@
+/*
+ * Editor pane. Design «Workspace · центр».
+ *
+ * Geometry notes, because the design's pixel values have no exact token:
+ *  · breadcrumb 27px and footer 26px  → --pc-row-height − 2px, so both densities move together;
+ *  · gutter 46px                      → --pc-space-32 + --pc-space-12 = 44px;
+ *  · owner edge 3px                   → --pc-zone-edge-width (2px), the token that owns that role.
+ * The code and the gutter numbers share `--pc-type-code`, which is what keeps the numbers on the
+ * same baselines as the lines they label in both densities.
+ */
+
+.root {
+  box-sizing: border-box;
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+  min-width: 0;
+  min-height: 0;
+  background: var(--pc-bg-window);
+}
+
+/* ── breadcrumb bar ──────────────────────────────────────────────────────────────────────────── */
+
+.header {
+  box-sizing: border-box;
+  display: flex;
+  flex: none;
+  align-items: center;
+  gap: var(--pc-space-6);
+  height: calc(var(--pc-row-height) - var(--pc-space-2));
+  padding: 0 var(--pc-space-12);
+  border-bottom: var(--pc-border-width) solid var(--pc-border-subtle);
+  white-space: nowrap;
+  overflow: hidden;
+}
+
+.crumbs {
+  display: flex;
+  align-items: center;
+  gap: var(--pc-space-6);
+  min-width: 0;
+  overflow: hidden;
+}
+
+.crumb {
+  font: var(--pc-type-status);
+  color: var(--pc-text-4);
+}
+
+.crumbBoundary {
+  font: var(--pc-type-status);
+  color: var(--pc-text-2);
+}
+
+.crumbFile {
+  font: var(--pc-type-status);
+  font-weight: 500;
+  color: var(--pc-text-1);
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.sep {
+  flex: none;
+  width: var(--pc-space-8);
+  height: var(--pc-space-8);
+  color: var(--pc-text-4);
+}
+
+.boundary {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--pc-space-4);
+  min-width: 0;
+}
+
+/* Identity role #1 — filled inline from avatarStyle(). */
+.swatch {
+  flex: none;
+  width: var(--pc-space-8);
+  height: var(--pc-space-8);
+  border-radius: var(--pc-radius-xs);
+}
+
+.headerEnd {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  gap: var(--pc-space-6);
+  margin-left: auto;
+}
+
+/* «I · твой лиз». Background + edge come inline from diffGutterStyle(). */
+.lease {
+  box-sizing: border-box;
+  display: inline-flex;
+  align-items: center;
+  gap: var(--pc-space-4);
+  height: calc(var(--pc-space-16) + var(--pc-space-2));
+  padding: 0 var(--pc-space-6);
+  border-radius: var(--pc-radius-sm);
+}
+
+.leaseSymbol {
+  --symbol-box: var(--pc-space-12);
+
+  box-sizing: border-box;
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  width: var(--symbol-box);
+  height: var(--symbol-box);
+  border-radius: var(--pc-radius-xs);
+  font-family: var(--pc-font-mono);
+  font-weight: 600;
+  /* Ratio of the box, not a px step — the type ramp has no mono size this small. */
+  font-size: calc(var(--symbol-box) * 0.62);
+  line-height: 1;
+}
+
+.leaseLabel {
+  font: var(--pc-type-status);
+  color: var(--pc-text-2);
+}
+
+/* «только чтение». Neutral chrome on purpose — read-only is a fact, not an alarm. */
+.lock {
+  box-sizing: border-box;
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  gap: var(--pc-space-4);
+  height: calc(var(--pc-space-16) + var(--pc-space-2));
+  padding: 0 var(--pc-space-6);
+  background: var(--pc-bg-raised);
+  border: var(--pc-border-width) solid var(--pc-border);
+  border-radius: var(--pc-radius-sm);
+  font: var(--pc-type-status);
+  font-weight: 500;
+  color: var(--pc-text-2);
+}
+
+.lockGlyph {
+  width: var(--pc-space-12);
+  height: var(--pc-space-12);
+}
+
+.meta {
+  flex: none;
+  font: var(--pc-type-status);
+  color: var(--pc-text-4);
+}
+
+/* ── banner slot ─────────────────────────────────────────────────────────────────────────────── */
+
+.banner {
+  flex: none;
+  min-width: 0;
+}
+
+/* ── code area ───────────────────────────────────────────────────────────────────────────────── */
+
+.body {
+  position: relative;
+  display: flex;
+  flex: 1 1 auto;
+  align-items: stretch;
+  min-height: 0;
+  overflow: hidden;
+}
+
+/* Read-only: the code recedes, it does not turn red. */
+.body[data-dim='true'] {
+  opacity: 0.62;
+}
+
+.gutter {
+  box-sizing: border-box;
+  display: flex;
+  flex: none;
+  flex-direction: column;
+  align-items: flex-end;
+  width: calc(var(--pc-space-32) + var(--pc-space-12));
+  padding-top: var(--pc-space-8);
+  padding-right: var(--pc-space-12);
+  border-right: var(--pc-border-width) solid var(--pc-border-subtle);
+  overflow: hidden;
+}
+
+.num {
+  font: var(--pc-type-code);
+  color: var(--pc-text-4);
+  -webkit-user-select: none;
+  user-select: none;
+}
+
+/* Status colour as text — the allowed role. */
+.numAdded {
+  color: var(--pc-status-success);
+}
+
+.code {
+  box-sizing: border-box;
+  flex: 1 1 auto;
+  min-width: 0;
+  margin: 0;
+  padding: var(--pc-space-8) 0 0;
+  overflow: auto;
+  font: var(--pc-type-code);
+  color: var(--pc-text-2);
+  cursor: text;
+}
+
+.code:focus-visible {
+  outline: none;
+  box-shadow: var(--pc-focus-ring);
+}
+
+.code[data-readonly='true'] {
+  cursor: default;
+}
+
+.codeInner {
+  display: block;
+  font: inherit;
+}
+
+.line {
+  display: block;
+  /* 2px transparent edge + 12px padding = the design's 14px inset, and added lines never shift. */
+  padding-left: var(--pc-space-12);
+  border-left: var(--pc-zone-edge-width) solid transparent;
+  white-space: pre;
+}
+
+/* A blank line still owns a row: zero-width space keeps its line box alive. */
+.line:empty::after {
+  content: '\200B';
+}
+
+.lineAdded {
+  background: color-mix(in srgb, var(--pc-status-success) 10%, transparent);
+  border-left-color: color-mix(in srgb, var(--pc-status-success) 55%, transparent);
+  color: color-mix(in srgb, var(--pc-status-success) 42%, var(--pc-text-1));
+}
+
+/* Floating «твой агент писал 4 с назад». */
+.badge {
+  position: absolute;
+  top: var(--pc-space-12);
+  right: var(--pc-space-12);
+  box-sizing: border-box;
+  display: flex;
+  align-items: center;
+  gap: var(--pc-space-6);
+  height: calc(var(--pc-space-20) + var(--pc-space-2));
+  padding: 0 var(--pc-space-8);
+  background: color-mix(in srgb, var(--pc-bg-panel) 94%, transparent);
+  border: var(--pc-border-width) solid var(--pc-border);
+  border-radius: var(--pc-radius-sm);
+  pointer-events: none;
+}
+
+.badgeText {
+  font: var(--pc-type-status);
+  color: var(--pc-text-2);
+  white-space: nowrap;
+}
+
+/* ── footer ──────────────────────────────────────────────────────────────────────────────────── */
+
+.footer {
+  box-sizing: border-box;
+  display: flex;
+  flex: none;
+  align-items: center;
+  gap: var(--pc-space-12);
+  height: calc(var(--pc-row-height) - var(--pc-space-2));
+  padding: 0 var(--pc-space-12);
+  border-top: var(--pc-border-width) solid var(--pc-border-subtle);
+  white-space: nowrap;
+  overflow: hidden;
+}
+
+.footItem {
+  font: var(--pc-type-status);
+  color: var(--pc-text-4);
+}
+
+.footDiff {
+  font: var(--pc-type-status);
+  color: var(--pc-status-success);
+}
+
+.footerEnd {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--pc-space-4);
+  margin-left: auto;
+  min-width: 0;
+}
+
+.check {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--pc-space-4);
+  font: var(--pc-type-status);
+  color: var(--pc-status-success);
+}
+
+.check[data-ok='false'] {
+  color: var(--pc-text-3);
+}
+
+.checkGlyph {
+  width: var(--pc-space-12);
+  height: var(--pc-space-12);
+}

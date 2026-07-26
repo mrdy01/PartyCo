@@ -1,0 +1,554 @@
+/*
+ * Merge queue table. Design source: «PartyCo Merge Queue» §таблица очереди.
+ *
+ * Two colour rules hold this sheet together, and both are load-bearing:
+ *
+ *  1. The 2px left edge is ALWAYS the author's identity colour — including the refused row and its
+ *     expanded card. It arrives inline from zoneEdgeStyle(); this sheet only reserves the space for
+ *     it (see .cellPosition padding) and never paints it. The linter enforces the second half.
+ *  2. Status colour takes the REST of the perimeter (an inset outline drawn top and bottom on the
+ *     row's cells), a tint of at most 13%, and the dot / spinner / bar / text. There is no status
+ *     fill and no status left edge anywhere below.
+ *
+ * The tint is a background-image over background-color on purpose: hover and selection paint the
+ * colour, the state tint sits on top of it, and neither erases the other.
+ *
+ * Geometry note: the row is two-storey (branch over claim), so its height is derived — one ordinary
+ * row plus a 16px step — rather than written as the design's 44px. Compact density therefore gets a
+ * shorter row without losing the second line.
+ */
+
+.root {
+  background: var(--pc-bg-panel);
+  border: var(--pc-border-width) solid var(--pc-border);
+  border-radius: var(--pc-radius-md);
+  overflow: hidden;
+  color: var(--pc-text-1);
+}
+
+/* -------------------------------------------------------------- table grid */
+
+.table {
+  width: 100%;
+  border-collapse: collapse;
+  table-layout: fixed;
+}
+
+/*
+ * Column widths. The design's grid is 34 / 1fr / 88 / 152 / 74 / 1fr / 96 px; there is no width
+ * token, so the text columns are expressed in `ch` (proportions that survive a base-font change)
+ * and the two columns that own the row's outer padding are derived from the spacing scale.
+ * `.colClaim` and `.colState` are left auto — under table-layout: fixed the two of them split what
+ * is left, which is exactly the design's two 1fr tracks.
+ */
+.colPosition {
+  width: calc(var(--pc-row-padding-x) + var(--pc-space-32) + var(--pc-space-6));
+}
+
+.colClaim {
+  width: auto;
+}
+
+.colAuthor {
+  width: 13ch;
+}
+
+.colBoundary {
+  width: 23ch;
+}
+
+.colDiff {
+  width: 11ch;
+}
+
+.colState {
+  width: auto;
+}
+
+.colLane {
+  width: 15ch;
+}
+
+/* ------------------------------------------------------------------ head */
+
+.head {
+  background: var(--pc-bg-window);
+}
+
+.headCell {
+  height: calc(var(--pc-row-height) - var(--pc-space-4));
+  padding: 0 var(--pc-space-4);
+  font: var(--pc-type-eyebrow);
+  letter-spacing: var(--pc-tracking-eyebrow);
+  text-transform: uppercase;
+  text-align: left;
+  color: var(--pc-text-3);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  border-bottom: var(--pc-border-width) solid var(--pc-border);
+}
+
+.headCell[data-align='end'] {
+  text-align: right;
+}
+
+.headCell:first-child {
+  padding-left: var(--pc-row-padding-x);
+}
+
+.headCell:last-child {
+  padding-right: var(--pc-row-padding-x);
+}
+
+/* ------------------------------------------------------------------- rows */
+
+/*
+ * One <tbody> per patch: the refusal is a second <tr> that must stay grouped with its row, and the
+ * group is also where the state tint and outline are declared so both rows read the same value.
+ */
+.group {
+  --row-tint: transparent;
+  --row-outline: transparent;
+}
+
+/* Checks in flight: a wash, no outline — the row is busy, not important. */
+.group[data-state='checking'] {
+  --row-tint: color-mix(in srgb, var(--pc-status-running) 7%, transparent);
+}
+
+.group[data-state='merging'] {
+  --row-tint: color-mix(in srgb, var(--pc-status-running) 13%, transparent);
+  --row-outline: color-mix(in srgb, var(--pc-status-running) 30%, transparent);
+}
+
+.group[data-state='merged'] {
+  --row-tint: color-mix(in srgb, var(--pc-status-success) 10%, transparent);
+  --row-outline: color-mix(in srgb, var(--pc-status-success) 32%, transparent);
+}
+
+/* The loudest row on the screen, and still only 5% of fill. */
+.group[data-state='rejected'] {
+  --row-tint: color-mix(in srgb, var(--pc-status-danger) 5%, transparent);
+  --row-outline: color-mix(in srgb, var(--pc-status-danger) 32%, transparent);
+}
+
+.row {
+  --row-outline-bottom: var(--row-outline);
+}
+
+.row > td {
+  height: calc(var(--pc-row-height) + var(--pc-space-16));
+  padding: 0 var(--pc-space-4);
+  vertical-align: middle;
+  overflow: hidden;
+  border-bottom: var(--pc-border-width) solid var(--pc-border-subtle);
+  background-color: transparent;
+  background-image: linear-gradient(var(--row-tint), var(--row-tint));
+  /*
+   * Status role #4 — outline. Only the horizontal halves are drawn: the row spans the full panel
+   * width, so its vertical segments would land underneath the identity edge on one side and the
+   * panel border on the other.
+   */
+  box-shadow:
+    inset 0 var(--pc-border-width) 0 0 var(--row-outline),
+    inset 0 calc(-1 * var(--pc-border-width)) 0 0 var(--row-outline-bottom);
+}
+
+/* An open row hands its bottom edge to the refusal card below it. */
+.row[data-open='true'] {
+  --row-outline-bottom: transparent;
+}
+
+.row[data-open='true'] > td {
+  border-bottom-color: transparent;
+}
+
+.group:last-of-type > .row:last-child > td,
+.group:last-of-type > .detailRow:last-child > .detailCell {
+  border-bottom: none;
+}
+
+.row:not([data-skeleton='true']):hover > td {
+  background-color: var(--pc-bg-raised);
+}
+
+/* Selection is the running/focus colour — never the owner's identity colour. */
+.row[data-selected='true'] > td {
+  background-color: var(--pc-selected-row-bg);
+}
+
+/* `.row > .cellX` (0,2,0) deliberately outranks `.row > td` (0,1,1) — no !important needed. */
+
+/* ------------------------------------------------------------- # / position */
+
+.row > .cellPosition {
+  /* The 2px identity edge is applied inline; the padding gives back what it takes. */
+  padding-left: calc(var(--pc-row-padding-x) - var(--pc-zone-edge-width));
+}
+
+.row[data-skeleton='true'] > .cellPosition {
+  padding-left: var(--pc-row-padding-x);
+}
+
+.positionInner {
+  display: flex;
+  align-items: center;
+  gap: var(--pc-space-4);
+  min-width: 0;
+}
+
+.position {
+  font: var(--pc-type-status);
+  font-weight: 600;
+  color: var(--pc-text-2);
+}
+
+.row[data-selected='true'] .position,
+.row[data-open='true'] .position {
+  color: var(--pc-text-1);
+}
+
+/* Status colour as a glyph — the merged row trades its number for a verdict. */
+.mergedMark {
+  flex: none;
+  width: calc(var(--pc-icon-size) - var(--pc-space-4));
+  height: calc(var(--pc-icon-size) - var(--pc-space-4));
+  color: var(--pc-status-success);
+}
+
+.disclosure {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: none;
+  width: calc(var(--pc-icon-size) - var(--pc-space-2));
+  height: calc(var(--pc-icon-size) - var(--pc-space-2));
+  padding: 0;
+  background: none;
+  border: none;
+  border-radius: var(--pc-radius-xs);
+  color: var(--pc-text-2);
+  cursor: pointer;
+}
+
+.disclosure:hover {
+  color: var(--pc-text-1);
+}
+
+.disclosure:focus-visible {
+  outline: none;
+  box-shadow: var(--pc-focus-ring);
+}
+
+.caret {
+  width: calc(var(--pc-icon-size) - var(--pc-space-4));
+  height: calc(var(--pc-icon-size) - var(--pc-space-4));
+  transition: transform var(--pc-duration-fast) var(--pc-ease);
+}
+
+.disclosure[aria-expanded='false'] .caret {
+  transform: rotate(-90deg);
+}
+
+/* ---------------------------------------------------------------- claim */
+
+.claim {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: var(--pc-space-4);
+  min-width: 0;
+  width: 100%;
+}
+
+.claimButton {
+  padding: var(--pc-space-2) var(--pc-space-2);
+  margin: 0;
+  background: none;
+  border: none;
+  border-radius: var(--pc-radius-sm);
+  text-align: left;
+  font: inherit;
+  color: inherit;
+  cursor: pointer;
+}
+
+.claimButton:focus-visible {
+  outline: none;
+  box-shadow: var(--pc-focus-ring);
+}
+
+.branch {
+  font: var(--pc-type-path);
+  font-weight: 500;
+  color: var(--pc-text-1);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* «c-2284 · рейтинг по эло вместо очереди по времени» — the quiet second storey. */
+.claimNote {
+  font: var(--pc-type-meta);
+  color: var(--pc-text-3);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* --------------------------------------------------------------- author */
+
+.author {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--pc-space-6);
+  min-width: 0;
+  max-width: 100%;
+}
+
+.authorName {
+  font: var(--pc-type-meta);
+  color: var(--pc-text-2);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* ------------------------------------------------------ boundary · mode */
+
+.boundary {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--pc-space-6);
+  min-width: 0;
+  max-width: 100%;
+}
+
+.path {
+  font: var(--pc-type-status);
+  color: var(--pc-text-2);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/*
+ * The lease-mode letter. R / I / X are the author's claim on the boundary, so they take the
+ * identity fill (applied inline, same helper as the avatar). G belongs to the rule and not to a
+ * person — it takes the warning tint, which is the pill role and stays inside spec §5.
+ */
+.mode {
+  flex: none;
+  box-sizing: border-box;
+  min-width: var(--pc-space-12);
+  padding: 0 var(--pc-space-4);
+  border-radius: var(--pc-radius-xs);
+  font: var(--pc-type-status);
+  font-weight: 600;
+  line-height: calc(var(--pc-avatar-size) + var(--pc-space-2));
+  text-align: center;
+  background: transparent;
+  color: var(--pc-text-4);
+}
+
+.mode[data-mode='guarded'] {
+  background: color-mix(in srgb, var(--pc-status-warning) 16%, transparent);
+  color: var(--pc-status-warning);
+}
+
+/* ------------------------------------------------------------------ diff */
+
+.diff {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--pc-space-4);
+  font: var(--pc-type-status);
+}
+
+.added {
+  color: var(--pc-status-success);
+}
+
+.removed {
+  color: var(--pc-status-danger);
+}
+
+/* ----------------------------------------------------------------- state */
+
+.cellState {
+  --state-color: var(--pc-text-3);
+}
+
+.cellState[data-status='success'] {
+  --state-color: var(--pc-status-success);
+}
+
+.cellState[data-status='warning'] {
+  --state-color: var(--pc-status-warning);
+}
+
+.cellState[data-status='danger'] {
+  --state-color: var(--pc-status-danger);
+}
+
+.cellState[data-status='running'] {
+  --state-color: var(--pc-status-running);
+}
+
+.cellState[data-status='neutral'] {
+  --state-color: var(--pc-text-3);
+}
+
+.stateInner {
+  display: flex;
+  align-items: center;
+  gap: var(--pc-space-6);
+  min-width: 0;
+}
+
+/* Status colour, text role. */
+.stateStrong {
+  flex: none;
+  font: var(--pc-type-meta);
+  font-weight: 600;
+  color: var(--state-color);
+  white-space: nowrap;
+}
+
+.stateText {
+  min-width: 0;
+  font: var(--pc-type-meta);
+  color: var(--pc-text-2);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.stateNote {
+  min-width: 0;
+  font: var(--pc-type-status);
+  color: var(--pc-text-3);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.sha {
+  font-family: var(--pc-font-mono);
+}
+
+.stateGlyph {
+  flex: none;
+  width: calc(var(--pc-icon-size) - var(--pc-space-4));
+  height: calc(var(--pc-icon-size) - var(--pc-space-4));
+  color: var(--state-color);
+}
+
+/* Status colour, dot role. */
+.dot {
+  flex: none;
+  width: var(--pc-space-6);
+  height: var(--pc-space-6);
+  border-radius: 50%;
+  background: var(--state-color);
+}
+
+.dot[data-pulse='true'] {
+  animation: global(pc-pulse) 1.4s ease-in-out infinite;
+}
+
+/* «ждёт» — an outline, because nothing is happening yet. */
+.hollowDot {
+  flex: none;
+  width: var(--pc-space-6);
+  height: var(--pc-space-6);
+  border-radius: 50%;
+  background: transparent;
+  box-shadow: inset 0 0 0 var(--pc-border-width) var(--pc-text-4);
+}
+
+.spinner {
+  flex: none;
+  box-sizing: border-box;
+  width: var(--pc-space-12);
+  height: var(--pc-space-12);
+  border: var(--pc-border-width) solid var(--pc-border-subtle);
+  border-top-color: var(--state-color);
+  border-radius: 50%;
+  animation: global(pc-spin) var(--pc-duration-spin) linear infinite;
+}
+
+/*
+ * Per-check progress. Width comes from checkProgress() as an inline percentage — the same pair of
+ * numbers that prints «96/312» next to it, so the bar and the counter cannot disagree.
+ */
+.bar {
+  flex: 1 1 auto;
+  min-width: var(--pc-space-32);
+  height: calc(var(--pc-space-4) - var(--pc-border-width));
+  border-radius: var(--pc-radius-xs);
+  background: var(--pc-border-subtle);
+  overflow: hidden;
+}
+
+.barFill {
+  display: block;
+  height: 100%;
+  background: var(--state-color);
+}
+
+.progressCount {
+  flex: none;
+  font: var(--pc-type-status);
+  color: var(--state-color);
+  white-space: nowrap;
+}
+
+/* ------------------------------------------------------------------ lane */
+
+.row > .cellLane {
+  text-align: right;
+  padding-right: var(--pc-row-padding-x);
+}
+
+/*
+ * The chip is a <Badge mono>; only the placement code's casing and tracking are added here, so the
+ * badge keeps its own pill tint, its own outline for `neutral` and its own type step.
+ */
+.lane {
+  text-transform: uppercase;
+  letter-spacing: var(--pc-tracking-eyebrow);
+}
+
+/* --------------------------------------------------------- gate refusal */
+
+.detailRow > .detailCell {
+  /* GateRejection's inline variant brings its own padding, including the disclosure indent. */
+  padding: 0;
+  border-bottom: var(--pc-border-width) solid var(--pc-border-subtle);
+  background-color: transparent;
+  background-image: linear-gradient(var(--row-tint), var(--row-tint));
+  box-shadow: inset 0 calc(-1 * var(--pc-border-width)) 0 0 var(--row-outline);
+}
+
+/* ------------------------------------------- empty / loading / error */
+
+.stateCell {
+  padding: var(--pc-space-24) var(--pc-row-padding-x);
+  text-align: center;
+}
+
+/* --------------------------------------------------------------- a11y util */
+
+.srOnly {
+  position: absolute;
+  width: var(--pc-space-2);
+  height: var(--pc-space-2);
+  margin: calc(-1 * var(--pc-space-2));
+  padding: 0;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+  border: 0;
+}

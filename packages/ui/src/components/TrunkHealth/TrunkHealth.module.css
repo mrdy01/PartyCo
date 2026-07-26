@@ -1,0 +1,318 @@
+/*
+ * Trunk health — the header of screen 2.4.
+ *
+ * Geometry: the design draws 116px. Expressed as four row-heights plus the hairline, so compact
+ * shrinks the whole header (92px) instead of leaving a comfortable-sized band above a compact
+ * table. Everything inside follows the same rule — tile, divider and histogram all derive from
+ * --pc-row-height, and the density switch changes size only, never what is on the screen.
+ *
+ * Colour rules honoured here:
+ *  - status colour appears as the tile tint + border (pill role), as the metric value text (text
+ *    role) and as the inset outline on the reverted bar and its legend swatch (outline role). It is
+ *    never the fill of the histogram and never a left edge;
+ *  - identity colour arrives only as inline style from avatarStyle() — this sheet never names an
+ *    --pc-id-* token. The bars are identity role #1: a solid block of a member's colour saying
+ *    "this merge is theirs", exactly what the avatar says.
+ */
+
+.root {
+  display: flex;
+  align-items: stretch;
+  flex: none;
+  box-sizing: border-box;
+  min-height: calc(var(--pc-row-height) * 4 + var(--pc-space-4));
+  background: var(--pc-bg-window);
+  border-bottom: var(--pc-border-width) solid var(--pc-border-subtle);
+  color: var(--pc-text-1);
+}
+
+.main {
+  display: flex;
+  align-items: center;
+  gap: var(--pc-space-16);
+  flex: 1;
+  min-width: 0;
+  padding: 0 var(--pc-space-16);
+}
+
+/* ---------------------------------------------------------------- verdict */
+
+.verdict {
+  display: flex;
+  align-items: center;
+  gap: var(--pc-space-12);
+  flex: none;
+  min-width: 0;
+}
+
+/*
+ * The verdict tile. A tinted pill at 12% with a 40% border — the same construction as <Badge>,
+ * scaled up because this is the one statement the screen makes about itself. Still a chip, not a
+ * filled panel: the forbidden case is status colour flooding a large surface.
+ */
+.tile {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex: none;
+  box-sizing: border-box;
+  width: calc(var(--pc-row-height) + var(--pc-space-16));
+  height: calc(var(--pc-row-height) + var(--pc-space-16));
+  border: var(--pc-border-width) solid transparent;
+  border-radius: var(--pc-radius-lg);
+}
+
+.root[data-state='green'] .tile {
+  background: color-mix(in srgb, var(--pc-status-success) 12%, transparent);
+  border-color: color-mix(in srgb, var(--pc-status-success) 40%, transparent);
+  color: var(--pc-status-success);
+}
+
+.root[data-state='red'] .tile {
+  background: color-mix(in srgb, var(--pc-status-danger) 12%, transparent);
+  border-color: color-mix(in srgb, var(--pc-status-danger) 45%, transparent);
+  color: var(--pc-status-danger);
+}
+
+.tileIcon {
+  width: calc(var(--pc-icon-size) + var(--pc-space-6));
+  height: calc(var(--pc-icon-size) + var(--pc-space-6));
+  color: inherit;
+}
+
+.headline {
+  display: flex;
+  flex-direction: column;
+  gap: var(--pc-space-4);
+  min-width: 0;
+}
+
+.title {
+  margin: 0;
+  font: var(--pc-type-title);
+  letter-spacing: var(--pc-tracking-title);
+  color: var(--pc-text-heading);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/*
+ * The provenance line. Mono, because every value in it is a protocol value or a relative age —
+ * never a clock time, so the human reads "how long ago" and the agent gets nothing to anchor on.
+ */
+.sub {
+  font: var(--pc-type-status);
+  color: var(--pc-text-3);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.sha {
+  color: var(--pc-text-2);
+}
+
+/* On a red trunk the sub-line is the news, not a footnote — both steps move up one. */
+.root[data-state='red'] .sub {
+  color: var(--pc-text-2);
+}
+
+.root[data-state='red'] .sha {
+  color: var(--pc-text-1);
+}
+
+.divider {
+  width: var(--pc-border-width);
+  height: calc(var(--pc-row-height) + var(--pc-space-24));
+  flex: none;
+  background: var(--pc-border-subtle);
+}
+
+/* ---------------------------------------------------------------- metrics */
+
+.metrics {
+  display: flex;
+  align-items: center;
+  gap: var(--pc-space-20);
+  flex: none;
+  margin: 0;
+  min-width: 0;
+}
+
+.metric {
+  display: flex;
+  flex-direction: column;
+  gap: var(--pc-space-4);
+  min-width: 0;
+}
+
+.eyebrow {
+  margin: 0;
+  font: var(--pc-type-eyebrow);
+  letter-spacing: var(--pc-tracking-eyebrow);
+  text-transform: uppercase;
+  color: var(--pc-text-3);
+  white-space: nowrap;
+}
+
+.value {
+  margin: 0;
+  font: var(--pc-type-head);
+  color: var(--pc-text-1);
+  white-space: nowrap;
+}
+
+/* Status colour as text — role #3. Amber states "there were some", never "you failed". */
+.value[data-tone='warning'] {
+  color: var(--pc-status-warning);
+}
+
+/* ------------------------------------------------------------------ owner */
+
+.owner {
+  /*
+   * The header draws identity larger than any row does: 32px against the row avatar's 23px. The
+   * density token <Avatar> derives its box from is re-scoped for this cluster instead of teaching
+   * the shared component a new size — the avatar stays the shared component and still shrinks with
+   * compact. Scope is exactly this block, which holds one avatar and two lines of text.
+   */
+  --pc-avatar-size: calc(var(--pc-row-height) - var(--pc-space-4));
+
+  display: flex;
+  align-items: center;
+  gap: var(--pc-space-12);
+  flex: none;
+  min-width: 0;
+}
+
+.ownerText {
+  display: flex;
+  flex-direction: column;
+  gap: var(--pc-space-4);
+  min-width: 0;
+}
+
+.ownerHeadline {
+  font: var(--pc-type-ui);
+  color: var(--pc-text-1);
+  white-space: nowrap;
+}
+
+.ownerNote {
+  font: var(--pc-type-status);
+  color: var(--pc-text-3);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* Pinned to the far edge: the good news about a red trunk belongs at the end of the sentence. */
+.rebuilding {
+  margin-left: auto;
+  flex: none;
+}
+
+/* ----------------------------------------------------------------- merges */
+
+.merges {
+  display: flex;
+  flex-direction: column;
+  gap: var(--pc-space-8);
+  flex: none;
+  box-sizing: border-box;
+  width: calc(var(--pc-space-32) * 10 + var(--pc-space-8));
+  padding: var(--pc-space-12) var(--pc-space-16);
+  border-left: var(--pc-border-width) solid var(--pc-border-subtle);
+}
+
+.mergesHead {
+  display: flex;
+  align-items: baseline;
+  gap: var(--pc-space-8);
+  min-width: 0;
+}
+
+.mergesSummary {
+  margin-left: auto;
+  font: var(--pc-type-status);
+  color: var(--pc-text-4);
+  white-space: nowrap;
+}
+
+.bars {
+  display: flex;
+  align-items: flex-end;
+  gap: var(--pc-space-2);
+  height: calc(var(--pc-row-height) + var(--pc-space-6));
+  min-width: 0;
+}
+
+/* Fill is the author's colour and comes in as an inline style — see the header note. */
+.bar {
+  flex: 1 1 0;
+  min-width: var(--pc-space-2);
+  border-radius: var(--pc-radius-xs);
+}
+
+/*
+ * The merge the auto-revert took back. Status colour as an inset outline — role #4. The fill stays
+ * the author's, because the merge is still theirs; only the perimeter says it was undone.
+ */
+.bar[data-reverted='true'] {
+  box-shadow: inset 0 0 0 var(--pc-border-width) var(--pc-status-danger);
+}
+
+.legend {
+  display: flex;
+  align-items: center;
+  gap: var(--pc-space-8);
+  min-width: 0;
+}
+
+.legendItem {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--pc-space-4);
+  min-width: 0;
+}
+
+/* Same two-colour construction as the bar it explains, at legend scale. */
+.swatch {
+  width: var(--pc-space-8);
+  height: var(--pc-space-8);
+  flex: none;
+  border-radius: var(--pc-radius-xs);
+  box-shadow: inset 0 0 0 var(--pc-border-width) var(--pc-status-danger);
+}
+
+.legendText {
+  font: var(--pc-type-status);
+  color: var(--pc-text-3);
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.discuss {
+  margin: 0 0 0 auto;
+  padding: 0;
+  flex: none;
+  background: none;
+  border: none;
+  border-radius: var(--pc-radius-xs);
+  font: var(--pc-type-status);
+  color: var(--pc-status-running);
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.discuss:hover {
+  text-decoration: underline;
+}
+
+.discuss:focus-visible {
+  outline: none;
+  box-shadow: var(--pc-focus-ring);
+}

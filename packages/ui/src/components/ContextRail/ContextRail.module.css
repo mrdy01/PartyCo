@@ -1,0 +1,225 @@
+/*
+ * Context rail — 52px of permanent chrome down the left edge.
+ *
+ * Geometry note: the rail is window furniture rather than content, so its boxes come from the
+ * spacing scale and not from --pc-row-height. Density changes the lists the rail navigates to, not
+ * the rail itself — otherwise the icons would jump every time a person flipped it.
+ *
+ * Colour note: the export paints the rail one step darker than the window — that step is
+ * --pc-bg-chrome. The rail leans on its right border for the separation; hover and the active state
+ * step UP to --pc-bg-panel / --pc-bg-raised.
+ */
+
+.rail {
+  box-sizing: border-box;
+  flex: none;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  width: calc(var(--pc-space-32) + var(--pc-space-20));
+  min-height: 0;
+  padding-block: var(--pc-space-8);
+  background: var(--pc-bg-chrome);
+  border-right: var(--pc-border-width) solid var(--pc-border-subtle);
+  -webkit-user-select: none;
+  user-select: none;
+}
+
+/* ---------- project square ---------- */
+
+/*
+ * Not a control: the title bar already carries the project switcher, and two ways to do one thing
+ * in 52px of chrome is one too many. Hidden from assistive tech for the same reason — it repeats
+ * a name that is already on screen as real text.
+ */
+.project {
+  box-sizing: border-box;
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: calc(var(--pc-space-32) - var(--pc-space-2));
+  height: calc(var(--pc-space-32) - var(--pc-space-2));
+  margin-bottom: calc(var(--pc-space-8) + var(--pc-space-2));
+  background: var(--pc-bg-raised);
+  border: var(--pc-border-width) solid var(--pc-border);
+  border-radius: var(--pc-radius-md);
+}
+
+.projectInitial {
+  font: var(--pc-type-ui);
+  font-weight: 600;
+  line-height: 1;
+  /* Chrome accent — the project mark is not a person, so it never takes an identity colour. */
+  color: var(--pc-accent);
+  text-transform: uppercase;
+}
+
+/* ---------- new task ---------- */
+
+.newTask {
+  appearance: none;
+  -webkit-appearance: none;
+  box-sizing: border-box;
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: calc(var(--pc-space-32) + var(--pc-space-2));
+  height: calc(var(--pc-space-32) - var(--pc-space-2));
+  margin: 0 0 calc(var(--pc-space-8) + var(--pc-space-2));
+  padding: 0;
+  background: none;
+  border: 0;
+  border-radius: var(--pc-radius-md);
+  color: var(--pc-text-2);
+  cursor: pointer;
+  transition:
+    background var(--pc-duration-fast) var(--pc-ease),
+    color var(--pc-duration-fast) var(--pc-ease);
+}
+
+.newTask:hover {
+  background: var(--pc-bg-panel);
+  color: var(--pc-text-1);
+}
+
+.newTask:focus-visible {
+  outline: none;
+  box-shadow: var(--pc-focus-ring);
+}
+
+.newTaskIcon {
+  width: calc(var(--pc-icon-size) - var(--pc-border-width));
+  height: calc(var(--pc-icon-size) - var(--pc-border-width));
+}
+
+/* ---------- destinations ---------- */
+
+.nav {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+}
+
+.list,
+.footList {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--pc-space-4);
+  width: 100%;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+/* Settings sinks to the foot: it is chrome, not part of the work. */
+.footList {
+  margin-top: auto;
+  padding-top: var(--pc-space-8);
+}
+
+.listItem {
+  display: flex;
+  justify-content: center;
+  width: 100%;
+}
+
+.item {
+  appearance: none;
+  -webkit-appearance: none;
+  box-sizing: border-box;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: calc(var(--pc-space-32) + var(--pc-space-6));
+  height: calc(var(--pc-space-32) + var(--pc-space-2));
+  margin: 0;
+  padding: 0;
+  background: none;
+  border: 0;
+  /* Reserved even when inactive so the glyph never shifts as the selection moves. */
+  border-left: var(--pc-zone-edge-width) solid transparent;
+  border-radius: var(--pc-radius-md);
+  color: var(--pc-text-3);
+  cursor: pointer;
+  transition:
+    background var(--pc-duration-fast) var(--pc-ease),
+    color var(--pc-duration-fast) var(--pc-ease);
+}
+
+.item:hover:not([data-active]) {
+  background: var(--pc-bg-panel);
+  color: var(--pc-text-2);
+}
+
+.item:focus-visible {
+  outline: none;
+  box-shadow: var(--pc-focus-ring);
+}
+
+.item[data-active] {
+  background: var(--pc-bg-raised);
+  /* Accent, not identity: the edge says «ты здесь», never «это чьё-то». */
+  border-left-color: var(--pc-accent);
+  color: var(--pc-text-1);
+}
+
+.icon {
+  width: calc(var(--pc-icon-size) + var(--pc-border-width));
+  height: calc(var(--pc-icon-size) + var(--pc-border-width));
+}
+
+/* ---------- me ---------- */
+
+.self {
+  position: relative;
+  flex: none;
+  display: inline-flex;
+  margin-top: var(--pc-space-8);
+}
+
+/*
+ * The rail's avatar is one step larger than the `md` box: 27px against the 23px the token scale
+ * gives. Doubled selector so it beats the Avatar module's own `.md` rule whatever the stylesheet
+ * order is — the knob is the component's own custom property, not a fork of its styles.
+ */
+.self .selfAvatar.selfAvatar {
+  --avatar-box: calc(var(--pc-avatar-size) + var(--pc-space-12));
+  --avatar-corner: var(--pc-radius-md);
+}
+
+/*
+ * Presence — status colour in its dot role. Drawn here rather than by `Avatar` because the ring
+ * has to be cut out of the RAIL's background, and because the tone comes from the shared activity
+ * vocabulary rather than from `MemberStatus`.
+ */
+.presence {
+  position: absolute;
+  inset-inline-end: calc(-1 * var(--pc-space-2));
+  inset-block-end: calc(-1 * var(--pc-space-2));
+  width: var(--pc-space-8);
+  height: var(--pc-space-8);
+  border-radius: 50%;
+  background: var(--pc-text-4);
+  box-shadow: 0 0 0 var(--pc-space-2) var(--pc-bg-chrome);
+}
+
+.presence[data-tone='success'] {
+  background: var(--pc-status-success);
+}
+
+.presence[data-tone='warning'] {
+  background: var(--pc-status-warning);
+}
+
+.presence[data-tone='danger'] {
+  background: var(--pc-status-danger);
+}
+
+.presence[data-tone='running'] {
+  background: var(--pc-status-running);
+}

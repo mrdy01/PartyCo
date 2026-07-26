@@ -1,0 +1,325 @@
+/*
+ * Status bar — one row, all mono. Geometry comes from the density tokens, so compact shrinks the
+ * row without dropping a single field.
+ */
+
+.bar {
+  display: flex;
+  align-items: center;
+  height: var(--pc-row-height);
+  padding: 0 var(--pc-row-padding-x);
+  background: var(--pc-bg-window);
+  border: var(--pc-border-width) solid var(--pc-border-subtle);
+  border-radius: var(--pc-radius-sm);
+  overflow: hidden;
+}
+
+.bar[data-variant='zones'],
+.bar[data-variant='meter'] {
+  gap: var(--pc-space-12);
+}
+
+/* Welded to the window edge: no box, one hairline separating it from the panels above. */
+.bar[data-dock='bottom'] {
+  border: none;
+  border-top: var(--pc-border-width) solid var(--pc-border-subtle);
+  border-radius: 0;
+}
+
+/* ---------- atoms ---------- */
+
+.value {
+  font: var(--pc-type-status);
+  color: var(--pc-text-2);
+  white-space: nowrap;
+}
+
+.strong {
+  font: var(--pc-type-status);
+  color: var(--pc-text-1);
+  white-space: nowrap;
+}
+
+.separator {
+  font: var(--pc-type-status);
+  color: var(--pc-border-strong);
+  padding: 0 var(--pc-space-8);
+}
+
+.bar[data-variant='zones'] .separator,
+.bar[data-variant='meter'] .separator {
+  padding: 0;
+}
+
+.divider {
+  width: 1px;
+  height: var(--pc-space-12);
+  flex: none;
+  background: var(--pc-border-subtle);
+}
+
+.dot {
+  width: var(--pc-space-4);
+  height: var(--pc-space-4);
+  flex: none;
+  border-radius: 50%;
+}
+
+.icon {
+  width: var(--pc-space-12);
+  height: var(--pc-space-12);
+  flex: none;
+  color: var(--pc-text-3);
+}
+
+/* Text only the screen reader gets — the arrow glyph carries the meaning visually. */
+.srOnly {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+  border: 0;
+}
+
+/* Field name of a protocol value (`state_version`, `← trunk`): present, never competing. */
+.caption,
+.baseBranch {
+  font: var(--pc-type-status);
+  color: var(--pc-text-4);
+  white-space: nowrap;
+}
+
+/* ---------- clusters ---------- */
+
+.connection {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--pc-space-6);
+  flex: none;
+  font: var(--pc-type-status);
+  color: var(--pc-text-2);
+  white-space: nowrap;
+}
+
+.branch,
+.queue,
+.leases {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--pc-space-6);
+  flex: none;
+}
+
+.leases {
+  gap: var(--pc-space-4);
+}
+
+/* Identity role #1 — the square is a member's avatar in miniature. Fill comes from `avatarStyle`. */
+.chip {
+  width: calc(var(--pc-avatar-size) - var(--pc-space-6));
+  height: calc(var(--pc-avatar-size) - var(--pc-space-6));
+  flex: none;
+  border-radius: var(--pc-avatar-radius);
+}
+
+/* ---------- incidents ---------- */
+
+/* Status colour as glyph + text only — never a fill, never a left edge (that belongs to identity). */
+.incidents,
+.incidentsButton {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--pc-space-6);
+  flex: none;
+  font: var(--pc-type-status);
+  color: var(--pc-status-danger);
+  white-space: nowrap;
+}
+
+.incidentsButton {
+  margin: 0;
+  padding: 0;
+  background: none;
+  border: none;
+  border-radius: var(--pc-radius-xs);
+  cursor: pointer;
+}
+
+.incidentsButton:focus-visible {
+  outline: none;
+  box-shadow: var(--pc-focus-ring);
+}
+
+.incidentIcon {
+  width: var(--pc-space-12);
+  height: var(--pc-space-12);
+  flex: none;
+  color: inherit;
+}
+
+/* ---------- right zone ---------- */
+
+/* `state_version` opens the right-hand zone, so it owns the auto margin when present. */
+.stateVersion {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--pc-space-6);
+  flex: none;
+  margin-left: auto;
+}
+
+/* The model id is the one field allowed to ellipsize when the window gets narrow — the mode pill
+   and the spend must never be the things that fall off the end. */
+.model {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--pc-space-6);
+  min-width: 0;
+  margin-left: auto;
+}
+
+.stateVersion ~ .model {
+  margin-left: 0;
+}
+
+.model .value {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.providerBadge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: var(--pc-space-12);
+  height: var(--pc-space-12);
+  flex: none;
+  background: var(--pc-border);
+  border-radius: var(--pc-radius-xs);
+  font: var(--pc-type-eyebrow);
+  font-weight: 600;
+  color: var(--pc-text-1);
+}
+
+.spend {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--pc-space-4);
+  flex: none;
+}
+
+.gauge {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--pc-space-6);
+  flex: none;
+  margin-left: auto;
+}
+
+.gaugeText {
+  font: var(--pc-type-status);
+  color: var(--pc-text-3);
+  white-space: nowrap;
+}
+
+.gaugeTrack {
+  display: inline-block;
+  width: calc(var(--pc-space-32) * 2);
+  height: var(--pc-space-4);
+  flex: none;
+  background: var(--pc-bg-input);
+  border-radius: var(--pc-radius-xs);
+  overflow: hidden;
+}
+
+.gaugeFill {
+  display: block;
+  height: 100%;
+  background: var(--pc-status-running);
+}
+
+/* ---------- mode ---------- */
+
+.modeText {
+  font: var(--pc-type-status);
+  color: var(--pc-text-1);
+  white-space: nowrap;
+}
+
+.modeText[data-mode='plan'] {
+  color: var(--pc-status-running);
+}
+
+.modeText[data-mode='auto'] {
+  color: var(--pc-status-warning);
+}
+
+.modePill {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--pc-space-4);
+  flex: none;
+  height: var(--pc-space-16);
+  padding: 0 var(--pc-space-6);
+  background: var(--pc-bg-input);
+  border-radius: var(--pc-radius-sm);
+  font: var(--pc-type-eyebrow);
+  letter-spacing: var(--pc-tracking-eyebrow);
+  text-transform: uppercase;
+  color: var(--pc-text-1);
+  white-space: nowrap;
+}
+
+.modePill[data-mode='plan'] {
+  background: color-mix(in srgb, var(--pc-status-running) 14%, transparent);
+  color: var(--pc-status-running);
+}
+
+.modePill[data-mode='auto'] {
+  background: color-mix(in srgb, var(--pc-status-warning) 14%, transparent);
+  color: var(--pc-status-warning);
+  font-weight: 600;
+}
+
+.modeDot {
+  width: var(--pc-space-4);
+  height: var(--pc-space-4);
+  flex: none;
+  border-radius: 50%;
+  background: var(--pc-status-warning);
+  animation: global(pc-pulse) 1.6s ease-in-out infinite;
+}
+
+/*
+ * Trunk health. Screen 2.4 asks the bar a question the queue depth cannot answer — «5 в очереди»
+ * looks identical whether the trunk builds or not. Dot plus word, no fill: status colour stays in
+ * its allowed roles.
+ */
+.trunk {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--pc-space-6);
+  flex: none;
+  font: var(--pc-type-status);
+  white-space: nowrap;
+}
+
+.trunk[data-state='green'] {
+  color: var(--pc-status-success);
+}
+
+.trunk[data-state='red'] {
+  color: var(--pc-status-danger);
+}
+
+.trunkDot {
+  width: var(--pc-space-4);
+  height: var(--pc-space-4);
+  flex: none;
+  border-radius: 50%;
+  background: currentcolor;
+}

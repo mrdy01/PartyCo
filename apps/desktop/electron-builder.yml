@@ -1,0 +1,57 @@
+# Упаковка PartyCo в установщик.
+#
+# Собирает только то, что действительно нужно в рантайме: `out/**` — это уже собранные
+# electron-vite бандлы main / preload / renderer, в которые @partyco/ui, tokens и icons вкомпилированы
+# целиком. Поэтому в `files` нет node_modules и быть не должно: воркспейс-пакеты — зависимости
+# сборки, а не запуска, и таскать их симлинки в установщик означало бы класть в него исходники.
+#
+# Подпись НЕ настроена: под неё нужен сертификат Authenticode, которого у проекта нет. Windows
+# покажет SmartScreen-предупреждение при первом запуске — это ожидаемо для неподписанной сборки, а
+# не поломка. Когда сертификат появится, сюда добавляются win.certificateFile / certificatePassword
+# (или CSC_LINK / CSC_KEY_PASSWORD в окружении), и больше ничего менять не нужно.
+
+appId: dev.partyco.desktop
+productName: PartyCo
+copyright: PartyCo
+
+directories:
+  output: dist
+  buildResources: build
+
+files:
+  - out/**
+  - package.json
+
+# Ресурсы лежат внутри asar: приложение обязано работать офлайн и ничего не подтягивать со стороны.
+asar: true
+
+win:
+  target:
+    - target: nsis
+      arch:
+        - x64
+  icon: build/icon.png
+  artifactName: PartyCo-${version}-setup.${ext}
+
+nsis:
+  # Не one-click: продукт самохостимый, человек должен видеть, куда он его ставит.
+  oneClick: false
+  allowToChangeInstallationDirectory: true
+  # Per-user, чтобы установка не требовала UAC и админа.
+  perMachine: false
+  createDesktopShortcut: true
+  createStartMenuShortcut: true
+  shortcutName: PartyCo
+  # Данные участника — воркспейсы, ключи провайдеров — при удалении не трогаем. Их удаление должно
+  # быть отдельным осознанным действием, а не побочным эффектом деинсталляции.
+  deleteAppDataOnUninstall: false
+
+mac:
+  target:
+    - target: dmg
+      arch:
+        - arm64
+        - x64
+  icon: build/icon.png
+  category: public.app-category.developer-tools
+  artifactName: PartyCo-${version}-${arch}.${ext}

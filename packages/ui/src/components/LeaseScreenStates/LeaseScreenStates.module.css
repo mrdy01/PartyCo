@@ -1,0 +1,99 @@
+/*
+ * The four states of screen 2.3 «Лизы».
+ *
+ * Only two things here are not already in EmptyState / LoadingState / ErrorState:
+ *   · the all-free ownership bar heading the "nobody holds anything" state — it has to be visible
+ *     that the boundaries exist, otherwise the state reads like the "no boundaries" one;
+ *   · the placeholder geometry, which repeats the map block and the table's columns.
+ *
+ * Status colour appears exactly twice: as the spinner arc and as the error frame's outline (the
+ * fourth status role, spec §5). Never as a fill.
+ */
+
+.root {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  min-height: 0;
+  box-sizing: border-box;
+}
+
+.framed {
+  background: var(--pc-bg-window);
+  border: var(--pc-border-width) solid var(--pc-border-subtle);
+  border-radius: var(--pc-radius-md);
+  overflow: hidden;
+}
+
+.danger {
+  border-color: color-mix(in srgb, var(--pc-status-danger) 30%, var(--pc-border-subtle));
+}
+
+.header {
+  display: flex;
+  align-items: center;
+  gap: var(--pc-space-8);
+  flex: none;
+  height: var(--pc-row-height);
+  padding: 0 var(--pc-row-padding-x);
+  border-bottom: var(--pc-border-width) solid var(--pc-border-subtle);
+  background: var(--pc-bg-panel);
+}
+
+.eyebrow {
+  font: var(--pc-type-eyebrow);
+  letter-spacing: var(--pc-tracking-eyebrow);
+  text-transform: uppercase;
+  color: var(--pc-text-3);
+}
+
+/* Status colour as a 1px arc — the smallest mark that still reads as "working". */
+.spinner {
+  margin-left: auto;
+  flex: none;
+  width: var(--pc-space-12);
+  height: var(--pc-space-12);
+  box-sizing: border-box;
+  border: var(--pc-border-width) solid var(--pc-border-subtle);
+  border-top-color: var(--pc-status-running);
+  border-radius: 50%;
+  animation: global(pc-spin) var(--pc-duration-spin) linear infinite;
+}
+
+.body {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+}
+
+/* The state block itself centres in whatever height it is given. */
+.state {
+  flex: 1;
+  justify-content: center;
+}
+
+.summary {
+  display: flex;
+  flex-direction: column;
+  gap: var(--pc-space-6);
+  flex: none;
+  padding: var(--pc-space-8) var(--pc-row-padding-x);
+  border-bottom: var(--pc-border-width) solid var(--pc-border-subtle);
+}
+
+.summaryLine {
+  font: var(--pc-type-status);
+  color: var(--pc-text-4);
+}
+
+.mapSkeleton {
+  flex: none;
+  padding: var(--pc-space-8) var(--pc-row-padding-x);
+  border-bottom: var(--pc-border-width) solid var(--pc-border-subtle);
+}
+
+.rows {
+  flex: 1;
+  min-height: 0;
+}

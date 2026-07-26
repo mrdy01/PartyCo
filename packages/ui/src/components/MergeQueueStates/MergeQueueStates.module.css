@@ -1,0 +1,95 @@
+/*
+ * The three states of screen 2.4 «Merge queue».
+ *
+ * Only two things here are not already in EmptyState / LoadingState / ErrorState:
+ *   · the metric row under the empty title — an empty queue is a result, so it is reported with
+ *     numbers instead of an apology, and the numbers need their own two-line stack and rules;
+ *   · the trunk-health placeholder heading the row skeleton, so the wait has the same shape as the
+ *     panel that replaces it.
+ *
+ * Status colour appears exactly once here: as the «влито» number. Text is status role #3. There is
+ * no status fill and no status left edge anywhere in this file — the left edge belongs to the
+ * author, always. The success tile behind the empty glyph lives in EmptyState (tone="success") and
+ * frames a 24px glyph; it is a glyph frame, not an area.
+ */
+
+.root {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  min-height: 0;
+  box-sizing: border-box;
+}
+
+/* The state block itself centres in whatever height the panel gives it. */
+.state {
+  flex: 1;
+  justify-content: center;
+}
+
+.rows {
+  flex: 1;
+  min-height: 0;
+}
+
+/* ------------------------------------------------------------------ loading */
+
+/*
+ * Stands in for the trunk-health block: glyph plus two lines, on the same row padding the real
+ * header uses, so nothing shifts sideways when the data lands.
+ */
+.head {
+  display: flex;
+  align-items: center;
+  gap: var(--pc-space-12);
+  flex: none;
+  padding: var(--pc-space-8) var(--pc-row-padding-x);
+  border-bottom: var(--pc-border-width) solid var(--pc-border-subtle);
+}
+
+.headLines {
+  display: flex;
+  flex-direction: column;
+  gap: var(--pc-space-6);
+  flex: 1;
+  min-width: 0;
+}
+
+/* -------------------------------------------------------------------- empty */
+
+.metrics {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--pc-space-12);
+}
+
+.metric {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--pc-space-2);
+}
+
+.metricValue {
+  font: var(--pc-type-head);
+  color: var(--pc-text-1);
+}
+
+/* The one status-coloured mark on the screen. Text, not fill. */
+.metricSuccess {
+  color: var(--pc-status-success);
+}
+
+.metricLabel {
+  font: var(--pc-type-eyebrow);
+  color: var(--pc-text-4);
+}
+
+/* Hairline between metrics — a shade under the row height, so it scales with density. */
+.divider {
+  flex: none;
+  width: var(--pc-border-width);
+  height: calc(var(--pc-row-height) - var(--pc-space-6));
+  background: var(--pc-border-subtle);
+}

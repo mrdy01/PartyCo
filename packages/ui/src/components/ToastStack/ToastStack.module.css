@@ -1,0 +1,50 @@
+/*
+ * Placement + spacing only; every visual decision lives in Toast.
+ * `--toast-width` / z-index have no token yet — see the report's missingTokens.
+ */
+
+.stack {
+  display: flex;
+  flex-direction: column;
+  gap: var(--pc-space-8);
+  width: 100%;
+  max-width: var(--toast-width, 380px);
+}
+
+.fixed {
+  position: fixed;
+  z-index: 60;
+  pointer-events: none;
+}
+
+.fixed > * {
+  pointer-events: auto;
+}
+
+.fixed[data-placement='top-left'],
+.fixed[data-placement='top-center'],
+.fixed[data-placement='top-right'] {
+  top: var(--pc-space-16);
+}
+
+.fixed[data-placement='bottom-left'],
+.fixed[data-placement='bottom-center'],
+.fixed[data-placement='bottom-right'] {
+  bottom: var(--pc-space-16);
+}
+
+.fixed[data-placement='top-left'],
+.fixed[data-placement='bottom-left'] {
+  left: var(--pc-space-16);
+}
+
+.fixed[data-placement='top-right'],
+.fixed[data-placement='bottom-right'] {
+  right: var(--pc-space-16);
+}
+
+.fixed[data-placement='top-center'],
+.fixed[data-placement='bottom-center'] {
+  left: 50%;
+  transform: translateX(-50%);
+}

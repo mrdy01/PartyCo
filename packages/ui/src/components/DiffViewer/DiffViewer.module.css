@@ -1,0 +1,471 @@
+/*
+ * DiffViewer — «Просмотр диффа · гаттер несёт владельца».
+ *
+ * Identity colour appears exactly once here: the gutter cell, styled from `diffGutterStyle`
+ * (tint + 2px edge). Added / removed lines are marked with the status tokens as TEXT — never as a
+ * full-width fill, so the owner's tint stays the only background signal in a row.
+ *
+ * Two locals are derived from density tokens; nothing here is a raw value.
+ */
+
+.root {
+  /* comfortable 28 − 6 = 22px, compact 22 − 6 = 16px */
+  --diff-line-h: calc(var(--pc-row-height) - var(--pc-space-6));
+  --diff-gutter-w: calc(var(--pc-space-32) + var(--pc-space-8));
+
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  background: var(--pc-bg-panel);
+  border: var(--pc-border-width) solid var(--pc-border);
+  border-radius: var(--pc-radius-md);
+  overflow: hidden;
+}
+
+/* ---------- file list ---------- */
+
+.fileList {
+  border-bottom: var(--pc-border-width) solid var(--pc-border-subtle);
+  background: var(--pc-bg-panel);
+}
+
+.fileUl {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.fileButton {
+  display: flex;
+  align-items: center;
+  gap: var(--pc-row-gap);
+  width: 100%;
+  height: var(--diff-line-h);
+  padding: 0 var(--pc-row-padding-x);
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  color: var(--pc-text-2);
+  text-align: left;
+  cursor: pointer;
+}
+
+.fileButton:hover {
+  background: var(--pc-bg-raised);
+  color: var(--pc-text-1);
+}
+
+.fileButton:active {
+  background: var(--pc-bg-input);
+}
+
+.fileButton[aria-current='true'] {
+  background: var(--pc-selected-row-bg);
+  color: var(--pc-text-1);
+}
+
+.fileButton:focus-visible {
+  outline: none;
+  box-shadow: var(--pc-focus-ring);
+}
+
+.filePath {
+  font: var(--pc-type-path);
+  color: inherit;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  flex: 1 1 auto;
+}
+
+/* ---------- header ---------- */
+
+.header {
+  display: flex;
+  align-items: center;
+  gap: var(--pc-row-gap);
+  height: var(--pc-row-height);
+  padding: 0 var(--pc-row-padding-x);
+  background: var(--pc-bg-window);
+  border-bottom: var(--pc-border-width) solid var(--pc-border-subtle);
+}
+
+.headerPath {
+  font: var(--pc-type-path);
+  color: var(--pc-text-1);
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.added {
+  font: var(--pc-type-status);
+  color: var(--pc-status-success);
+  flex: none;
+}
+
+.removed {
+  font: var(--pc-type-status);
+  color: var(--pc-status-danger);
+  flex: none;
+}
+
+.modeGroup {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--pc-space-6);
+  margin-left: auto;
+  flex: none;
+}
+
+.modeButton {
+  font: var(--pc-type-eyebrow);
+  letter-spacing: normal;
+  text-transform: none;
+  color: var(--pc-text-4);
+  background: transparent;
+  border: 0;
+  border-radius: var(--pc-radius-sm);
+  padding: var(--pc-space-2) var(--pc-space-4);
+  cursor: pointer;
+}
+
+.modeButton:hover {
+  color: var(--pc-text-2);
+  background: var(--pc-bg-raised);
+}
+
+.modeButton[aria-pressed='true'] {
+  color: var(--pc-text-2);
+}
+
+.modeButton:focus-visible {
+  outline: none;
+  box-shadow: var(--pc-focus-ring);
+}
+
+.modeSep {
+  font: var(--pc-type-eyebrow);
+  letter-spacing: normal;
+  color: var(--pc-text-4);
+}
+
+/* ---------- diff body ---------- */
+
+.scroller {
+  overflow-x: auto;
+  overflow-y: hidden;
+  max-width: 100%;
+}
+
+.table {
+  border-collapse: collapse;
+  width: 100%;
+}
+
+.sideHead {
+  font: var(--pc-type-eyebrow);
+  letter-spacing: var(--pc-tracking-eyebrow);
+  text-transform: uppercase;
+  color: var(--pc-text-3);
+  text-align: left;
+  padding: var(--pc-space-4) var(--pc-row-padding-x);
+  background: var(--pc-bg-raised);
+  border-bottom: var(--pc-border-width) solid var(--pc-border-subtle);
+}
+
+.headSpacer {
+  width: var(--diff-gutter-w);
+  background: var(--pc-bg-raised);
+  border-bottom: var(--pc-border-width) solid var(--pc-border-subtle);
+}
+
+.hunkHeadRow {
+  background: var(--pc-bg-raised);
+}
+
+.hunkHead {
+  font: var(--pc-type-path);
+  font-weight: 400;
+  color: var(--pc-text-3);
+  text-align: left;
+  padding: 0 var(--pc-row-padding-x);
+  /* Taller than a code line because it carries the Accept / Reject / Comment controls. */
+  height: var(--pc-row-height);
+  border-top: var(--pc-border-width) solid var(--pc-border-subtle);
+  border-bottom: var(--pc-border-width) solid var(--pc-border-subtle);
+}
+
+.hunkHeadInner {
+  display: flex;
+  align-items: center;
+  gap: var(--pc-row-gap);
+  min-height: var(--pc-row-height);
+}
+
+.hunkRange {
+  font: var(--pc-type-path);
+  color: var(--pc-text-3);
+  white-space: nowrap;
+}
+
+.hunkActions {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--pc-space-4);
+  margin-left: auto;
+  flex: none;
+}
+
+.action {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--pc-space-4);
+  font: var(--pc-type-meta);
+  color: var(--pc-text-3);
+  background: transparent;
+  border: var(--pc-border-width) solid transparent;
+  border-radius: var(--pc-radius-sm);
+  padding: var(--pc-space-2) var(--pc-space-6);
+  cursor: pointer;
+}
+
+.action:hover {
+  color: var(--pc-text-1);
+  border-color: var(--pc-border);
+  background: var(--pc-bg-panel);
+}
+
+.action:active {
+  background: var(--pc-bg-input);
+}
+
+.action:focus-visible {
+  outline: none;
+  box-shadow: var(--pc-focus-ring);
+}
+
+.action:disabled {
+  color: var(--pc-text-4);
+  border-color: transparent;
+  background: transparent;
+  cursor: default;
+}
+
+.actionAccept {
+  composes: action;
+}
+
+.actionAccept:hover:not(:disabled) {
+  color: var(--pc-status-success);
+  border-color: var(--pc-border);
+}
+
+.actionReject {
+  composes: action;
+}
+
+.actionReject:hover:not(:disabled) {
+  color: var(--pc-status-danger);
+  border-color: var(--pc-border);
+}
+
+.pillAccepted,
+.pillRejected {
+  font: var(--pc-type-status);
+  border-radius: var(--pc-radius-xs);
+  padding: 0 var(--pc-space-4);
+  flex: none;
+  white-space: nowrap;
+}
+
+.pillAccepted {
+  color: var(--pc-status-success);
+  background: color-mix(in srgb, var(--pc-status-success) 14%, transparent);
+}
+
+.pillRejected {
+  color: var(--pc-status-danger);
+  background: color-mix(in srgb, var(--pc-status-danger) 14%, transparent);
+}
+
+/* ---------- lines ---------- */
+
+.lineRow {
+  height: var(--diff-line-h);
+}
+
+/* Identity role #3 — the tint and the 2px edge arrive as an inline style from diffGutterStyle. */
+.gutter {
+  font: var(--pc-type-path);
+  line-height: var(--diff-line-h);
+  font-weight: 400;
+  color: var(--pc-text-4);
+  width: var(--diff-gutter-w);
+  min-width: var(--diff-gutter-w);
+  padding: 0 var(--pc-space-8) 0 0;
+  text-align: right;
+  vertical-align: top;
+  user-select: none;
+}
+
+.codeContext,
+.codeAdd,
+.codeDel,
+.codeFiller {
+  font: var(--pc-type-code);
+  line-height: var(--diff-line-h);
+  padding: 0 var(--pc-row-padding-x);
+  white-space: pre;
+  vertical-align: top;
+  width: 100%;
+}
+
+.codeContext {
+  color: var(--pc-text-2);
+}
+
+/* Status colour as TEXT — spec §01 forbids using it as a large fill. */
+.codeAdd {
+  color: var(--pc-status-success);
+}
+
+.codeDel {
+  color: var(--pc-status-danger);
+}
+
+.codeFiller {
+  background: var(--pc-bg-raised);
+}
+
+.sign {
+  display: inline-block;
+  width: var(--pc-space-16);
+  user-select: none;
+}
+
+.lineRow:hover .codeContext,
+.lineRow:hover .codeAdd,
+.lineRow:hover .codeDel {
+  background: var(--pc-bg-raised);
+}
+
+/* ---------- comments ---------- */
+
+.commentRow {
+  background: var(--pc-bg-raised);
+}
+
+.commentCell {
+  padding: 0 var(--pc-row-padding-x);
+  border-top: var(--pc-border-width) solid var(--pc-border-subtle);
+}
+
+.comment {
+  display: flex;
+  align-items: center;
+  gap: var(--pc-row-gap);
+  min-height: var(--pc-row-height);
+}
+
+.commentText {
+  font: var(--pc-type-body);
+  color: var(--pc-text-2);
+  min-width: 0;
+}
+
+.commentTime {
+  font: var(--pc-type-eyebrow);
+  letter-spacing: normal;
+  color: var(--pc-text-4);
+  margin-left: auto;
+  flex: none;
+}
+
+/* ---------- avatar (identity role #1) ---------- */
+
+.avatar {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: none;
+  width: var(--pc-avatar-size);
+  height: var(--pc-avatar-size);
+  border-radius: var(--pc-avatar-radius);
+  font: var(--pc-type-eyebrow);
+  letter-spacing: normal;
+  text-transform: uppercase;
+}
+
+/* ---------- empty / loading / error ---------- */
+
+.state {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--pc-space-8);
+  padding: var(--pc-space-20) var(--pc-row-padding-x);
+  color: var(--pc-text-3);
+}
+
+.stateText {
+  font: var(--pc-type-meta);
+  color: var(--pc-text-3);
+}
+
+.errorTitle {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--pc-space-6);
+  font: var(--pc-type-ui);
+  color: var(--pc-status-danger);
+}
+
+.retry {
+  font: var(--pc-type-ui);
+  color: var(--pc-text-1);
+  background: var(--pc-bg-input);
+  border: var(--pc-border-width) solid var(--pc-border);
+  border-radius: var(--pc-radius-sm);
+  padding: 0 var(--pc-space-8);
+  height: var(--pc-row-height);
+  cursor: pointer;
+}
+
+.retry:hover {
+  border-color: var(--pc-border-strong);
+}
+
+.retry:focus-visible {
+  outline: none;
+  box-shadow: var(--pc-focus-ring);
+}
+
+.shimmer {
+  display: block;
+  width: 100%;
+  height: var(--diff-line-h);
+  border-radius: var(--pc-radius-xs);
+  background: linear-gradient(
+    90deg,
+    var(--pc-bg-raised) 0%,
+    var(--pc-bg-input) 50%,
+    var(--pc-bg-raised) 100%
+  );
+  background-size: 180% 100%;
+  animation: global(pc-shimmer) 1.4s linear infinite;
+}
+
+.srOnly {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+  border: 0;
+}

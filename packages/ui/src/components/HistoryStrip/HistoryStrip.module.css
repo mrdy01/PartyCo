@@ -1,0 +1,180 @@
+/*
+ * Linear history strip. Design 2.4 «Отказ гейта» and «Авто-revert».
+ *
+ * The connectors are the content, so they take the growth (`flex: 1`) and the nodes stay at their
+ * intrinsic width. That is also why the strip has no fixed step: three events and five events both
+ * fill the same box, and the gap between two events never reads as a duration.
+ */
+
+.strip {
+  display: flex;
+  align-items: center;
+  margin: 0;
+  padding: var(--pc-space-8) var(--pc-row-padding-x);
+  background: var(--pc-bg-window);
+  border: var(--pc-border-width) solid var(--pc-border-subtle);
+  border-radius: var(--pc-radius-sm);
+}
+
+.node {
+  flex: none;
+  display: flex;
+  flex-direction: column;
+  gap: var(--pc-space-4);
+  min-width: 0;
+}
+
+.node[data-align='start'] {
+  align-items: flex-start;
+}
+
+.node[data-align='center'] {
+  align-items: center;
+}
+
+.node[data-align='end'] {
+  align-items: flex-end;
+}
+
+.caption {
+  font: var(--pc-type-eyebrow);
+  font-weight: 400;
+  color: var(--pc-text-4);
+  white-space: nowrap;
+}
+
+.label {
+  font: var(--pc-type-eyebrow);
+  font-weight: 400;
+  color: var(--pc-text-2);
+  white-space: nowrap;
+}
+
+/* A `point` node's own tone reaches its dot and its label; an `end` node stays quiet. */
+.node[data-kind='point'][data-tone='ok'] .label {
+  color: var(--pc-status-success);
+}
+
+.node[data-kind='point'][data-tone='warning'] .label {
+  color: var(--pc-status-warning);
+}
+
+.node[data-kind='point'][data-tone='danger'] .label {
+  color: var(--pc-status-danger);
+}
+
+.node[data-kind='point'][data-tone='running'] .label {
+  color: var(--pc-status-running);
+}
+
+.node[data-tone='ok'] .caption {
+  color: var(--pc-text-4);
+}
+
+.dot {
+  flex: none;
+  width: var(--pc-space-8);
+  height: var(--pc-space-8);
+  border-radius: 50%;
+  background: var(--pc-text-3);
+}
+
+.node[data-tone='ok'] .dot {
+  background: var(--pc-status-success);
+}
+
+.node[data-tone='warning'] .dot {
+  background: var(--pc-status-warning);
+}
+
+.node[data-tone='danger'] .dot {
+  background: var(--pc-status-danger);
+}
+
+.node[data-tone='running'] .dot {
+  background: var(--pc-status-running);
+}
+
+/* ------------------------------------------------------------- connectors */
+
+.connector {
+  flex: 1;
+  min-width: var(--pc-space-16);
+  height: var(--pc-zone-edge-width);
+  margin: 0 var(--pc-space-8);
+  border-radius: var(--pc-radius-xs);
+  background: var(--pc-border);
+}
+
+.connector[data-tone='ok'] {
+  background: var(--pc-status-success);
+}
+
+.connector[data-tone='warning'] {
+  background: var(--pc-status-warning);
+}
+
+.connector[data-tone='danger'] {
+  background: var(--pc-status-danger);
+}
+
+.connector[data-tone='running'] {
+  background: var(--pc-status-running);
+}
+
+/*
+ * The gap. Dashes are not decoration here: they are the assertion that the line was interrupted —
+ * lease continuity broken, or a merge undone. Radius is dropped so the dashes stay rectangular.
+ */
+.connector[data-dashed='true'] {
+  border-radius: 0;
+  background: repeating-linear-gradient(
+    90deg,
+    var(--pc-border) 0 var(--pc-space-4),
+    transparent var(--pc-space-4) var(--pc-space-8)
+  );
+}
+
+.connector[data-dashed='true'][data-tone='ok'] {
+  background: repeating-linear-gradient(
+    90deg,
+    var(--pc-status-success) 0 var(--pc-space-4),
+    transparent var(--pc-space-4) var(--pc-space-8)
+  );
+}
+
+.connector[data-dashed='true'][data-tone='warning'] {
+  background: repeating-linear-gradient(
+    90deg,
+    var(--pc-status-warning) 0 var(--pc-space-4),
+    transparent var(--pc-space-4) var(--pc-space-8)
+  );
+}
+
+.connector[data-dashed='true'][data-tone='danger'] {
+  background: repeating-linear-gradient(
+    90deg,
+    var(--pc-status-danger) 0 var(--pc-space-4),
+    transparent var(--pc-space-4) var(--pc-space-8)
+  );
+}
+
+.connector[data-dashed='true'][data-tone='running'] {
+  background: repeating-linear-gradient(
+    90deg,
+    var(--pc-status-running) 0 var(--pc-space-4),
+    transparent var(--pc-space-4) var(--pc-space-8)
+  );
+}
+
+.srOnly {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+  border: 0;
+}

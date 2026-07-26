@@ -1,0 +1,41 @@
+.root {
+  display: flex;
+  flex-direction: column;
+  padding: var(--pc-space-4) 0;
+}
+
+/*
+ * Same box a real row gets: full row height, row padding, row gap between cells. That is what makes
+ * the swap from placeholder to data free of layout shift.
+ */
+.row {
+  display: flex;
+  align-items: center;
+  gap: var(--pc-row-gap);
+  height: var(--pc-row-height);
+  padding: 0 var(--pc-row-padding-x);
+}
+
+/*
+ * Table-shaped placeholder: the same row box, but the cells sit on the caller's column tracks
+ * (grid-template-columns arrives inline — it is data, not theme).
+ */
+.gridRow {
+  display: grid;
+  justify-items: stretch;
+}
+
+.faded {
+  opacity: 0.5;
+}
+
+/* The middle step of the `ramp` fade — visibly dimmer, still clearly a row. */
+.fadedSoft {
+  opacity: 0.72;
+}
+
+.caption {
+  padding: var(--pc-space-6) var(--pc-row-padding-x) 0;
+  font: var(--pc-type-status);
+  color: var(--pc-text-4);
+}

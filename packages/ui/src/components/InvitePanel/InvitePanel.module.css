@@ -1,0 +1,516 @@
+/*
+ * Invite panel — «Позвать в проект», 520px, two channels.
+ *
+ * Geometry: the export draws a 40px header, 36px role rows, 34px link rows and a 38px call to
+ * action. Every one of them is arithmetic on --pc-row-height so compact density moves the whole
+ * panel without a second rule (convention §4).
+ *
+ * Colour: no identity colour appears here at all — nobody owns an invitation. Status colour is
+ * limited to the 4px dot and its word in the «Уже отправлено» list; the accent belongs to the one
+ * affirmative button, and --pc-link to the two copy affordances.
+ */
+
+.panel {
+  --pc-invite-header-h: calc(var(--pc-row-height) + var(--pc-space-12));
+  --pc-invite-role-h: calc(var(--pc-row-height) + var(--pc-space-8));
+  --pc-invite-line-h: calc(var(--pc-row-height) + var(--pc-space-6));
+  --pc-invite-cta-h: calc(var(--pc-row-height) + var(--pc-space-8) + var(--pc-space-2));
+  --pc-invite-radio: calc(var(--pc-avatar-size) - var(--pc-space-2));
+
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  background: var(--pc-bg-window);
+  border: var(--pc-border-width) solid var(--pc-border-subtle);
+  border-radius: var(--pc-radius-lg);
+  overflow: hidden;
+  color: var(--pc-text-1);
+}
+
+/* In the shell's detail slot the frame and the height already exist. */
+.panel[data-variant='docked'] {
+  height: 100%;
+  border: 0;
+  border-radius: 0;
+}
+
+/* ---------- header ---------- */
+
+.header {
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: var(--pc-space-8);
+  height: var(--pc-invite-header-h);
+  padding: 0 var(--pc-space-12) 0 calc(var(--pc-space-12) + var(--pc-space-4));
+  background: var(--pc-bg-chrome);
+  border-bottom: var(--pc-border-width) solid var(--pc-border-subtle);
+}
+
+.title {
+  margin: 0;
+  font: var(--pc-type-card);
+  color: var(--pc-text-heading);
+}
+
+.close {
+  margin-left: auto;
+}
+
+/* ---------- body ---------- */
+
+.body,
+.stateBody {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: var(--pc-space-16);
+  padding: var(--pc-space-16);
+}
+
+.stateBody {
+  justify-content: center;
+}
+
+.section,
+.block,
+.switchBlock {
+  display: flex;
+  flex-direction: column;
+  gap: var(--pc-space-8);
+}
+
+.block {
+  gap: calc(var(--pc-space-8) + var(--pc-border-width));
+  padding-top: calc(var(--pc-space-12) + var(--pc-space-2));
+  border-top: var(--pc-border-width) solid var(--pc-border-subtle);
+}
+
+.switchBlock {
+  gap: var(--pc-space-6);
+  align-items: flex-start;
+}
+
+.switches {
+  display: flex;
+  flex-direction: column;
+  gap: calc(var(--pc-space-8) + var(--pc-space-2));
+}
+
+.sectionTitle {
+  margin: 0;
+  font: var(--pc-type-label);
+  color: var(--pc-text-2);
+}
+
+.note {
+  margin: 0;
+  font: var(--pc-type-note);
+  color: var(--pc-text-2);
+}
+
+.quietNote {
+  margin: 0;
+  font: var(--pc-type-note);
+  color: var(--pc-text-3);
+}
+
+.inlineEmpty {
+  padding: var(--pc-space-8) 0;
+}
+
+/* ---------- segmented switch ---------- */
+
+.segmented {
+  display: inline-flex;
+  align-items: center;
+  align-self: flex-start;
+  gap: var(--pc-space-2);
+  padding: var(--pc-space-2);
+  background: var(--pc-bg-panel);
+  border: var(--pc-border-width) solid var(--pc-border-subtle);
+  border-radius: var(--pc-radius-md);
+}
+
+.segment {
+  appearance: none;
+  -webkit-appearance: none;
+  margin: 0;
+  border: 0;
+  background: none;
+  display: inline-flex;
+  align-items: center;
+  height: calc(var(--pc-row-height) - var(--pc-space-2));
+  padding: 0 calc(var(--pc-space-12) + var(--pc-border-width));
+  border-radius: var(--pc-radius-sm);
+  font: var(--pc-type-label);
+  color: var(--pc-text-3);
+  white-space: nowrap;
+  cursor: pointer;
+  transition:
+    background-color var(--pc-duration-fast) var(--pc-ease),
+    color var(--pc-duration-fast) var(--pc-ease);
+}
+
+.segmented[data-size='sm'] .segment {
+  height: calc(var(--pc-row-height) - var(--pc-space-4));
+  padding: 0 calc(var(--pc-space-8) + var(--pc-space-2));
+  font: var(--pc-type-ui);
+}
+
+.segment:hover:not([data-active]) {
+  color: var(--pc-text-2);
+  background: var(--pc-bg-raised);
+}
+
+.segment[data-active] {
+  background: var(--pc-border);
+  color: var(--pc-text-1);
+}
+
+.segment:focus-visible {
+  outline: none;
+  box-shadow: var(--pc-focus-ring);
+}
+
+/* ---------- role radios ---------- */
+
+.fieldset {
+  margin: 0;
+  padding: 0;
+  border: 0;
+  min-width: 0;
+}
+
+.legend {
+  padding: 0;
+  margin-bottom: var(--pc-space-8);
+  font: var(--pc-type-label);
+  color: var(--pc-text-2);
+}
+
+.roleList {
+  display: flex;
+  flex-direction: column;
+  gap: var(--pc-space-4);
+}
+
+.roleRow {
+  position: relative;
+  box-sizing: border-box;
+  display: flex;
+  align-items: center;
+  gap: var(--pc-space-8);
+  height: var(--pc-invite-role-h);
+  padding: 0 calc(var(--pc-space-8) + var(--pc-space-2));
+  background: var(--pc-bg-panel);
+  border: var(--pc-border-width) solid var(--pc-border-subtle);
+  border-radius: var(--pc-radius-md);
+  cursor: pointer;
+  transition:
+    background-color var(--pc-duration-fast) var(--pc-ease),
+    border-color var(--pc-duration-fast) var(--pc-ease);
+}
+
+.roleRow:hover {
+  border-color: var(--pc-border);
+}
+
+/* The real control: native semantics, native keyboard, no visual of its own. */
+.roleInput {
+  position: absolute;
+  left: calc(var(--pc-space-8) + var(--pc-space-2));
+  width: var(--pc-invite-radio);
+  height: var(--pc-invite-radio);
+  margin: 0;
+  padding: 0;
+  opacity: 0;
+  appearance: none;
+  -webkit-appearance: none;
+  pointer-events: none;
+}
+
+.roleRow:has(.roleInput:checked) {
+  background: var(--pc-bg-raised);
+  border-color: var(--pc-border-strong);
+}
+
+.roleRow:has(.roleInput:focus-visible) {
+  box-shadow: var(--pc-focus-ring);
+}
+
+.radio {
+  box-sizing: border-box;
+  flex: none;
+  width: var(--pc-invite-radio);
+  height: var(--pc-invite-radio);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: var(--pc-border-width) solid var(--pc-border-strong);
+  border-radius: 50%;
+}
+
+.roleRow:has(.roleInput:checked) .radio {
+  border-color: var(--pc-accent);
+}
+
+.radioDot {
+  width: var(--pc-space-6);
+  height: var(--pc-space-6);
+  border-radius: 50%;
+  background: transparent;
+}
+
+.roleRow:has(.roleInput:checked) .radioDot {
+  background: var(--pc-accent);
+}
+
+.roleTitle {
+  font: var(--pc-type-body);
+  font-weight: 500;
+  color: var(--pc-text-2);
+  white-space: nowrap;
+}
+
+.roleRow:has(.roleInput:checked) .roleTitle {
+  color: var(--pc-text-1);
+}
+
+.roleAbility {
+  margin-left: auto;
+  font: var(--pc-type-note);
+  color: var(--pc-text-3);
+  text-align: right;
+}
+
+/* ---------- call to action ---------- */
+
+/*
+ * The export draws this at 38px — taller than <Button>'s tallest size. Raised from here rather than
+ * by adding a size to Button; `button.cta` (0,1,1) beats Button's own `.lg` (0,1,0) whatever the
+ * stylesheet order turns out to be.
+ */
+button.cta {
+  height: var(--pc-invite-cta-h);
+  border-radius: var(--pc-radius-md);
+}
+
+/* ---------- link row + copy ---------- */
+
+.linkRow {
+  box-sizing: border-box;
+  display: flex;
+  align-items: center;
+  gap: var(--pc-space-8);
+  height: var(--pc-invite-line-h);
+  padding: 0 var(--pc-space-8);
+  background: var(--pc-bg-panel);
+  border: var(--pc-border-width) solid var(--pc-border-subtle);
+  border-radius: var(--pc-radius-md);
+}
+
+.linkText {
+  flex: 1;
+  min-width: 0;
+  font: var(--pc-type-figure);
+  color: var(--pc-text-2);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.copyLink,
+.rowAction {
+  appearance: none;
+  -webkit-appearance: none;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  background: none;
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  gap: var(--pc-space-4);
+  border-radius: var(--pc-radius-xs);
+  font: var(--pc-type-note);
+  font-weight: 500;
+  color: var(--pc-link);
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.copyLink:hover,
+.rowAction:hover {
+  color: var(--pc-link-hover);
+  text-decoration: underline;
+}
+
+.copyLink:focus-visible,
+.rowAction:focus-visible {
+  outline: none;
+  box-shadow: var(--pc-focus-ring);
+}
+
+.copyGlyph {
+  width: var(--pc-space-12);
+  height: var(--pc-space-12);
+}
+
+/* ---------- «Уже отправлено» ---------- */
+
+.sentList {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--pc-space-4);
+}
+
+.sentItem {
+  display: block;
+}
+
+.sentRow {
+  box-sizing: border-box;
+  display: flex;
+  align-items: center;
+  gap: var(--pc-space-8);
+  height: var(--pc-invite-line-h);
+  padding: 0 var(--pc-space-8);
+  background: var(--pc-bg-panel);
+  border: var(--pc-border-width) solid var(--pc-border-subtle);
+  border-radius: var(--pc-radius-md);
+}
+
+.sentValue {
+  min-width: 0;
+  font: var(--pc-type-figure);
+  color: var(--pc-text-read);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.sentRow[data-quiet] .sentValue {
+  color: var(--pc-text-3);
+}
+
+.sentStatus {
+  margin-left: auto;
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  gap: var(--pc-space-4);
+}
+
+.sentMeta {
+  font: var(--pc-type-note);
+  color: var(--pc-text-3);
+  white-space: nowrap;
+}
+
+.sentStatus[data-tone='warning'] .sentMeta {
+  color: var(--pc-status-warning);
+}
+
+.sentStatus[data-tone='success'] .sentMeta {
+  color: var(--pc-status-success);
+}
+
+.sentStatus[data-tone='danger'] .sentMeta {
+  color: var(--pc-status-danger);
+}
+
+/* Status role #1 — a dot, and only a dot. */
+.dot {
+  width: var(--pc-space-4);
+  height: var(--pc-space-4);
+  flex: none;
+  border-radius: 50%;
+  background: var(--pc-text-3);
+}
+
+.dot[data-tone='running'] {
+  background: var(--pc-status-running);
+}
+
+.dot[data-tone='success'] {
+  background: var(--pc-status-success);
+}
+
+.dot[data-tone='warning'] {
+  background: var(--pc-status-warning);
+}
+
+.dot[data-tone='danger'] {
+  background: var(--pc-status-danger);
+}
+
+/* ---------- code tab ---------- */
+
+.codeBox {
+  display: flex;
+  align-items: center;
+  gap: var(--pc-space-12);
+  padding: calc(var(--pc-space-12) + var(--pc-space-2)) var(--pc-space-16);
+  background: var(--pc-bg-panel);
+  border: var(--pc-border-width) solid var(--pc-border);
+  border-radius: var(--pc-radius-lg);
+}
+
+/*
+ * The code is the largest mono string in the product. The ramp has no semibold mono step, so the
+ * size comes from --pc-type-display and only the family is swapped — one declaration, both
+ * densities, no literal.
+ */
+.codeValue {
+  font: var(--pc-type-display);
+  font-family: var(--pc-font-mono);
+  letter-spacing: var(--pc-tracking-eyebrow);
+  color: var(--pc-text-1);
+}
+
+.codeCopy {
+  margin-left: auto;
+}
+
+.codeActions {
+  display: flex;
+  align-items: center;
+  gap: var(--pc-space-8);
+}
+
+.rotateNote {
+  margin-left: auto;
+  font: var(--pc-type-note);
+  color: var(--pc-text-3);
+  text-align: right;
+}
+
+/* ---------- footnote ---------- */
+
+.footnote {
+  display: flex;
+  gap: var(--pc-space-8);
+  padding-top: calc(var(--pc-space-12) + var(--pc-space-2));
+  border-top: var(--pc-border-width) solid var(--pc-border-subtle);
+}
+
+.footnoteGlyph {
+  flex: none;
+  margin-top: var(--pc-space-2);
+  width: calc(var(--pc-icon-size) - var(--pc-space-2));
+  height: calc(var(--pc-icon-size) - var(--pc-space-2));
+  color: var(--pc-status-success);
+}
+
+.footnoteText {
+  margin: 0;
+  font: var(--pc-type-note);
+  color: var(--pc-text-2);
+}

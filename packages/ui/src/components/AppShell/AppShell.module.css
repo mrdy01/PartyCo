@@ -1,0 +1,40 @@
+.root {
+  height: 100%;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  background: var(--pc-bg-window);
+  color: var(--pc-text-1);
+}
+
+.body {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  align-items: stretch;
+}
+
+.files {
+  flex: none;
+  /* The panel owns its own width; the frame only stops it from being squeezed by the main column. */
+  display: flex;
+  min-height: 0;
+}
+
+.main {
+  flex: 1;
+  min-width: 0;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  background: var(--pc-bg-window);
+}
+
+.detail {
+  flex: none;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  background: var(--pc-bg-window);
+  border-left: var(--pc-border-width) solid var(--pc-border-subtle);
+}

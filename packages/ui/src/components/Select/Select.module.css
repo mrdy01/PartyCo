@@ -1,0 +1,120 @@
+/*
+ * Select. Same field chrome as Input (design §05 shows them in one stack), but the control is a real
+ * <select> with the native arrow removed and the design's chevron drawn on top.
+ */
+
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: var(--pc-space-4);
+  min-width: 0;
+}
+
+.label {
+  font: var(--pc-type-meta);
+  font-weight: 500;
+  color: var(--pc-text-2);
+}
+
+.field[data-invalid='true'] .label {
+  color: var(--pc-status-danger);
+}
+
+.frame {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: var(--pc-row-gap);
+  box-sizing: border-box;
+  height: var(--pc-row-height);
+  padding-inline: var(--pc-row-padding-x);
+  background: var(--pc-bg-input);
+  border: var(--pc-border-width) solid var(--pc-border);
+  border-radius: var(--pc-radius-sm);
+  color: var(--pc-text-1);
+  transition:
+    border-color 120ms ease,
+    background-color 120ms ease;
+}
+
+.frame:hover:not([data-disabled='true']) {
+  border-color: var(--pc-border-strong);
+}
+
+.frame:focus-within {
+  border-color: var(--pc-status-running);
+}
+
+.frame:has(.control:focus-visible) {
+  box-shadow: var(--pc-focus-ring);
+}
+
+.field[data-invalid='true'] .frame {
+  border-color: var(--pc-status-danger);
+}
+
+.frame[data-disabled='true'] {
+  background: var(--pc-bg-raised);
+  border-color: var(--pc-border-subtle);
+  color: var(--pc-text-4);
+}
+
+.control {
+  flex: 1 1 auto;
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font: var(--pc-type-meta);
+  cursor: pointer;
+  appearance: none;
+}
+
+.control:focus {
+  outline: none;
+}
+
+.control:disabled {
+  color: var(--pc-text-4);
+  cursor: not-allowed;
+}
+
+/* The value is empty and the placeholder option is showing. */
+.control[data-placeholder='true'] {
+  color: var(--pc-text-4);
+}
+
+.glyph {
+  width: calc(var(--pc-icon-size) - var(--pc-space-2));
+  height: calc(var(--pc-icon-size) - var(--pc-space-2));
+  flex: none;
+  color: var(--pc-text-3);
+}
+
+/*
+ * Chevron. ICON_PATHS has no chevron glyph, so the geometry is copied verbatim from the design
+ * export; stroke width comes from the icon token and the colour from the row, like every icon.
+ */
+.chevron {
+  width: calc(var(--pc-icon-size) - var(--pc-space-2));
+  height: calc(var(--pc-icon-size) - var(--pc-space-2));
+  flex: none;
+  margin-left: auto;
+  color: var(--pc-text-3);
+  stroke-width: var(--pc-icon-stroke);
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  pointer-events: none;
+}
+
+.hint {
+  font: var(--pc-type-meta);
+  color: var(--pc-text-3);
+}
+
+.error {
+  font: var(--pc-type-meta);
+  color: var(--pc-status-danger);
+}

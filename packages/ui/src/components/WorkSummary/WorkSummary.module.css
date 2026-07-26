@@ -1,0 +1,182 @@
+/*
+ * WorkSummary — the agent's session as one line.
+ *
+ * Geometry from the export: 34px bar in the wide column, 32px in the narrow pane, 9px gaps, 5px
+ * radius. Heights hang off --pc-row-height so compact density shrinks the bar with everything else
+ * instead of leaving one chip stranded at its comfortable size.
+ *
+ * The bar carries the surface; the handle inside it is transparent. That is what lets the diff
+ * link be a sibling button rather than a button inside a button.
+ */
+
+.root {
+  display: flex;
+  flex-direction: column;
+  gap: var(--pc-space-6);
+  align-self: flex-start;
+  max-width: 100%;
+  min-width: 0;
+}
+
+.bar {
+  box-sizing: border-box;
+  display: inline-flex;
+  align-items: center;
+  gap: calc(var(--pc-space-8) + var(--pc-border-width));
+  max-width: 100%;
+  min-width: 0;
+  height: calc(var(--pc-row-height) + var(--pc-space-6));
+  padding: 0 var(--pc-space-12);
+  background: var(--pc-bg-panel);
+  border: var(--pc-border-width) solid var(--pc-border-subtle);
+  border-radius: var(--pc-radius-md);
+  transition: background var(--pc-duration-fast) var(--pc-ease);
+}
+
+.root[data-interactive='true'] .bar:hover {
+  background: var(--pc-bg-raised);
+}
+
+.handle {
+  all: unset;
+  box-sizing: border-box;
+  display: inline-flex;
+  align-items: center;
+  gap: calc(var(--pc-space-8) + var(--pc-border-width));
+  min-width: 0;
+  height: 100%;
+  border-radius: var(--pc-radius-sm);
+  cursor: pointer;
+}
+
+.handle[data-static='true'] {
+  cursor: default;
+}
+
+.handle:focus-visible {
+  outline: none;
+  box-shadow: var(--pc-focus-ring);
+}
+
+.chevron {
+  flex: none;
+  width: calc(var(--pc-icon-size) - var(--pc-space-2));
+  height: calc(var(--pc-icon-size) - var(--pc-space-2));
+  color: var(--pc-text-3);
+  transition: transform var(--pc-duration-fast) var(--pc-ease);
+}
+
+.root[data-expanded='true'] .chevron {
+  transform: rotate(90deg);
+}
+
+.summary {
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  font: var(--pc-type-body);
+  color: var(--pc-text-read);
+}
+
+/* `+19` / `−8` — status colour as text, which is one of its four allowed roles. */
+.added,
+.removed {
+  flex: none;
+  font: var(--pc-type-figure);
+}
+
+.added {
+  color: var(--pc-status-success);
+}
+
+.removed {
+  color: var(--pc-status-danger);
+}
+
+.divider {
+  flex: none;
+  width: var(--pc-border-width);
+  height: calc(var(--pc-space-12) + var(--pc-space-2));
+  background: var(--pc-border);
+}
+
+.diff {
+  all: unset;
+  flex: none;
+  border-radius: var(--pc-radius-xs);
+  font: var(--pc-type-label);
+  color: var(--pc-link);
+  cursor: pointer;
+}
+
+.diff:hover {
+  color: var(--pc-link-hover);
+  text-decoration: underline;
+}
+
+.diff:focus-visible {
+  outline: none;
+  box-shadow: var(--pc-focus-ring);
+}
+
+/* --- expanded: what the agent actually did ------------------------------------------------ */
+
+.steps {
+  margin-left: var(--pc-space-4);
+  padding-left: calc(var(--pc-space-12) - var(--pc-border-width));
+  border-left: var(--pc-border-width) solid var(--pc-border-subtle);
+}
+
+.stepList {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: var(--pc-space-2);
+}
+
+.step {
+  font: var(--pc-type-code);
+  color: var(--pc-text-2);
+  overflow-wrap: anywhere;
+}
+
+.stepFile {
+  color: var(--pc-text-2);
+}
+
+.stepSep {
+  margin: 0 var(--pc-space-4);
+  color: var(--pc-text-4);
+}
+
+.stepNote {
+  color: var(--pc-text-3);
+}
+
+.stepsEmpty {
+  margin: 0;
+  font: var(--pc-type-note);
+  color: var(--pc-text-3);
+}
+
+/* --- narrow pane (screen 04) --------------------------------------------------------------- */
+
+.root[data-variant='narrow'] .bar {
+  height: calc(var(--pc-row-height) + var(--pc-space-4));
+  padding: 0 calc(var(--pc-space-12) - var(--pc-border-width));
+  background: var(--pc-bg-raised);
+  border-color: var(--pc-border);
+}
+
+.root[data-variant='narrow'] .summary {
+  font: var(--pc-type-label);
+  font-weight: 400;
+  color: var(--pc-text-1);
+}
+
+.root[data-variant='narrow'] .chevron {
+  color: var(--pc-text-2);
+}

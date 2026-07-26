@@ -1,0 +1,212 @@
+/*
+ * Buttons. Design §05 "Кнопки": radius 3px (--pc-radius-sm), three heights (22 / 26 / 30),
+ * four variants. Heights are expressed as arithmetic on the 2px spacing scale so no raw px
+ * appears here; the label size follows --pc-font-delta, so compact shrinks the type, not the box.
+ */
+
+.root {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--pc-space-6);
+  box-sizing: border-box;
+  margin: 0;
+  border: var(--pc-border-width) solid transparent;
+  border-radius: var(--pc-radius-sm);
+  background: transparent;
+  color: var(--pc-text-1);
+  font-family: var(--pc-font-sans);
+  text-align: center;
+  text-decoration: none;
+  white-space: nowrap;
+  cursor: pointer;
+  -webkit-user-select: none;
+  user-select: none;
+  appearance: none;
+  transition:
+    background-color 120ms ease,
+    border-color 120ms ease,
+    color 120ms ease;
+}
+
+.root:focus-visible {
+  outline: none;
+  box-shadow: var(--pc-focus-ring);
+}
+
+/* ── sizes ─────────────────────────────────────────────────────────────────────────────────── */
+/* The `font:` shorthand resets weight, so every size restates it; variant weight overrides live
+   further down the sheet and therefore win. */
+
+.sm {
+  height: calc(var(--pc-space-20) + var(--pc-space-2));
+  padding-inline: var(--pc-space-8);
+  font: var(--pc-type-meta);
+  font-weight: 500;
+  gap: var(--pc-space-4);
+}
+
+.md {
+  height: calc(var(--pc-space-24) + var(--pc-space-2));
+  padding-inline: calc(var(--pc-space-8) + var(--pc-space-4));
+  font: var(--pc-type-ui);
+}
+
+.lg {
+  height: calc(var(--pc-space-32) - var(--pc-space-2));
+  padding-inline: calc(var(--pc-space-12) + var(--pc-space-2));
+  font: var(--pc-type-body);
+  font-weight: 500;
+}
+
+.fullWidth {
+  width: 100%;
+}
+
+/* Square icon-only geometry — width tracks the height of the size. */
+.iconOnly {
+  padding-inline: 0;
+}
+
+.iconOnly.sm {
+  width: calc(var(--pc-space-20) + var(--pc-space-2));
+}
+
+.iconOnly.md {
+  width: calc(var(--pc-space-24) + var(--pc-space-2));
+}
+
+.iconOnly.lg {
+  width: calc(var(--pc-space-32) - var(--pc-space-2));
+}
+
+/* ── variants ──────────────────────────────────────────────────────────────────────────────── */
+
+/*
+ * Primary. Filled with the product accent (#3FA8A0 dark / #14766F light). That is the same hex as
+ * identity slot `teal`, but it must be referenced through `--pc-accent` — an identity token here
+ * would put a member's colour outside its three allowed roles and make one teammate's colour mean
+ * "primary action" app-wide. See packages/tokens/src/palette.ts › ACCENT.
+ * Hover/active mix toward --pc-text-1, which lightens in dark and darkens in light — exactly the
+ * two hover values the design shows, without a per-theme branch.
+ */
+.primary {
+  background: var(--pc-accent);
+  border-color: transparent;
+  color: var(--pc-accent-on);
+  font-weight: 600;
+}
+
+.primary:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--pc-accent) 88%, var(--pc-text-1));
+}
+
+.primary:active:not(:disabled) {
+  background: color-mix(in srgb, var(--pc-accent) 78%, var(--pc-text-1));
+}
+
+.secondary {
+  background: var(--pc-control-bg);
+  border-color: var(--pc-border-strong);
+  color: var(--pc-text-1);
+}
+
+.secondary:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--pc-control-bg) 92%, var(--pc-text-1));
+  border-color: color-mix(in srgb, var(--pc-border-strong) 88%, var(--pc-text-1));
+}
+
+.secondary:active:not(:disabled) {
+  background: color-mix(in srgb, var(--pc-control-bg) 84%, var(--pc-text-1));
+}
+
+.ghost {
+  background: transparent;
+  border-color: transparent;
+  color: var(--pc-text-2);
+}
+
+.ghost:hover:not(:disabled) {
+  background: var(--pc-bg-raised);
+  color: var(--pc-text-1);
+}
+
+.ghost:active:not(:disabled) {
+  background: color-mix(in srgb, var(--pc-bg-raised) 88%, var(--pc-text-1));
+  color: var(--pc-text-1);
+}
+
+/* Destructive. Status colour stays in its allowed roles: a low-alpha pill tint plus the label. */
+.danger {
+  background: color-mix(in srgb, var(--pc-status-danger) 12%, transparent);
+  border-color: color-mix(in srgb, var(--pc-status-danger) 40%, transparent);
+  color: var(--pc-status-danger);
+}
+
+.danger:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--pc-status-danger) 20%, transparent);
+}
+
+.danger:active:not(:disabled) {
+  background: color-mix(in srgb, var(--pc-status-danger) 26%, transparent);
+}
+
+/*
+ * Interrupting. Same pill-tint recipe as .danger, in the autonomy amber: stopping an agent is not
+ * destruction, so it must not borrow the destructive colour.
+ */
+.warning {
+  background: color-mix(in srgb, var(--pc-status-warning) 18%, transparent);
+  border-color: color-mix(in srgb, var(--pc-status-warning) 50%, transparent);
+  color: var(--pc-status-warning);
+  font-weight: 600;
+}
+
+.warning:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--pc-status-warning) 26%, transparent);
+}
+
+.warning:active:not(:disabled) {
+  background: color-mix(in srgb, var(--pc-status-warning) 32%, transparent);
+}
+
+/* ── states ────────────────────────────────────────────────────────────────────────────────── */
+
+.root:disabled {
+  background: var(--pc-bg-raised);
+  border-color: var(--pc-border);
+  color: var(--pc-text-4);
+  cursor: not-allowed;
+}
+
+.root[data-loading='true'] {
+  cursor: progress;
+}
+
+/* ── content ───────────────────────────────────────────────────────────────────────────────── */
+
+.glyph {
+  /* Design draws button glyphs at 14px — one spacing step inside the 16px icon grid. */
+  width: calc(var(--pc-icon-size) - var(--pc-space-2));
+  height: calc(var(--pc-icon-size) - var(--pc-space-2));
+  flex: none;
+}
+
+.spinner {
+  width: var(--pc-space-12);
+  height: var(--pc-space-12);
+  flex: none;
+  border: calc(var(--pc-icon-stroke) * 1px) solid color-mix(in srgb, currentColor 28%, transparent);
+  border-top-color: currentColor;
+  border-radius: 50%;
+  animation: global(pc-spin) 0.7s linear infinite;
+}
+
+.label {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.shortcut {
+  margin-left: var(--pc-space-2);
+}

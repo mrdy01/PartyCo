@@ -1,0 +1,26 @@
+/*
+ * Summary rail beside the ownership map. 296px in the design; expressed as a local knob so a
+ * narrower shell can shrink it without a new token, and `width` is a max rather than a lock.
+ */
+
+.root {
+  --pc-summary-rail-width: calc(var(--pc-space-32) * 9 + var(--pc-space-8));
+
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  gap: var(--pc-space-12);
+  flex: none;
+  width: var(--pc-summary-rail-width);
+  max-width: 100%;
+  min-width: 0;
+  padding: var(--pc-space-12);
+  border-left: var(--pc-border-width) solid var(--pc-border-subtle);
+}
+
+.divider {
+  height: var(--pc-border-width);
+  margin: 0;
+  border: 0;
+  background: var(--pc-border-subtle);
+}

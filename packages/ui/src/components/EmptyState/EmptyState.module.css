@@ -1,0 +1,131 @@
+.root {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--pc-space-12);
+  padding: var(--pc-space-32) var(--pc-space-20);
+  text-align: center;
+}
+
+/* Slightly larger than a row icon — this one is the focal point, not a row marker. */
+.glyph {
+  width: calc(var(--pc-icon-size) + var(--pc-space-8));
+  height: calc(var(--pc-icon-size) + var(--pc-space-8));
+  color: var(--pc-border-strong);
+}
+
+/*
+ * `tone="success"` — the glyph gets a tile: 46px box, tinted at the same low alpha the rest of the
+ * library uses for a status wash, outlined a little stronger so the shape survives on both surfaces.
+ * A frame around a 24px glyph, not a filled area — the rule that status colour may not carry a large
+ * fill is about panels and rows, and this is neither.
+ */
+.tile {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex: none;
+  box-sizing: border-box;
+  width: calc(var(--pc-space-32) + var(--pc-space-12) + var(--pc-space-2));
+  height: calc(var(--pc-space-32) + var(--pc-space-12) + var(--pc-space-2));
+  border-radius: calc(var(--pc-radius-lg) + var(--pc-radius-sm));
+  background: color-mix(in srgb, var(--pc-status-success) 11%, transparent);
+  border: var(--pc-border-width) solid color-mix(in srgb, var(--pc-status-success) 36%, transparent);
+}
+
+.tileGlyph {
+  width: calc(var(--pc-icon-size) + var(--pc-space-8));
+  height: calc(var(--pc-icon-size) + var(--pc-space-8));
+  color: var(--pc-status-success);
+}
+
+.title {
+  margin: 0;
+  font: var(--pc-type-ui);
+  color: var(--pc-text-1);
+}
+
+.description {
+  margin: 0;
+  font: var(--pc-type-meta);
+  color: var(--pc-text-3);
+}
+
+.actions {
+  display: flex;
+  align-items: center;
+  gap: var(--pc-space-6);
+  flex-wrap: wrap;
+  justify-content: center;
+}
+
+.meta {
+  font: var(--pc-type-status);
+  color: var(--pc-text-4);
+}
+
+.action {
+  all: unset;
+  box-sizing: border-box;
+  display: inline-flex;
+  align-items: center;
+  gap: var(--pc-space-6);
+  height: calc(var(--pc-row-height) - var(--pc-space-4));
+  padding: 0 var(--pc-row-padding-x);
+  background: var(--pc-bg-input);
+  border: var(--pc-border-width) solid var(--pc-border-strong);
+  border-radius: var(--pc-radius-sm);
+  font: var(--pc-type-ui);
+  color: var(--pc-text-1);
+  cursor: pointer;
+}
+
+.action:hover {
+  border-color: var(--pc-text-3);
+}
+
+.action:active {
+  background: var(--pc-bg-raised);
+}
+
+.action:focus-visible {
+  box-shadow: var(--pc-focus-ring);
+}
+
+.action:disabled {
+  color: var(--pc-text-4);
+  border-color: var(--pc-border);
+  background: var(--pc-bg-raised);
+  cursor: default;
+}
+
+.ghost {
+  background: transparent;
+  border-color: transparent;
+  color: var(--pc-text-2);
+}
+
+.ghost:hover {
+  background: var(--pc-bg-raised);
+  border-color: transparent;
+  color: var(--pc-text-1);
+}
+
+.ghost:active {
+  background: var(--pc-bg-input);
+}
+
+.ghost:disabled {
+  background: transparent;
+  border-color: transparent;
+  color: var(--pc-text-4);
+}
+
+.hint {
+  font: var(--pc-type-eyebrow);
+  color: var(--pc-text-3);
+  background: var(--pc-bg-panel);
+  border: var(--pc-border-width) solid var(--pc-border);
+  border-radius: var(--pc-radius-xs);
+  padding: var(--pc-space-2) var(--pc-space-4);
+}

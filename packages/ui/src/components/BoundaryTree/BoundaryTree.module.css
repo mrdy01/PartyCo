@@ -1,0 +1,173 @@
+/*
+ * Workspace · «Границы и файлы». The panel sits on the window background, not the panel fill —
+ * in the shell it is the left column of the frame, so it must read as part of the chrome.
+ */
+
+.root {
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  min-height: 0;
+  background: var(--pc-bg-window);
+  border: var(--pc-border-width) solid var(--pc-border-subtle);
+  border-radius: var(--pc-radius-md);
+  overflow: hidden;
+}
+
+.head {
+  box-sizing: border-box;
+  display: flex;
+  align-items: center;
+  gap: var(--pc-row-gap);
+  flex: none;
+  height: calc(var(--pc-row-height) + var(--pc-space-2));
+  padding: 0 var(--pc-row-padding-x);
+  border-bottom: var(--pc-border-width) solid var(--pc-border-subtle);
+}
+
+.eyebrow {
+  font: var(--pc-type-eyebrow);
+  letter-spacing: var(--pc-tracking-eyebrow);
+  text-transform: uppercase;
+  color: var(--pc-text-3);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.declare {
+  margin-left: auto;
+}
+
+.controls {
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  gap: var(--pc-space-6);
+  flex: none;
+  padding: var(--pc-space-8);
+  border-bottom: var(--pc-border-width) solid var(--pc-border-subtle);
+}
+
+.chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--pc-space-4);
+}
+
+.chip {
+  box-sizing: border-box;
+  margin: 0;
+  padding: var(--pc-space-2) var(--pc-space-6);
+  background: transparent;
+  border: var(--pc-border-width) solid transparent;
+  border-radius: var(--pc-radius-sm);
+  font: var(--pc-type-status);
+  font-weight: 500;
+  color: var(--pc-text-3);
+  cursor: pointer;
+  transition: color var(--pc-duration-fast) var(--pc-ease);
+}
+
+.chip:hover {
+  color: var(--pc-text-2);
+}
+
+.chip[aria-pressed='true'] {
+  background: var(--pc-bg-raised);
+  border-color: var(--pc-border);
+  color: var(--pc-text-1);
+}
+
+.chip:focus-visible {
+  outline: none;
+  box-shadow: var(--pc-focus-ring);
+}
+
+.rows {
+  display: flex;
+  flex-direction: column;
+  flex: 1 1 auto;
+  min-height: 0;
+  padding: var(--pc-space-4) 0;
+  overflow: auto;
+}
+
+/*
+ * Lease sub-row. Shorter than a tree row on purpose — it is a footnote to the boundary above it,
+ * not a sibling. Height stays token-derived so compact density shrinks it too.
+ *
+ * The row keeps the *identity* tint and edge of its boundary (inline, from diffGutterStyle); the
+ * state it reports is carried by the dot and the text alone, which is all status colour may do.
+ */
+.status {
+  box-sizing: border-box;
+  display: flex;
+  align-items: center;
+  gap: var(--pc-space-6);
+  height: calc(var(--pc-row-height) - var(--pc-space-6));
+  padding: 0 var(--pc-row-padding-x);
+  /* border-left comes inline: identity role #2. */
+  font: var(--pc-type-status);
+  color: var(--pc-text-4);
+  user-select: none;
+}
+
+.status:focus-visible {
+  outline: none;
+  box-shadow: var(--pc-focus-ring);
+}
+
+.statusIndent {
+  flex: none;
+}
+
+.statusDot {
+  flex: none;
+  width: var(--pc-space-4);
+  height: var(--pc-space-4);
+  border-radius: 50%;
+  background: currentcolor;
+}
+
+.statusDot[data-pulse='true'] {
+  animation: global(pc-pulse) 1.6s ease-in-out infinite;
+}
+
+.statusNote {
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.status[data-tone='warning'] {
+  color: var(--pc-status-warning);
+}
+
+.status[data-tone='success'] {
+  color: var(--pc-status-success);
+}
+
+.status[data-tone='danger'] {
+  color: var(--pc-status-danger);
+}
+
+/* A neutral note has nothing to flag: the dot would be noise, so it collapses. */
+.status[data-tone='neutral'] .statusDot {
+  display: none;
+}
+
+/* The one path the empty state names — mono, so it reads as something to type, not to parse. */
+.code {
+  font: var(--pc-type-status);
+  color: var(--pc-text-2);
+}
+
+.footer {
+  box-sizing: border-box;
+  flex: none;
+  padding: var(--pc-space-8) var(--pc-row-padding-x);
+  border-top: var(--pc-border-width) solid var(--pc-border-subtle);
+}

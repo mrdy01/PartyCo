@@ -1,0 +1,79 @@
+/*
+ * Status pill. Design §"Бейджи": tint background at ~12% of the status hue, status-coloured text,
+ * 5px dot, 3px radius. Height is not hard-coded — it falls out of the type step plus 2px of
+ * vertical padding, so compact density shrinks the pill without dropping the dot or the label.
+ */
+
+.badge {
+  --badge-color: var(--pc-text-3);
+
+  display: inline-flex;
+  align-items: center;
+  gap: var(--pc-space-4);
+  box-sizing: border-box;
+  max-width: 100%;
+  padding: var(--pc-space-2) var(--pc-space-6);
+  border: var(--pc-border-width) solid transparent;
+  border-radius: var(--pc-radius-sm);
+  font: var(--pc-type-meta);
+  font-weight: 500;
+  color: var(--badge-color);
+  background: color-mix(in srgb, var(--badge-color) 12%, transparent);
+  vertical-align: middle;
+}
+
+.badge[data-mono='true'] {
+  font: var(--pc-type-status);
+  font-weight: 500;
+}
+
+.label {
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+/* Glyph variant of the leading mark. Same 10px optical weight as the dot, same status colour. */
+.glyph {
+  flex: none;
+  width: calc(var(--pc-icon-size) - var(--pc-space-6));
+  height: calc(var(--pc-icon-size) - var(--pc-space-6));
+  color: var(--badge-color);
+}
+
+.dot {
+  flex: none;
+  width: var(--pc-space-6);
+  height: var(--pc-space-6);
+  border-radius: 50%;
+  background: var(--badge-color);
+}
+
+.dot[data-pulse='true'] {
+  animation: global(pc-pulse) 1.4s ease-in-out infinite;
+}
+
+.badge[data-status='success'] {
+  --badge-color: var(--pc-status-success);
+}
+
+.badge[data-status='warning'] {
+  --badge-color: var(--pc-status-warning);
+}
+
+.badge[data-status='danger'] {
+  --badge-color: var(--pc-status-danger);
+}
+
+.badge[data-status='running'] {
+  --badge-color: var(--pc-status-running);
+}
+
+/* No tint, an outline instead — the counter chip. */
+.badge[data-status='neutral'] {
+  --badge-color: var(--pc-text-3);
+
+  background: transparent;
+  border-color: var(--pc-border);
+}

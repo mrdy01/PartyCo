@@ -1,0 +1,235 @@
+/*
+ * Lease panel. Identity colour: the owner chip and the exclusive-mode badge (role #1, inline via
+ * avatarStyle) and, inside the file rows, the tree row's own edge + tint. Status colour: the
+ * timeline dots and the diff counters — dots and text, nothing filled.
+ */
+
+.panel {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  background: var(--pc-bg-window);
+}
+
+/* ---------- header ---------- */
+
+.head {
+  display: flex;
+  align-items: center;
+  gap: var(--pc-row-gap);
+  flex: none;
+  height: calc(var(--pc-row-height) + var(--pc-space-2));
+  padding: 0 var(--pc-space-12);
+  border-bottom: var(--pc-border-width) solid var(--pc-border-subtle);
+}
+
+.boundary {
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  font: var(--pc-type-status);
+  font-weight: 500;
+  color: var(--pc-text-1);
+}
+
+/*
+ * Mode code. `impl` / `interface` are exclusive claims, so the chip is filled with the holder's
+ * colour through avatarStyle — the same identity role the avatar uses, set inline. The two
+ * ownerless modes stay neutral / status, handled here.
+ */
+.mode {
+  flex: none;
+  box-sizing: border-box;
+  min-width: var(--pc-space-12);
+  padding: 0 var(--pc-space-4);
+  border-radius: var(--pc-radius-xs);
+  font: var(--pc-type-status);
+  font-weight: 600;
+  line-height: calc(var(--pc-avatar-size) + var(--pc-space-2));
+  text-align: center;
+  background: transparent;
+  color: var(--pc-text-4);
+}
+
+.mode[data-mode='read'] {
+  min-width: 0;
+  padding: 0;
+  font-weight: 400;
+}
+
+.mode[data-mode='guarded'] {
+  background: color-mix(in srgb, var(--pc-status-warning) 16%, transparent);
+  color: var(--pc-status-warning);
+}
+
+.leaseId {
+  flex: none;
+  margin-left: auto;
+  font: var(--pc-type-status);
+  color: var(--pc-text-4);
+  white-space: nowrap;
+}
+
+/* ---------- body ---------- */
+
+.body {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: var(--pc-space-12);
+  padding: var(--pc-space-12);
+}
+
+.block {
+  display: flex;
+  flex-direction: column;
+  gap: var(--pc-space-6);
+}
+
+.blockHead {
+  display: flex;
+  align-items: baseline;
+  gap: var(--pc-space-6);
+}
+
+.blockTitle {
+  margin: 0;
+  font: var(--pc-type-eyebrow);
+  letter-spacing: var(--pc-tracking-eyebrow);
+  text-transform: uppercase;
+  color: var(--pc-text-3);
+}
+
+.blockMeta {
+  font: var(--pc-type-status);
+  color: var(--pc-text-4);
+}
+
+.files {
+  display: flex;
+  flex-direction: column;
+  gap: var(--pc-space-2);
+}
+
+/* ---------- history ---------- */
+
+.timeline {
+  list-style: none;
+  margin: 0;
+  padding: 0 0 0 var(--pc-space-4);
+  display: flex;
+  flex-direction: column;
+}
+
+.event {
+  display: flex;
+  align-items: stretch;
+  gap: var(--pc-space-8);
+}
+
+.rail {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  flex: none;
+  width: var(--pc-space-8);
+}
+
+/* Status colour as a dot — the permitted role. */
+.dot {
+  flex: none;
+  width: calc(var(--pc-space-6) + var(--pc-space-2) / 2);
+  height: calc(var(--pc-space-6) + var(--pc-space-2) / 2);
+  margin-top: var(--pc-space-4);
+  border-radius: 50%;
+  background: var(--pc-text-4);
+}
+
+.dot[data-tone='success'] {
+  background: var(--pc-status-success);
+}
+
+.dot[data-tone='running'] {
+  background: var(--pc-status-running);
+}
+
+.dot[data-tone='warning'] {
+  background: var(--pc-status-warning);
+}
+
+.dot[data-tone='danger'] {
+  background: var(--pc-status-danger);
+}
+
+.line {
+  flex: 1;
+  width: var(--pc-border-width);
+  min-height: var(--pc-space-16);
+  background: var(--pc-border-subtle);
+}
+
+.eventBody {
+  display: flex;
+  flex-direction: column;
+  gap: var(--pc-space-2);
+  padding-bottom: var(--pc-space-8);
+  min-width: 0;
+}
+
+.event:last-child .eventBody {
+  padding-bottom: 0;
+}
+
+.eventTitle {
+  font: var(--pc-type-meta);
+  color: var(--pc-text-1);
+}
+
+.eventDetail {
+  font: var(--pc-type-status);
+  color: var(--pc-text-4);
+}
+
+/* ---------- footer ---------- */
+
+.footer {
+  flex: none;
+  display: flex;
+  flex-direction: column;
+  gap: var(--pc-space-8);
+  padding: var(--pc-space-8) var(--pc-space-12) var(--pc-space-12);
+  border-top: var(--pc-border-width) solid var(--pc-border-subtle);
+}
+
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--pc-space-4);
+}
+
+/* «Отпустить» keeps a border: giving a boundary back is an ordinary move, not a hidden one. */
+.quiet {
+  border-color: var(--pc-border);
+}
+
+.quiet:hover:not(:disabled) {
+  border-color: var(--pc-border-strong);
+}
+
+/* The tool name beside «Расширить claim» — the user should be able to say it out loud to an agent. */
+.tool {
+  margin-left: var(--pc-space-6);
+  font: var(--pc-type-status);
+  font-weight: 400;
+  color: var(--pc-text-3);
+}
+
+.note {
+  margin: 0;
+  font: var(--pc-type-status);
+  line-height: 1.5;
+  color: var(--pc-text-4);
+}

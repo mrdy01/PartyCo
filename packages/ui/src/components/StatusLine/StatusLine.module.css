@@ -1,0 +1,204 @@
+/*
+ * Status line — one row welded to the bottom edge of the window (28px comfortable / 22px compact).
+ *
+ * Geometry note: the row height DOES follow --pc-row-height, which is 28px in comfortable — exactly
+ * what the export draws — and 22px in compact. Unlike the title bar, whose 36px is nailed to
+ * `titleBarOverlay` in the main process, nothing outside this component fixes the line's height, so
+ * CONVENTIONS §4 applies in full and `StatusBar` (the same row on the operator screens) already
+ * reads it from the same token. Compact shrinks the line without dropping a field. The horizontal
+ * padding stays 14px from the spacing scale: --pc-row-padding-x is 10px and would miss the export.
+ *
+ * Colour note: the export paints the line one step darker than the window — that step is
+ * --pc-bg-chrome, the same one the rail and the title bar take. The line separates itself with the
+ * hairline on top.
+ */
+
+.line {
+  box-sizing: border-box;
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: calc(var(--pc-space-16) + var(--pc-space-2));
+  width: 100%;
+  height: var(--pc-row-height);
+  padding-inline: calc(var(--pc-space-12) + var(--pc-space-2));
+  background: var(--pc-bg-chrome);
+  border-top: var(--pc-border-width) solid var(--pc-border-subtle);
+  color: var(--pc-text-2);
+  overflow: hidden;
+  -webkit-user-select: none;
+  user-select: none;
+}
+
+/*
+ * Offline edges the line in the danger colour. Status colour as an edge is role #4 and allowed;
+ * what is forbidden is a status fill or a status LEFT edge on a zone, and this is neither — the
+ * line is not a zone and owns no left edge at all.
+ */
+.line[data-connection='offline'] {
+  border-top-color: color-mix(in srgb, var(--pc-status-danger) 40%, transparent);
+}
+
+/* ---------- fields ---------- */
+
+/*
+ * The three permanent fields never shrink. When the window gets narrow it is the four optional
+ * fields behind «Подробности» that give way — losing a digit off «Связь напрямую» to keep
+ * `state_version` intact would be exactly the wrong trade.
+ */
+.field {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  gap: var(--pc-space-6);
+  white-space: nowrap;
+}
+
+.label,
+.connectionLabel {
+  font: var(--pc-type-note);
+  line-height: 1;
+  color: var(--pc-text-2);
+  white-space: nowrap;
+}
+
+/* The offline note takes the spend field's slot, and is the one line here allowed to be clipped. */
+.note {
+  flex: 0 1 auto;
+  min-width: 0;
+  font: var(--pc-type-note);
+  line-height: 1;
+  color: var(--pc-text-3);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* Relay is the honest «работает, но ты платишь за это задержкой» case, so the words go warning. */
+.line[data-connection='relay'] .connectionLabel {
+  color: var(--pc-status-warning);
+}
+
+/*
+ * Offline speaks in a lighter red than the dot: full --pc-status-danger on a whole sentence reads
+ * as an alarm, and this is a fact about the world, not an alarm. Mixed from the token rather than
+ * hard-coded so both themes stay correct.
+ */
+.line[data-connection='offline'] .connectionLabel {
+  color: color-mix(in srgb, var(--pc-status-danger) 70%, var(--pc-text-1));
+}
+
+/* Status colour, dot role. */
+.dot {
+  flex: none;
+  width: calc(var(--pc-space-4) + var(--pc-border-width));
+  height: calc(var(--pc-space-4) + var(--pc-border-width));
+  border-radius: 50%;
+  background: var(--pc-text-4);
+}
+
+.dot[data-tone='success'] {
+  background: var(--pc-status-success);
+}
+
+.dot[data-tone='warning'] {
+  background: var(--pc-status-warning);
+}
+
+.dot[data-tone='danger'] {
+  background: var(--pc-status-danger);
+}
+
+.dot[data-tone='running'] {
+  background: var(--pc-status-running);
+}
+
+/* Global keyframe: the bare name would be localised by the module transform and never play. */
+.dot[data-pulse='true'] {
+  animation: global(pc-pulse) 1.6s ease-in-out infinite;
+}
+
+.figure {
+  min-width: 0;
+  font: var(--pc-type-figure);
+  line-height: 1;
+  color: var(--pc-text-3);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* Today's spend is the number of the three, so it sits a step brighter than its currency twin. */
+.spend {
+  font: var(--pc-type-figure);
+  line-height: 1;
+  color: var(--pc-text-read);
+  white-space: nowrap;
+}
+
+/* ---------- the four fields behind «Подробности» ---------- */
+
+.detail {
+  flex: 0 1 auto;
+  display: inline-flex;
+  align-items: center;
+  gap: calc(var(--pc-space-12) + var(--pc-space-2));
+  min-width: 0;
+  padding-inline-start: var(--pc-space-8);
+  border-left: var(--pc-border-width) solid var(--pc-border-subtle);
+  overflow: hidden;
+}
+
+.detail[hidden] {
+  display: none;
+}
+
+/* ---------- the toggle ---------- */
+
+.details {
+  appearance: none;
+  -webkit-appearance: none;
+  display: inline-flex;
+  align-items: center;
+  gap: var(--pc-space-6);
+  flex: none;
+  margin: 0 0 0 auto;
+  padding: var(--pc-space-2) var(--pc-space-4);
+  background: none;
+  border: 0;
+  border-radius: var(--pc-radius-sm);
+  color: var(--pc-text-3);
+  cursor: pointer;
+  transition: color var(--pc-duration-fast) var(--pc-ease);
+}
+
+.details:hover {
+  color: var(--pc-text-1);
+}
+
+.details:focus-visible {
+  outline: none;
+  box-shadow: var(--pc-focus-ring);
+}
+
+.detailsLabel {
+  font: var(--pc-type-note);
+  line-height: 1;
+  color: inherit;
+}
+
+/*
+ * Collapsed the chevron points up — the fields open upward, out of the line. Expanded it points
+ * down, which is the way they will fold back.
+ */
+.chevron {
+  width: calc(var(--pc-icon-size) - var(--pc-space-4));
+  height: calc(var(--pc-icon-size) - var(--pc-space-4));
+  color: inherit;
+  transform: rotate(180deg);
+  transition: transform var(--pc-duration-fast) var(--pc-ease);
+}
+
+.details[aria-expanded='true'] .chevron {
+  transform: none;
+}

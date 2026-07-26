@@ -1,0 +1,473 @@
+/*
+ * Patch panel — the right-hand column of screen 2.4 «Merge queue».
+ *
+ * Identity colour: the author's avatar in the header (role #1, set inline through avatarStyle).
+ * Status colour: the check glyphs, the diff proportion bar, the progress fill and the timeline
+ * dots — glyph / text / thin bar / dot. Nothing here fills an area with a status colour, and the
+ * panel carries no identity edge: the column already belongs to one author, so a 2px stripe down
+ * its side would restate what the avatar and the branch name already say.
+ */
+
+.panel {
+  box-sizing: border-box;
+  flex: none;
+  /* The design's 400px column, derived from the spacing scale rather than written as a literal. */
+  width: calc(var(--pc-space-32) * 12.5);
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  /*
+   * Panel surface, not window surface. The file and check rows sit on --pc-bg-raised, and raised
+   * only reads as raised against a panel: on the window surface the two are ~1% apart in the light
+   * theme and the rows disappear. The queue table next door makes the same choice.
+   */
+  background: var(--pc-bg-panel);
+  border-left: var(--pc-border-width) solid var(--pc-border-subtle);
+}
+
+/* ---------------------------------------------------------------- header */
+
+.head {
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: var(--pc-row-gap);
+  height: calc(var(--pc-row-height) + var(--pc-space-2));
+  padding: 0 var(--pc-space-12);
+  /* Chrome band: window surface recedes behind the panel in both themes. */
+  background: var(--pc-bg-window);
+  border-bottom: var(--pc-border-width) solid var(--pc-border-subtle);
+}
+
+.branch {
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  font: var(--pc-type-status);
+  font-weight: 500;
+  color: var(--pc-text-1);
+}
+
+.patchId {
+  flex: none;
+  margin-left: auto;
+  font: var(--pc-type-status);
+  color: var(--pc-text-4);
+  white-space: nowrap;
+}
+
+/* ------------------------------------------------------------------ body */
+
+.body {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: var(--pc-space-12);
+  padding: var(--pc-space-12);
+}
+
+/* Empty / error live in the same box the body would occupy, so nothing jumps on the swap. */
+.stateBody {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: var(--pc-space-12);
+}
+
+.block {
+  display: flex;
+  flex-direction: column;
+  gap: var(--pc-space-6);
+}
+
+.blockHead {
+  display: flex;
+  align-items: baseline;
+  gap: var(--pc-space-6);
+}
+
+.blockTitle {
+  margin: 0;
+  font: var(--pc-type-eyebrow);
+  letter-spacing: var(--pc-tracking-eyebrow);
+  text-transform: uppercase;
+  color: var(--pc-text-3);
+}
+
+.blockMeta {
+  margin-left: auto;
+  font: var(--pc-type-status);
+  color: var(--pc-text-4);
+  white-space: nowrap;
+}
+
+/* ---------------------------------------------------------- diff summary */
+
+.diffRow {
+  display: flex;
+  align-items: center;
+  gap: var(--pc-space-8);
+}
+
+/*
+ * The proportion bar. A 5px rule is a thin mark, not an area — the same role the status colour
+ * plays in a progress bar. The track is the input surface so the bar reads as a slot in both
+ * themes without a per-theme branch.
+ */
+.diffTrack {
+  flex: 1;
+  display: flex;
+  height: calc(var(--pc-space-4) + var(--pc-border-width));
+  border-radius: var(--pc-radius-sm);
+  background: var(--pc-bg-input);
+  overflow: hidden;
+}
+
+.diffAdded {
+  height: 100%;
+  background: var(--pc-status-success);
+}
+
+.diffRemoved {
+  height: 100%;
+  background: var(--pc-status-danger);
+}
+
+.added {
+  flex: none;
+  font: var(--pc-type-status);
+  color: var(--pc-status-success);
+  white-space: nowrap;
+}
+
+.removed {
+  flex: none;
+  font: var(--pc-type-status);
+  color: var(--pc-status-danger);
+  white-space: nowrap;
+}
+
+/* ------------------------------------------------------------ file list */
+
+.files {
+  display: flex;
+  flex-direction: column;
+  gap: var(--pc-space-2);
+}
+
+.fileRows {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--pc-space-2);
+}
+
+.file {
+  box-sizing: border-box;
+  display: flex;
+  align-items: center;
+  gap: var(--pc-row-gap);
+  min-height: var(--pc-row-height);
+  padding: 0 var(--pc-row-padding-x);
+  border-radius: var(--pc-radius-sm);
+  background: var(--pc-bg-raised);
+}
+
+.filePath {
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  font: var(--pc-type-status);
+  color: var(--pc-text-1);
+}
+
+.fileCounts {
+  flex: none;
+  margin-left: auto;
+  display: inline-flex;
+  gap: var(--pc-space-6);
+}
+
+/*
+ * The remainder. No background on purpose: «+ ещё 4 файла» is a statement about the list, not
+ * another row in it, and a row-shaped remainder invites a click that leads nowhere.
+ */
+.more {
+  box-sizing: border-box;
+  display: flex;
+  align-items: center;
+  margin: 0;
+  min-height: var(--pc-row-height);
+  padding: 0 var(--pc-row-padding-x);
+  font: var(--pc-type-status);
+  color: var(--pc-text-2);
+}
+
+/* --------------------------------------------------------------- checks */
+
+.checks {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--pc-space-2);
+}
+
+.check {
+  box-sizing: border-box;
+  display: flex;
+  align-items: center;
+  gap: var(--pc-row-gap);
+  min-height: var(--pc-row-height);
+  padding: 0 var(--pc-row-padding-x);
+  border-radius: var(--pc-radius-sm);
+  background: var(--pc-bg-raised);
+  color: var(--pc-text-3);
+}
+
+/* A queued check has not happened yet, so it gets no surface either. */
+.check[data-state='pending'],
+.check[data-state='skipped'] {
+  background: transparent;
+}
+
+/*
+ * The one check in flight. A 10% tint of the running colour is a highlight, not a fill: it marks
+ * which row is moving while leaving the row's own text and glyph to carry the meaning.
+ */
+.check[data-state='running'] {
+  background: color-mix(in srgb, var(--pc-status-running) 10%, transparent);
+  color: var(--pc-status-running);
+}
+
+.check[data-state='passed'] {
+  color: var(--pc-status-success);
+}
+
+.check[data-state='failed'] {
+  color: var(--pc-status-danger);
+}
+
+/* Icons inherit the row colour — see the Icon primitive's currentColor rule. */
+.glyph {
+  flex: none;
+  width: calc(var(--pc-space-8) + var(--pc-space-2));
+  height: calc(var(--pc-space-8) + var(--pc-space-2));
+}
+
+.spinner {
+  flex: none;
+  box-sizing: border-box;
+  width: calc(var(--pc-space-8) + var(--pc-space-2));
+  height: calc(var(--pc-space-8) + var(--pc-space-2));
+  border: calc(var(--pc-icon-stroke) * 1px) solid var(--pc-border-subtle);
+  border-top-color: var(--pc-status-running);
+  border-radius: 50%;
+  animation: global(pc-spin) var(--pc-duration-spin) linear infinite;
+}
+
+/* Nothing has happened here yet — an outline, and no status colour to say otherwise. */
+.ring {
+  flex: none;
+  box-sizing: border-box;
+  width: var(--pc-space-8);
+  height: var(--pc-space-8);
+  margin: 0 var(--pc-space-2);
+  border: var(--pc-border-width) solid var(--pc-border-strong);
+  border-radius: 50%;
+}
+
+.checkName {
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  font: var(--pc-type-status);
+  color: var(--pc-text-2);
+}
+
+.check[data-state='running'] .checkName {
+  color: var(--pc-text-1);
+}
+
+.check[data-state='pending'] .checkName,
+.check[data-state='skipped'] .checkName {
+  color: var(--pc-text-3);
+}
+
+.trailing {
+  flex: none;
+  margin-left: auto;
+  font: var(--pc-type-status);
+  color: var(--pc-text-4);
+  white-space: nowrap;
+}
+
+.progress {
+  flex: none;
+  margin-left: auto;
+  display: inline-flex;
+  align-items: center;
+  gap: var(--pc-space-6);
+}
+
+.progressTrack {
+  display: inline-block;
+  width: calc(var(--pc-space-32) + var(--pc-space-8));
+  height: calc(var(--pc-space-2) + var(--pc-border-width));
+  border-radius: var(--pc-radius-xs);
+  background: var(--pc-bg-input);
+  overflow: hidden;
+}
+
+.progressFill {
+  display: block;
+  height: 100%;
+  background: var(--pc-status-running);
+}
+
+.progressLabel {
+  font: var(--pc-type-status);
+  color: var(--pc-status-running);
+  white-space: nowrap;
+}
+
+/* ------------------------------------------------------------- timeline */
+
+/*
+ * Vertical timeline. `HistoryStrip` is the horizontal sibling and stays horizontal: there the
+ * connector carries the meaning (a dashed gap = continuity broken), here the connector is only a
+ * thread and the meaning lives in the dots. Two different statements, two different shapes.
+ */
+.timeline {
+  list-style: none;
+  margin: 0;
+  padding: 0 0 0 var(--pc-space-4);
+  display: flex;
+  flex-direction: column;
+}
+
+.event {
+  display: flex;
+  align-items: stretch;
+  gap: var(--pc-space-8);
+}
+
+.rail {
+  flex: none;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  width: var(--pc-space-8);
+}
+
+/* Status colour as a dot — the permitted role. */
+.dot {
+  flex: none;
+  width: calc(var(--pc-space-6) + var(--pc-space-2) / 2);
+  height: calc(var(--pc-space-6) + var(--pc-space-2) / 2);
+  margin-top: var(--pc-space-4);
+  border-radius: 50%;
+  background: var(--pc-text-3);
+}
+
+.event[data-tone='ok'] .dot {
+  background: var(--pc-status-success);
+}
+
+.event[data-tone='running'] .dot {
+  background: var(--pc-status-running);
+}
+
+.event[data-tone='danger'] .dot {
+  background: var(--pc-status-danger);
+}
+
+.line {
+  flex: 1;
+  width: var(--pc-border-width);
+  min-height: var(--pc-space-16);
+  background: var(--pc-border-subtle);
+}
+
+.eventBody {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--pc-space-2);
+  padding-bottom: var(--pc-space-8);
+}
+
+.event:last-child .eventBody {
+  padding-bottom: 0;
+}
+
+.eventTitle {
+  font: var(--pc-type-meta);
+  color: var(--pc-text-1);
+}
+
+/* A neutral event is history; a toned one is the story. The quieter text says which is which. */
+.event[data-tone='neutral'] .eventTitle {
+  color: var(--pc-text-2);
+}
+
+.eventNote {
+  font: var(--pc-type-status);
+  color: var(--pc-text-4);
+}
+
+/* --------------------------------------------------------------- footer */
+
+.footer {
+  flex: none;
+  display: flex;
+  flex-direction: column;
+  gap: var(--pc-space-8);
+  padding: var(--pc-space-8) var(--pc-space-12) var(--pc-space-12);
+  background: var(--pc-bg-window);
+  border-top: var(--pc-border-width) solid var(--pc-border-subtle);
+}
+
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--pc-space-4);
+}
+
+/* «Повторить» keeps a border: re-running the checks is an ordinary move, not a hidden one. */
+.quiet {
+  border-color: var(--pc-border);
+}
+
+.quiet:hover:not(:disabled) {
+  border-color: var(--pc-border-strong);
+}
+
+.note {
+  margin: 0;
+  font: var(--pc-type-status);
+  line-height: 1.5;
+  color: var(--pc-text-4);
+}
+
+.srOnly {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+  border: 0;
+}

@@ -1,0 +1,355 @@
+/*
+ * «Не пропущен гейтом» — the slide-out panel, 520px wide by its container's decision.
+ *
+ * Surfaces: the panel itself is --pc-bg-window and everything that is a *thing* inside it — a write
+ * row, a step — sits one step forward on --pc-bg-panel. That is the pairing the export draws
+ * (#0d0f11 under #14171a) and it lands on the light twin unchanged.
+ *
+ * Colour discipline: warning appears as a dot, an outlined pill and text. The only identity colour
+ * is the 2px left edge of a write row, and it arrives inline from `zoneEdgeStyle` — never from this
+ * sheet, which the linter enforces.
+ */
+
+.root {
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  height: 100%;
+  min-height: 0;
+  background: var(--pc-bg-window);
+  border: var(--pc-border-width) solid var(--pc-border);
+  border-radius: var(--pc-radius-lg);
+  overflow: hidden;
+}
+
+/* ------------------------------------------------------------------- head */
+
+.head {
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: var(--pc-space-8);
+  min-width: 0;
+  min-height: calc(var(--pc-row-height) + var(--pc-space-12));
+  padding: 0 var(--pc-space-12) 0 var(--pc-space-16);
+  background: var(--pc-bg-chrome);
+  border-bottom: var(--pc-border-width) solid var(--pc-border-subtle);
+}
+
+/* 7px. Status role #1 — the dot; the panel is one refusal and its tone never changes. */
+.dot {
+  flex: none;
+  width: calc(var(--pc-space-8) - var(--pc-border-width));
+  height: calc(var(--pc-space-8) - var(--pc-border-width));
+  border-radius: 50%;
+  background: var(--pc-status-warning);
+}
+
+.title {
+  min-width: 0;
+  font: var(--pc-type-card);
+  color: var(--pc-text-heading);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* `claim c-2288` — a protocol value sitting next to the human sentence, never instead of it. */
+.claim {
+  flex: none;
+  font: var(--pc-type-path);
+  color: var(--pc-text-4);
+}
+
+.close {
+  flex: none;
+  margin-left: auto;
+}
+
+/* ------------------------------------------------------------------- body */
+
+.body {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: var(--pc-space-16);
+  min-height: 0;
+  min-width: 0;
+  padding: var(--pc-space-16);
+  overflow-y: auto;
+}
+
+/* ----------------------------------------------------------------- reason */
+
+.reason {
+  display: flex;
+  flex-direction: column;
+  gap: var(--pc-space-8);
+  min-width: 0;
+}
+
+.reasonRow {
+  display: flex;
+  align-items: center;
+  gap: var(--pc-space-6);
+  flex-wrap: wrap;
+  min-width: 0;
+}
+
+/*
+ * Outlined instead of tinted. Doubled selector so it beats Badge's own rule whatever order the two
+ * stylesheets land in — a tinted pill reads as a live state, and this one names a finished fact.
+ */
+.reasonPill.reasonPill {
+  background: transparent;
+  border-color: color-mix(in srgb, var(--pc-status-warning) 35%, transparent);
+}
+
+/* The file the reason points at. Mono and quiet — evidence, not a headline. */
+.subject {
+  min-width: 0;
+  font: var(--pc-type-path);
+  color: var(--pc-text-3);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.explanation {
+  margin: 0;
+  min-width: 0;
+  font: var(--pc-type-body);
+  color: var(--pc-text-read);
+  overflow-wrap: anywhere;
+}
+
+.explanation code {
+  font: var(--pc-type-code);
+  line-height: inherit;
+  color: var(--pc-text-1);
+}
+
+/* ------------------------------------------------------------------ block */
+
+.block {
+  display: flex;
+  flex-direction: column;
+  gap: var(--pc-space-8);
+  min-width: 0;
+}
+
+/* A plain heading, not an eyebrow: this revision has no 9.5px mono caps anywhere. */
+.blockLabel {
+  font: var(--pc-type-label);
+  color: var(--pc-text-2);
+}
+
+/* ----------------------------------------------------------------- writes */
+
+.list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--pc-space-6);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+/*
+ * One write that landed while the patch waited. The left border is overwritten inline with the
+ * writer's identity colour, so the row says *who* before it says what.
+ */
+.write {
+  box-sizing: border-box;
+  display: flex;
+  align-items: center;
+  gap: var(--pc-space-8);
+  min-width: 0;
+  min-height: calc(var(--pc-row-height) + var(--pc-space-6));
+  padding: 0 var(--pc-row-padding-x);
+  background: var(--pc-bg-panel);
+  border: var(--pc-border-width) solid var(--pc-border-subtle);
+  border-radius: var(--pc-radius-sm);
+}
+
+.path {
+  min-width: 0;
+  font: var(--pc-type-code);
+  color: var(--pc-text-1);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.added {
+  flex: none;
+  font: var(--pc-type-figure);
+  color: var(--pc-status-success);
+}
+
+.removed {
+  flex: none;
+  font: var(--pc-type-figure);
+  color: var(--pc-status-danger);
+}
+
+/* Relative age. There is no wall clock anywhere in this panel. */
+.ago {
+  flex: none;
+  margin-left: auto;
+  font: var(--pc-type-note);
+  color: var(--pc-text-3);
+}
+
+/* ------------------------------------------------------------------ steps */
+
+.steps {
+  display: flex;
+  flex-direction: column;
+  gap: var(--pc-space-8);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.step {
+  box-sizing: border-box;
+  display: flex;
+  gap: var(--pc-space-8);
+  min-width: 0;
+  padding: var(--pc-space-12);
+  background: var(--pc-bg-panel);
+  border: var(--pc-border-width) solid var(--pc-border-subtle);
+  border-radius: var(--pc-radius-md);
+}
+
+/* A square with a digit — an ordinal, not a status. Neutral surface, neutral text. */
+.stepNumber {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: calc(var(--pc-space-16) + var(--pc-space-2));
+  height: calc(var(--pc-space-16) + var(--pc-space-2));
+  border-radius: var(--pc-radius-sm);
+  background: var(--pc-bg-input);
+  font: var(--pc-type-status);
+  font-weight: 600;
+  color: var(--pc-text-read);
+}
+
+.stepBody {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--pc-space-8);
+  min-width: 0;
+}
+
+.stepText {
+  margin: 0;
+  min-width: 0;
+  font: var(--pc-type-body);
+  color: var(--pc-text-read);
+  overflow-wrap: anywhere;
+}
+
+.stepText code {
+  font: var(--pc-type-code);
+  line-height: inherit;
+  color: var(--pc-text-1);
+}
+
+.stepFoot {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--pc-space-8);
+  min-width: 0;
+}
+
+.stepNote {
+  font: var(--pc-type-note);
+  color: var(--pc-text-3);
+}
+
+/* --------------------------------------------------------------- footnote */
+
+/* The quietest block on the panel, and the one that decides how the whole thing reads. */
+.footnote {
+  display: flex;
+  gap: var(--pc-space-8);
+  margin-top: auto;
+  padding-top: var(--pc-space-12);
+  border-top: var(--pc-border-width) solid var(--pc-border-subtle);
+}
+
+.footnoteGlyph {
+  flex: none;
+  width: calc(var(--pc-icon-size) - var(--pc-space-4));
+  height: calc(var(--pc-icon-size) - var(--pc-space-4));
+  margin-top: var(--pc-space-2);
+  color: var(--pc-text-3);
+}
+
+.footnoteText {
+  margin: 0;
+  min-width: 0;
+  font: var(--pc-type-note);
+  color: var(--pc-text-2);
+}
+
+/* ---------------------------------------------------------------- loading */
+
+.loading {
+  display: flex;
+  flex-direction: column;
+  gap: var(--pc-space-16);
+  min-width: 0;
+}
+
+.loadingGroup {
+  display: flex;
+  flex-direction: column;
+  gap: var(--pc-space-6);
+  min-width: 0;
+}
+
+.loadingRows {
+  display: flex;
+  flex-direction: column;
+  gap: var(--pc-space-6);
+  min-width: 0;
+}
+
+/* Stands in for a write row, so nothing jumps when the real ones arrive. */
+.loadingRow.loadingRow {
+  height: calc(var(--pc-row-height) + var(--pc-space-4));
+  border-radius: var(--pc-radius-sm);
+}
+
+.loadingNote {
+  margin-top: auto;
+  font: var(--pc-type-label);
+  font-weight: 400;
+  color: var(--pc-text-3);
+}
+
+/* ------------------------------------------------------------------ error */
+
+.error {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 0;
+}
+
+/*
+ * Warning, not danger. Nothing is lost and nothing is broken — the hub did not answer a request to
+ * *look*, and the copy says exactly that. Status colour on a glyph is an allowed role either way.
+ */
+.error > * > svg {
+  color: var(--pc-status-warning);
+}

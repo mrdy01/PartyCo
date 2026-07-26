@@ -1,0 +1,297 @@
+/*
+ * Team panel — the 520px slide-out «Команда».
+ *
+ * Geometry: the export draws a 42px header, 42px person rows, 40px invitation rows and a 38px call
+ * to action. None of those are literals here — each is arithmetic on --pc-row-height, so compact
+ * density moves the whole panel down to 36 / 36 / 34 / 32 without a second rule (convention §4).
+ *
+ * Colour: the member's colour appears exactly once, as the avatar fill (identity role #1); the
+ * activity colour appears exactly once, as a 4px dot next to a word (status role #1). Neither is
+ * ever a fill or a left edge here.
+ */
+
+.panel {
+  --pc-team-header-h: calc(var(--pc-row-height) + var(--pc-space-12) + var(--pc-space-2));
+  --pc-team-row-h: calc(var(--pc-row-height) + var(--pc-space-12) + var(--pc-space-2));
+  --pc-team-invite-h: calc(var(--pc-row-height) + var(--pc-space-12));
+  --pc-team-cta-h: calc(var(--pc-row-height) + var(--pc-space-8) + var(--pc-space-2));
+
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  height: 100%;
+  background: var(--pc-bg-window);
+  color: var(--pc-text-1);
+}
+
+/* ---------- header ---------- */
+
+.header {
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: var(--pc-space-8);
+  height: var(--pc-team-header-h);
+  padding: 0 var(--pc-space-12) 0 var(--pc-space-16);
+  background: var(--pc-bg-chrome);
+  border-bottom: var(--pc-border-width) solid var(--pc-border-subtle);
+}
+
+.title {
+  margin: 0;
+  font: var(--pc-type-card);
+  color: var(--pc-text-heading);
+}
+
+.count {
+  font: var(--pc-type-note);
+  color: var(--pc-text-3);
+}
+
+.close {
+  margin-left: auto;
+}
+
+/* ---------- body ---------- */
+
+.body {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: calc(var(--pc-space-16) + var(--pc-space-2));
+  padding: var(--pc-space-16);
+}
+
+.stateBlock {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  flex: 1;
+  min-height: 0;
+}
+
+.section {
+  display: flex;
+  flex-direction: column;
+  gap: var(--pc-space-6);
+}
+
+.sectionTitle {
+  margin: 0;
+  font: var(--pc-type-label);
+  color: var(--pc-text-2);
+}
+
+.list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--pc-space-6);
+}
+
+.item {
+  display: block;
+}
+
+/* ---------- member row ---------- */
+
+.row {
+  box-sizing: border-box;
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: var(--pc-space-8);
+  height: var(--pc-team-row-h);
+  padding: 0 calc(var(--pc-space-8) + var(--pc-space-2));
+  background: var(--pc-bg-panel);
+  border: var(--pc-border-width) solid var(--pc-border-subtle);
+  border-radius: var(--pc-radius-md);
+  text-align: left;
+}
+
+.rowButton {
+  appearance: none;
+  -webkit-appearance: none;
+  margin: 0;
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+  transition: background-color var(--pc-duration-fast) var(--pc-ease);
+}
+
+.rowButton:hover {
+  background: var(--pc-bg-raised);
+}
+
+.rowButton:focus-visible {
+  outline: none;
+  box-shadow: var(--pc-focus-ring);
+}
+
+.avatar {
+  flex: none;
+}
+
+.person {
+  display: flex;
+  flex-direction: column;
+  gap: var(--pc-space-2);
+  min-width: 0;
+}
+
+.name {
+  font: var(--pc-type-body);
+  font-weight: 500;
+  color: var(--pc-text-1);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.handle {
+  font: var(--pc-type-figure);
+  color: var(--pc-text-3);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.you {
+  margin-left: auto;
+  flex: none;
+  font: var(--pc-type-note);
+  color: var(--pc-accent);
+  white-space: nowrap;
+}
+
+.trailingNote {
+  margin-left: auto;
+  flex: none;
+  font: var(--pc-type-note);
+  color: var(--pc-text-3);
+  white-space: nowrap;
+}
+
+.activity {
+  margin-left: auto;
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  gap: var(--pc-space-4);
+}
+
+.activity .trailingNote {
+  margin-left: 0;
+}
+
+.activityText {
+  font: var(--pc-type-note);
+  color: var(--pc-text-2);
+  white-space: nowrap;
+}
+
+/* Status role #1 — a dot, and only a dot. */
+.dot {
+  width: var(--pc-space-4);
+  height: var(--pc-space-4);
+  flex: none;
+  border-radius: 50%;
+  background: var(--pc-text-3);
+}
+
+.dot[data-tone='running'] {
+  background: var(--pc-status-running);
+}
+
+.dot[data-tone='success'] {
+  background: var(--pc-status-success);
+}
+
+.dot[data-tone='warning'] {
+  background: var(--pc-status-warning);
+}
+
+/* ---------- invitation row ---------- */
+
+.inviteRow {
+  box-sizing: border-box;
+  display: flex;
+  align-items: center;
+  gap: var(--pc-space-8);
+  height: var(--pc-team-invite-h);
+  padding: 0 calc(var(--pc-space-8) + var(--pc-space-2));
+  background: var(--pc-bg-panel);
+  border: var(--pc-border-width) solid var(--pc-border-subtle);
+  border-radius: var(--pc-radius-md);
+}
+
+.mailGlyph {
+  flex: none;
+  width: calc(var(--pc-icon-size) - var(--pc-space-2));
+  height: calc(var(--pc-icon-size) - var(--pc-space-2));
+  color: var(--pc-status-warning);
+}
+
+.codeGlyph {
+  flex: none;
+  width: calc(var(--pc-icon-size) - var(--pc-space-2));
+  height: calc(var(--pc-icon-size) - var(--pc-space-2));
+  color: var(--pc-accent);
+}
+
+.mono {
+  font: var(--pc-type-figure);
+  color: var(--pc-text-1);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.monoCode {
+  font: var(--pc-type-figure);
+  font-weight: 500;
+  letter-spacing: var(--pc-tracking-eyebrow);
+  color: var(--pc-text-1);
+  white-space: nowrap;
+}
+
+/* ---------- call to action ---------- */
+
+/*
+ * The export draws this control at 38px — taller than the tallest <Button> size. The height is
+ * raised from here rather than by adding a size to Button, and the selector is `button.cta`
+ * (specificity 0,1,1) so it wins over Button's own `.lg` regardless of stylesheet order.
+ */
+button.cta {
+  height: var(--pc-team-cta-h);
+  border-radius: var(--pc-radius-md);
+}
+
+/* ---------- footnote ---------- */
+
+.footnote {
+  margin-top: auto;
+  display: flex;
+  gap: var(--pc-space-8);
+  padding-top: calc(var(--pc-space-12) + var(--pc-border-width));
+  border-top: var(--pc-border-width) solid var(--pc-border-subtle);
+}
+
+.footnoteGlyph {
+  flex: none;
+  margin-top: var(--pc-space-2);
+  width: calc(var(--pc-icon-size) - var(--pc-space-4));
+  height: calc(var(--pc-icon-size) - var(--pc-space-4));
+  color: var(--pc-text-3);
+}
+
+.footnoteText {
+  margin: 0;
+  font: var(--pc-type-note);
+  color: var(--pc-text-2);
+}

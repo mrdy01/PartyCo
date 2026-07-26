@@ -1,0 +1,27 @@
+{
+  "name": "partyco",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Self-hosted collaborative AI coding environment",
+  "workspaces": [
+    "packages/*",
+    "apps/*"
+  ],
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "build:tokens": "node packages/tokens/scripts/build-css.mjs",
+    "typecheck": "tsc -p packages/tokens && tsc -p packages/icons && tsc -p packages/ui && tsc -p apps/desktop/tsconfig.node.json && tsc -p apps/desktop/tsconfig.web.json",
+    "dev": "npm run build:tokens && npm run -w @partyco/desktop dev",
+    "build": "npm run build:tokens && npm run -w @partyco/desktop build",
+    "start": "npm run -w @partyco/desktop preview",
+    "dist": "npm run build && npm run -w @partyco/desktop pack",
+    "check:design": "node scripts/check-design-rules.mjs",
+    "build:ui-barrel": "node packages/ui/scripts/gen-barrel.mjs",
+    "check": "npm run build:tokens && npm run check:design && npm run typecheck"
+  },
+  "allowScripts": {
+    "electron@43.2.0": true
+  }
+}

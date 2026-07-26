@@ -1,0 +1,417 @@
+/*
+ * Ownership map — «Карта владения». Three channels, three meanings:
+ *   area                 — how much code the boundary holds
+ *   2px left edge/avatar — who owns it (identity roles #2 and #1)
+ *   remaining outline    — what state it is in (the status `outline` role, §5)
+ * The fill is whatever the switch above is colouring by; under «Владельцы» it is identity role #4
+ * and arrives inline from `ownershipAreaStyle`, under the other two it is the neutral ramp below.
+ */
+
+.root {
+  /* Local knobs. Declared here so the map can be re-sized from outside without new tokens. */
+  --pc-map-min-height: calc(var(--pc-row-height) * 6);
+  --pc-map-card-width: calc(var(--pc-space-32) * 8);
+  --pc-map-card-key-width: calc(var(--pc-space-32) * 2);
+
+  display: flex;
+  flex-direction: column;
+  gap: var(--pc-space-8);
+  min-width: 0;
+  min-height: 0;
+  box-sizing: border-box;
+}
+
+/* ---------- header ---------- */
+
+.header {
+  display: flex;
+  align-items: center;
+  gap: var(--pc-space-8);
+  min-width: 0;
+  flex: none;
+}
+
+.title {
+  flex: none;
+  font: var(--pc-type-eyebrow);
+  letter-spacing: var(--pc-tracking-eyebrow);
+  text-transform: uppercase;
+  color: var(--pc-text-3);
+}
+
+.hint {
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  font: var(--pc-type-status);
+  color: var(--pc-text-4);
+}
+
+.dimensions {
+  display: inline-flex;
+  align-items: stretch;
+  gap: var(--pc-space-2);
+  flex: none;
+  margin-left: auto;
+  padding: var(--pc-space-2);
+  background: var(--pc-bg-panel);
+  border: var(--pc-border-width) solid var(--pc-border-subtle);
+  border-radius: var(--pc-radius-sm);
+}
+
+.dimension {
+  appearance: none;
+  -webkit-appearance: none;
+  margin: 0;
+  border: 0;
+  background: none;
+  height: calc(var(--pc-row-height) - var(--pc-space-8));
+  padding: 0 var(--pc-space-6);
+  border-radius: var(--pc-radius-xs);
+  font: var(--pc-type-status);
+  font-weight: 500;
+  color: var(--pc-text-3);
+  white-space: nowrap;
+  cursor: pointer;
+  transition:
+    background var(--pc-duration-fast) var(--pc-ease),
+    color var(--pc-duration-fast) var(--pc-ease);
+}
+
+.dimension:hover:not([data-active]) {
+  color: var(--pc-text-2);
+  background: var(--pc-bg-raised);
+}
+
+.dimension:focus-visible {
+  outline: none;
+  box-shadow: var(--pc-focus-ring);
+}
+
+.dimension[data-active] {
+  color: var(--pc-text-1);
+  background: var(--pc-bg-input);
+}
+
+/* ---------- the map itself ---------- */
+
+.map {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: var(--pc-space-4);
+  flex: 1;
+  min-height: var(--pc-map-min-height);
+}
+
+.state {
+  flex: 1;
+  min-height: var(--pc-map-min-height);
+}
+
+/* One line of rectangles. `flex-grow` carries the line's share of the code, set inline. */
+.line {
+  display: flex;
+  gap: var(--pc-space-4);
+  margin: 0;
+  padding: 0;
+  min-height: 0;
+  list-style: none;
+}
+
+.cell {
+  position: relative;
+  display: flex;
+  min-width: 0;
+}
+
+.box {
+  appearance: none;
+  -webkit-appearance: none;
+  margin: 0;
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  gap: var(--pc-space-6);
+  width: 100%;
+  min-width: 0;
+  padding: var(--pc-space-8) var(--pc-row-padding-x);
+  border: var(--pc-border-width) solid var(--pc-border-subtle);
+  border-radius: var(--pc-radius-md);
+  background: var(--pc-bg-panel);
+  font: var(--pc-type-path);
+  color: var(--pc-text-2);
+  text-align: left;
+  overflow: hidden;
+  cursor: pointer;
+}
+
+/*
+ * The owner's edge squares off the leading corners, exactly as the design draws it — a zone edge
+ * that curves away from the box stops reading as an edge.
+ */
+.box[data-edge='true'] {
+  border-top-left-radius: 0;
+  border-bottom-left-radius: 0;
+}
+
+/*
+ * Hover and selection are inset shadows, never a background or a border: the fill and the border
+ * arrive inline from the identity helpers, and an inline value cannot be repainted from here.
+ */
+.box:hover:not(:disabled) {
+  box-shadow: inset 0 0 0 var(--pc-border-width) var(--pc-border-strong);
+}
+
+.box:focus-visible {
+  outline: none;
+  box-shadow: var(--pc-focus-ring);
+}
+
+.box[data-selected='true'] {
+  box-shadow: inset 0 0 0 var(--pc-zone-edge-width) var(--pc-border-strong);
+}
+
+.box:disabled {
+  cursor: default;
+  opacity: 0.6;
+}
+
+/*
+ * «Режимы» and «Возраст» — a neutral contrast ramp mixed out of a text token, so it stays
+ * monotonic in both themes and borrows nobody's identity colour. Louder = more exclusive / older.
+ */
+.box[data-fill='mode'][data-mode='read'],
+.box[data-fill='age'][data-age='fresh'] {
+  background: var(--pc-bg-panel);
+}
+
+.box[data-fill='mode'][data-mode='impl'],
+.box[data-fill='age'][data-age='recent'] {
+  background: color-mix(in srgb, var(--pc-text-3) 6%, var(--pc-bg-panel));
+}
+
+.box[data-fill='mode'][data-mode='interface'],
+.box[data-fill='age'][data-age='aging'] {
+  background: color-mix(in srgb, var(--pc-text-3) 12%, var(--pc-bg-panel));
+}
+
+.box[data-fill='mode'][data-mode='guarded'],
+.box[data-fill='age'][data-age='stale'] {
+  background: color-mix(in srgb, var(--pc-text-3) 18%, var(--pc-bg-panel));
+}
+
+/*
+ * Status on the outline — the fourth status role. Only for the fills this stylesheet owns; under
+ * «Владельцы» the same outline arrives inline from `ownershipAreaStyle`, which also keeps the left
+ * edge on identity. Where a boundary has an owner the inline `border-left` wins over the shorthand
+ * below, so status never touches the 2px zone edge.
+ */
+.box:not([data-fill='identity'])[data-outline='success'] {
+  border-color: color-mix(in srgb, var(--pc-status-success) 45%, transparent);
+}
+
+.box:not([data-fill='identity'])[data-outline='warning'] {
+  border-color: color-mix(in srgb, var(--pc-status-warning) 45%, transparent);
+}
+
+.box:not([data-fill='identity'])[data-outline='danger'] {
+  border-color: color-mix(in srgb, var(--pc-status-danger) 45%, transparent);
+}
+
+.box:not([data-fill='identity'])[data-outline='running'] {
+  border-color: color-mix(in srgb, var(--pc-status-running) 45%, transparent);
+}
+
+/* ---------- rectangle content ---------- */
+
+.head {
+  display: flex;
+  align-items: center;
+  gap: var(--pc-space-6);
+  min-width: 0;
+  margin-bottom: auto;
+}
+
+.path {
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  font: var(--pc-type-path);
+  font-weight: 500;
+  color: var(--pc-text-1);
+}
+
+.pathFree {
+  font-weight: 400;
+  color: var(--pc-text-3);
+}
+
+.foot {
+  display: flex;
+  align-items: center;
+  gap: var(--pc-space-6);
+  min-width: 0;
+}
+
+.avatars {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--pc-space-2);
+  flex: none;
+}
+
+.stateLine {
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  font: var(--pc-type-status);
+  color: var(--pc-text-2);
+}
+
+/* Status colour as text — the permitted role. */
+.stateLine[data-tone='success'] {
+  color: var(--pc-status-success);
+}
+
+.stateLine[data-tone='warning'] {
+  color: var(--pc-status-warning);
+}
+
+.stateLine[data-tone='danger'] {
+  color: var(--pc-status-danger);
+}
+
+.stateLine[data-tone='running'] {
+  color: var(--pc-status-running);
+}
+
+.stateFree {
+  color: var(--pc-text-4);
+}
+
+/*
+ * Lease-mode badge, the same chip the tree draws: `I` and `X` are somebody's exclusive claim, so
+ * they get that member's fill inline (identity role #1); `R` and `G` belong to nobody.
+ */
+.mode {
+  flex: none;
+  box-sizing: border-box;
+  min-width: var(--pc-space-12);
+  padding: 0 var(--pc-space-4);
+  border-radius: var(--pc-radius-xs);
+  font: var(--pc-type-status);
+  font-weight: 600;
+  line-height: calc(var(--pc-avatar-size) + var(--pc-space-2));
+  text-align: center;
+  background: var(--pc-bg-input);
+  color: var(--pc-text-2);
+}
+
+.mode[data-mode='guarded'] {
+  background: color-mix(in srgb, var(--pc-status-warning) 16%, transparent);
+  color: var(--pc-status-warning);
+}
+
+/* ---------- hover card ---------- */
+
+.card {
+  position: absolute;
+  z-index: 4;
+  top: 100%;
+  left: 0;
+  margin-top: var(--pc-space-4);
+  box-sizing: border-box;
+  width: var(--pc-map-card-width);
+  max-width: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: var(--pc-space-6);
+  padding: var(--pc-space-8) var(--pc-space-12);
+  background: var(--pc-bg-raised);
+  border: var(--pc-border-width) solid var(--pc-border-strong);
+  border-radius: var(--pc-radius-md);
+  /* No shadow token exists; the window colour bleeding under the popover is the honest stand-in. */
+  box-shadow: 0 var(--pc-space-8) var(--pc-space-24)
+    color-mix(in srgb, var(--pc-bg-window) 62%, transparent);
+  /* Purely descriptive: it must never steal the pointer from the rectangle underneath. */
+  pointer-events: none;
+}
+
+.card[data-flip-x='true'] {
+  left: auto;
+  right: 0;
+}
+
+.card[data-flip-y='true'] {
+  top: auto;
+  bottom: 100%;
+  margin-top: 0;
+  margin-bottom: var(--pc-space-4);
+}
+
+.cardHead {
+  display: flex;
+  align-items: center;
+  gap: var(--pc-space-6);
+  min-width: 0;
+}
+
+.cardPath {
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  font: var(--pc-type-path);
+  font-weight: 500;
+  color: var(--pc-text-1);
+}
+
+.cardRows {
+  display: flex;
+  flex-direction: column;
+  gap: var(--pc-space-4);
+  margin: 0;
+}
+
+.cardRow {
+  display: flex;
+  align-items: center;
+  gap: var(--pc-space-8);
+  min-width: 0;
+}
+
+.cardKey {
+  flex: none;
+  width: var(--pc-map-card-key-width);
+  font: var(--pc-type-status);
+  color: var(--pc-text-3);
+}
+
+.cardValue {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--pc-space-6);
+  margin: 0;
+  min-width: 0;
+  font: var(--pc-type-meta);
+  color: var(--pc-text-1);
+}
+
+.cardModeName {
+  font: var(--pc-type-meta);
+  color: var(--pc-text-2);
+}
+
+.cardMono {
+  font: var(--pc-type-status);
+  color: var(--pc-text-2);
+}
+
+.cardHint {
+  font: var(--pc-type-status);
+  color: var(--pc-text-4);
+}

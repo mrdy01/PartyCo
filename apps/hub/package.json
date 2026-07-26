@@ -1,0 +1,15 @@
+{
+  "name": "@partyco/hub",
+  "version": "0.0.0",
+  "private": true,
+  "description": "partycod — coordination hub daemon: SQLite storage and email/password authentication. Zero runtime dependencies.",
+  "type": "module",
+  "main": "src/index.js",
+  "engines": {
+    "node": ">=24.0.0"
+  },
+  "scripts": {
+    "start": "node src/index.js",
+    "test": "node --test"
+  }
+}

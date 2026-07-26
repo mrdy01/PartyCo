@@ -1,0 +1,8 @@
+/*
+ * Icon-only button. Geometry (square, radius 3px) and all four variants come from Button — this
+ * module only pins the box so it never stretches inside a flex toolbar.
+ */
+
+.root {
+  flex: none;
+}

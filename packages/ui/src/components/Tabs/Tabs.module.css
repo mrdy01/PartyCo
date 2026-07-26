@@ -1,0 +1,103 @@
+.root {
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.strip {
+  box-sizing: border-box;
+  display: flex;
+  align-items: stretch;
+  /* Slightly taller than a list row — the tab is a container, not a row. */
+  height: calc(var(--pc-row-height) + var(--pc-space-4));
+  background: var(--pc-bg-window);
+  border-bottom: var(--pc-border-width) solid var(--pc-border);
+  white-space: nowrap;
+}
+
+.list {
+  display: flex;
+  align-items: stretch;
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow-x: auto;
+  overflow-y: hidden;
+  scrollbar-width: none;
+}
+
+.list::-webkit-scrollbar {
+  display: none;
+}
+
+.newTab {
+  box-sizing: border-box;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: none;
+  width: var(--pc-space-32);
+  margin: 0;
+  padding: 0;
+  background: transparent;
+  border: 0;
+  border-radius: 0;
+  color: var(--pc-text-4);
+  font: var(--pc-type-body);
+  cursor: pointer;
+  appearance: none;
+  -webkit-appearance: none;
+}
+
+.newTab:hover {
+  background: var(--pc-bg-raised);
+  color: var(--pc-text-1);
+}
+
+.newTab:focus-visible {
+  outline: none;
+  box-shadow: var(--pc-focus-ring);
+}
+
+/* «Этот файл в чужой зоне» bar. Background is the owner's gutter tint, set inline. */
+.notice {
+  box-sizing: border-box;
+  display: flex;
+  align-items: center;
+  gap: var(--pc-row-gap);
+  padding: var(--pc-space-12) var(--pc-space-16);
+  border-bottom: var(--pc-border-width) solid var(--pc-border-subtle);
+}
+
+.noticeText {
+  font: var(--pc-type-meta);
+  color: var(--pc-text-2);
+  min-width: 0;
+}
+
+.noticeAction {
+  box-sizing: border-box;
+  display: inline-flex;
+  align-items: center;
+  flex: none;
+  height: calc(var(--pc-row-height) - var(--pc-space-6));
+  margin-left: auto;
+  padding: 0 var(--pc-space-8);
+  background: var(--pc-bg-input);
+  border: var(--pc-border-width) solid var(--pc-border-strong);
+  border-radius: var(--pc-radius-sm);
+  font: var(--pc-type-meta);
+  color: var(--pc-text-1);
+  cursor: pointer;
+  appearance: none;
+  -webkit-appearance: none;
+}
+
+.noticeAction:hover {
+  background: var(--pc-bg-raised);
+}
+
+.noticeAction:focus-visible {
+  outline: none;
+  box-shadow: var(--pc-focus-ring);
+}

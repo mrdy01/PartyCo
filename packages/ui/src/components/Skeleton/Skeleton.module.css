@@ -1,0 +1,69 @@
+/*
+ * Shimmer primitive. The sweep is a two-token gradient — raised surface as the base, input surface
+ * as the highlight — so it is correct in both themes without a single theme selector.
+ */
+.skeleton {
+  display: block;
+  flex: none;
+  box-sizing: border-box;
+  background-color: var(--pc-bg-raised);
+  background-image: linear-gradient(
+    90deg,
+    var(--pc-bg-raised) 8%,
+    var(--pc-bg-input) 18%,
+    var(--pc-bg-raised) 33%
+  );
+  background-size: 280% 100%;
+  background-repeat: no-repeat;
+  border-radius: var(--pc-radius-xs);
+  animation: global(pc-shimmer) 1.5s linear infinite;
+}
+
+/* A text line: a third of the row height, so density scales it with the real content. */
+.bar {
+  height: calc(var(--pc-row-height) / 3);
+  width: 100%;
+}
+
+/* An icon / avatar slot. */
+.block {
+  width: var(--pc-icon-size);
+  height: var(--pc-icon-size);
+  border-radius: var(--pc-avatar-radius);
+}
+
+.grow {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.frozen {
+  animation: none;
+  background-image: none;
+}
+
+.radiusXs {
+  border-radius: var(--pc-radius-xs);
+}
+
+.radiusSm {
+  border-radius: var(--pc-radius-sm);
+}
+
+.radiusMd {
+  border-radius: var(--pc-radius-md);
+}
+
+.radiusLg {
+  border-radius: var(--pc-radius-lg);
+}
+
+/*
+ * The token layer already clamps every animation, which would park the gradient mid-sweep. Drop the
+ * gradient entirely instead: a flat surface reads as "not ready" without motion.
+ */
+@media (prefers-reduced-motion: reduce) {
+  .skeleton {
+    background-image: none;
+  }
+}

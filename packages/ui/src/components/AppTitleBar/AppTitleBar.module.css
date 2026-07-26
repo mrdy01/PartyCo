@@ -1,0 +1,237 @@
+/*
+ * Application title bar — 32px of OS chrome.
+ *
+ * Geometry note: this bar is the one place in the app that must NOT scale with the density tokens.
+ * Its height is fixed by the window frame (and by Electron's `titleBarOverlay`, which paints the
+ * native window buttons on top of it), so the boxes here are built from the spacing scale rather
+ * than from --pc-row-height. Type still comes from the ramp, so it follows --pc-font-delta.
+ *
+ * Colour note: the design paints the bar one step darker than the window (#0A0C0E vs #0D0F11).
+ * There is no token for that step, so the bar uses --pc-bg-window and the chips sit on
+ * --pc-bg-panel above it — the same two-step read, one token higher.
+ *
+ * Window controls: deliberately absent. See AppTitleBar.tsx.
+ */
+
+.bar {
+  box-sizing: border-box;
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: var(--pc-space-8);
+  width: 100%;
+  height: var(--pc-space-32);
+  padding-inline-start: var(--pc-space-8);
+  background: var(--pc-bg-window);
+  border-bottom: var(--pc-border-width) solid var(--pc-border-subtle);
+  color: var(--pc-text-2);
+  -webkit-user-select: none;
+  user-select: none;
+}
+
+/*
+ * The host app makes the whole bar a drag region; anything the user is meant to click has to opt
+ * back out or the click is swallowed by the window move.
+ */
+.bar [data-no-drag] {
+  -webkit-app-region: no-drag;
+}
+
+/* ---------- identity mark ---------- */
+
+.logo {
+  position: relative;
+  flex: none;
+  width: calc(var(--pc-space-16) - var(--pc-border-width));
+  height: calc(var(--pc-space-16) - var(--pc-border-width));
+  border-radius: var(--pc-radius-sm);
+  /* Chrome accent, not an identity colour — the mark stands for the app, not for a person. */
+  background: var(--pc-accent);
+}
+
+.pip {
+  position: absolute;
+  width: var(--pc-space-4);
+  height: var(--pc-space-4);
+  border-radius: var(--pc-radius-xs);
+  background: var(--pc-accent-on);
+}
+
+.pip[data-pip='a'] {
+  inset-inline-start: var(--pc-space-2);
+  inset-block-start: var(--pc-space-2);
+}
+
+.pip[data-pip='b'] {
+  inset-inline-end: var(--pc-space-2);
+  inset-block-start: var(--pc-space-2);
+  opacity: 0.5;
+}
+
+.pip[data-pip='c'] {
+  inset-inline-start: var(--pc-space-2);
+  inset-block-end: var(--pc-space-2);
+  opacity: 0.5;
+}
+
+/* ---------- project switcher ---------- */
+
+.project {
+  appearance: none;
+  -webkit-appearance: none;
+  box-sizing: border-box;
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  gap: var(--pc-space-6);
+  height: calc(var(--pc-space-20) + var(--pc-space-2));
+  margin: 0;
+  padding-inline: var(--pc-space-8);
+  background: var(--pc-bg-panel);
+  border: var(--pc-border-width) solid var(--pc-border-subtle);
+  border-radius: var(--pc-radius-sm);
+  color: var(--pc-text-1);
+  cursor: pointer;
+  white-space: nowrap;
+  transition: background var(--pc-duration-fast) var(--pc-ease);
+}
+
+.project:hover {
+  background: var(--pc-bg-raised);
+}
+
+.project:focus-visible {
+  outline: none;
+  box-shadow: var(--pc-focus-ring);
+}
+
+.projectName {
+  font: var(--pc-type-meta);
+  font-weight: 500;
+  line-height: 1;
+  color: var(--pc-text-1);
+}
+
+.projectHint {
+  font: var(--pc-type-status);
+  line-height: 1;
+  color: var(--pc-text-4);
+}
+
+.caret {
+  width: calc(var(--pc-icon-size) - var(--pc-space-4));
+  height: calc(var(--pc-icon-size) - var(--pc-space-4));
+  color: var(--pc-text-4);
+}
+
+/* ---------- breadcrumb ---------- */
+
+.breadcrumb {
+  flex: 0 1 auto;
+  min-width: 0;
+  overflow: hidden;
+}
+
+.crumbs {
+  display: flex;
+  align-items: center;
+  gap: var(--pc-space-4);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.crumb {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--pc-space-4);
+  min-width: 0;
+}
+
+.crumbText {
+  font: var(--pc-type-status);
+  line-height: 1;
+  color: var(--pc-text-3);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.crumbText[aria-current='page'] {
+  color: var(--pc-text-2);
+}
+
+.crumbSep {
+  width: calc(var(--pc-icon-size) - var(--pc-space-6));
+  height: calc(var(--pc-icon-size) - var(--pc-space-6));
+  color: var(--pc-text-4);
+}
+
+/* ---------- search ---------- */
+
+/*
+ * `.search` lands on the SearchField frame. Scoped under `.bar` so it beats the component's own
+ * single-class rules regardless of stylesheet order.
+ */
+.bar .search {
+  flex: 0 1 auto;
+  width: auto;
+  min-width: calc(var(--pc-space-32) * 9 + var(--pc-space-12));
+  margin-inline: auto;
+  background: var(--pc-bg-panel);
+  border-color: var(--pc-border-subtle);
+  -webkit-app-region: no-drag;
+}
+
+/* ---------- theme + density toggles ---------- */
+
+.toggles {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  gap: var(--pc-space-8);
+}
+
+.segmented {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--pc-space-2);
+  padding: var(--pc-space-2);
+  background: var(--pc-bg-panel);
+  border: var(--pc-border-width) solid var(--pc-border-subtle);
+  border-radius: var(--pc-radius-sm);
+}
+
+.segment {
+  appearance: none;
+  -webkit-appearance: none;
+  display: inline-flex;
+  align-items: center;
+  margin: 0;
+  padding: var(--pc-space-2) var(--pc-space-6);
+  border: 0;
+  border-radius: var(--pc-radius-xs);
+  background: none;
+  color: var(--pc-text-3);
+  font: var(--pc-type-eyebrow);
+  cursor: pointer;
+  white-space: nowrap;
+  transition:
+    background var(--pc-duration-fast) var(--pc-ease),
+    color var(--pc-duration-fast) var(--pc-ease);
+}
+
+.segment:hover:not([data-active]) {
+  color: var(--pc-text-2);
+  background: var(--pc-bg-raised);
+}
+
+.segment:focus-visible {
+  outline: none;
+  box-shadow: var(--pc-focus-ring);
+}
+
+.segment[data-active] {
+  color: var(--pc-text-1);
+  background: var(--pc-border);
+}

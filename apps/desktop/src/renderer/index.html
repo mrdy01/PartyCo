@@ -1,0 +1,20 @@
+<!doctype html>
+<html lang="ru" data-theme="dark" data-density="comfortable">
+  <head>
+    <meta charset="UTF-8" />
+    <title>PartyCo</title>
+    <!--
+      The runtime CSP is set by the main process (src/main/index.ts › installCsp) so it can differ
+      between dev and packaged builds. This meta tag is the belt-and-braces copy for the packaged
+      case, where no dev server exists.
+    -->
+    <meta
+      http-equiv="Content-Security-Policy"
+      content="default-src 'none'; script-src 'self'; style-src 'self' 'unsafe-inline'; font-src 'self' data:; img-src 'self' data: blob:; connect-src 'self' ws://127.0.0.1:* http://127.0.0.1:*; base-uri 'none'; form-action 'none'"
+    />
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>

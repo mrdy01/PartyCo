@@ -1,0 +1,33 @@
+{
+  "name": "@partyco/desktop",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Самохостимая коробка для совместной разработки с ИИ",
+  "author": "PartyCo",
+  "type": "module",
+  "main": "out/main/index.js",
+  "scripts": {
+    "dev": "electron-vite dev",
+    "build": "electron-vite build",
+    "preview": "electron-vite preview",
+    "icon": "node scripts/make-icon.mjs",
+    "pack": "electron-builder",
+    "typecheck": "tsc -p tsconfig.node.json && tsc -p tsconfig.web.json",
+    "dev:web": "vite --config vite.web.config.ts"
+  },
+  "devDependencies": {
+    "@partyco/icons": "*",
+    "@partyco/tokens": "*",
+    "@partyco/ui": "*",
+    "@types/react": "^19.2.0",
+    "@types/react-dom": "^19.2.0",
+    "@vitejs/plugin-react": "5.2.0",
+    "electron": "43.2.0",
+    "electron-builder": "^26.15.3",
+    "electron-vite": "5.0.0",
+    "react": "19.2.8",
+    "react-dom": "19.2.8",
+    "typescript": "7.0.2",
+    "vite": "7.3.6"
+  }
+}

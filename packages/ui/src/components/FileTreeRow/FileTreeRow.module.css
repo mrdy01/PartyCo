@@ -1,0 +1,175 @@
+.row {
+  box-sizing: border-box;
+  display: flex;
+  align-items: center;
+  gap: var(--pc-row-gap);
+  height: var(--pc-row-height);
+  padding: 0 var(--pc-row-padding-x);
+  /* border-left is written inline: identity role #2, the 2px zone edge. */
+  font: var(--pc-type-path);
+  /* Root colour is the glyph colour; the label overrides its own. */
+  color: var(--pc-text-3);
+  cursor: pointer;
+  user-select: none;
+}
+
+/*
+ * The ownership tint is an inline background, so hover cannot repaint it — the inset outline is
+ * the hover signal that survives on tinted, selected and plain rows alike.
+ */
+.row:hover {
+  background: var(--pc-bg-raised);
+  box-shadow: inset 0 0 0 1px var(--pc-border-subtle);
+}
+
+.row:focus-visible {
+  outline: none;
+  box-shadow: var(--pc-focus-ring);
+}
+
+.selected {
+  background: var(--pc-selected-row-bg);
+}
+
+/* Hover must not erase the selection or the ownership tint. */
+.selected:hover {
+  background: var(--pc-selected-row-bg);
+}
+
+.indent {
+  flex: none;
+}
+
+.glyph,
+.twisty,
+.twistySpacer {
+  flex: none;
+  width: var(--pc-icon-size);
+  height: var(--pc-icon-size);
+}
+
+.twisty {
+  transform: rotate(0deg);
+  transition: transform 120ms ease-out;
+}
+
+.twistyOpen {
+  transform: rotate(90deg);
+}
+
+.name {
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  color: var(--pc-text-2);
+}
+
+.emphasised .name {
+  color: var(--pc-text-1);
+}
+
+.disabled {
+  cursor: default;
+  color: var(--pc-text-4);
+}
+
+.disabled .name {
+  color: var(--pc-text-4);
+}
+
+.added,
+.removed,
+.lease,
+.free,
+.note {
+  flex: none;
+  font: var(--pc-type-status);
+}
+
+/* Status colour as text — permitted role. */
+.added {
+  color: var(--pc-status-success);
+}
+
+.removed {
+  color: var(--pc-status-danger);
+}
+
+.lease {
+  color: var(--pc-status-warning);
+}
+
+.free {
+  color: var(--pc-text-4);
+}
+
+/* A plain fact about the row («не тронут»), so deliberately quieter than any status. */
+.note {
+  color: var(--pc-text-4);
+  white-space: nowrap;
+}
+
+.trailing {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--pc-space-4);
+  flex: none;
+  margin-left: auto;
+}
+
+/*
+ * Lease-mode badge. R / I / X / G — the code the design puts at the right edge of a boundary row.
+ * `impl` and `interface` get the owner's colour as an inline fill (identity role #1, via
+ * avatarStyle); the two ownerless modes stay on neutral and status colour respectively.
+ */
+.mode {
+  flex: none;
+  box-sizing: border-box;
+  min-width: var(--pc-space-12);
+  padding: 0 var(--pc-space-4);
+  border-radius: var(--pc-radius-xs);
+  font: var(--pc-type-status);
+  font-weight: 600;
+  line-height: calc(var(--pc-avatar-size) + var(--pc-space-2));
+  text-align: center;
+  background: transparent;
+  color: var(--pc-text-4);
+}
+
+/* Shared read belongs to nobody: no pill, just a muted letter. */
+.mode[data-mode='read'] {
+  min-width: 0;
+  padding: 0;
+  font-weight: 400;
+}
+
+.mode[data-mode='guarded'] {
+  background: color-mix(in srgb, var(--pc-status-warning) 16%, transparent);
+  color: var(--pc-status-warning);
+}
+
+.lock {
+  flex: none;
+  width: calc(var(--pc-icon-size) - var(--pc-space-4));
+  height: calc(var(--pc-icon-size) - var(--pc-space-4));
+  color: var(--pc-status-warning);
+}
+
+/* Status colour as text plus its glyph — the permitted role. */
+.danger {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--pc-space-4);
+  flex: none;
+  font: var(--pc-type-status);
+  font-weight: 500;
+  color: var(--pc-status-danger);
+  white-space: nowrap;
+}
+
+.dangerGlyph {
+  flex: none;
+  width: calc(var(--pc-icon-size) - var(--pc-space-4));
+  height: calc(var(--pc-icon-size) - var(--pc-space-4));
+}

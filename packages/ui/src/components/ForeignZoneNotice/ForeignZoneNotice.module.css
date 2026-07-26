@@ -1,0 +1,108 @@
+/*
+ * «Файл в зоне другого участника» — the calm read-only state.
+ *
+ * There is deliberately no danger or warning colour anywhere in this sheet. The only colour on the
+ * surface is the holder's identity tint, applied inline through diffGutterStyle(); everything else
+ * is neutral chrome. If this block ever starts to look like an error, that is the bug.
+ */
+
+.card {
+  border: var(--pc-border-width) solid var(--pc-border);
+  border-radius: var(--pc-radius-md);
+  overflow: hidden;
+}
+
+.banner {
+  box-sizing: border-box;
+  display: flex;
+  align-items: flex-start;
+  gap: var(--pc-space-12);
+  padding: var(--pc-space-12);
+  border-bottom: var(--pc-border-width) solid var(--pc-border-subtle);
+}
+
+.body {
+  display: flex;
+  flex-direction: column;
+  gap: var(--pc-space-8);
+  min-width: 0;
+}
+
+.headGroup {
+  display: flex;
+  flex-direction: column;
+  gap: var(--pc-space-2);
+  min-width: 0;
+}
+
+.headline {
+  margin: 0;
+  font: var(--pc-type-meta);
+  font-weight: 500;
+  color: var(--pc-text-1);
+}
+
+.code {
+  font: var(--pc-type-path);
+  color: var(--pc-text-1);
+}
+
+/* Identity role #1 — filled inline from avatarStyle(). */
+.symbol {
+  --symbol-box: var(--pc-space-16);
+
+  box-sizing: border-box;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: var(--symbol-box);
+  height: var(--symbol-box);
+  border-radius: var(--pc-avatar-radius);
+  font-family: var(--pc-font-mono);
+  font-weight: 600;
+  /* Ratio of the box — the ramp has no mono step this small. Matches Avatar's approach. */
+  font-size: calc(var(--symbol-box) * 0.58);
+  line-height: 1;
+  vertical-align: text-bottom;
+}
+
+.meta {
+  margin: 0;
+  font: var(--pc-type-status);
+  color: var(--pc-text-3);
+}
+
+.explanation {
+  margin: 0;
+  font: var(--pc-type-meta);
+  color: var(--pc-text-2);
+}
+
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--pc-space-6);
+}
+
+/*
+ * The second action keeps the design's hairline outline, which `ghost` does not draw.
+ * Doubled selector so this wins over Button's `.ghost` regardless of stylesheet order.
+ */
+.outlined.outlined {
+  border-color: var(--pc-border);
+}
+
+.hint {
+  font: var(--pc-type-status);
+  color: var(--pc-text-4);
+}
+
+.footNote {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--pc-space-4);
+  min-width: 0;
+  font: var(--pc-type-status);
+  color: var(--pc-text-3);
+}

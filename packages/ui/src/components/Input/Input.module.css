@@ -1,0 +1,120 @@
+/*
+ * Text field. Design §05 "Поля, селекты, поиск": label above, 28px frame (= --pc-row-height, so the
+ * field shrinks with density), radius 3px, hint or error message below.
+ */
+
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: var(--pc-space-4);
+  min-width: 0;
+}
+
+.label {
+  font: var(--pc-type-meta);
+  font-weight: 500;
+  color: var(--pc-text-2);
+}
+
+.field[data-invalid='true'] .label {
+  color: var(--pc-status-danger);
+}
+
+.frame {
+  display: flex;
+  align-items: center;
+  gap: var(--pc-row-gap);
+  box-sizing: border-box;
+  height: var(--pc-row-height);
+  padding-inline: var(--pc-row-padding-x);
+  background: var(--pc-bg-input);
+  border: var(--pc-border-width) solid var(--pc-border);
+  border-radius: var(--pc-radius-sm);
+  color: var(--pc-text-1);
+  transition:
+    border-color 120ms ease,
+    background-color 120ms ease;
+}
+
+.frame:hover:not([data-disabled='true']) {
+  border-color: var(--pc-border-strong);
+}
+
+.frame:focus-within {
+  border-color: var(--pc-status-running);
+}
+
+/* Convention §7: the focus ring is the token, never a bespoke glow. */
+.frame:has(.control:focus-visible) {
+  box-shadow: var(--pc-focus-ring);
+}
+
+.field[data-invalid='true'] .frame {
+  border-color: var(--pc-status-danger);
+}
+
+.frame[data-disabled='true'] {
+  background: var(--pc-bg-raised);
+  border-color: var(--pc-border-subtle);
+  color: var(--pc-text-4);
+}
+
+.control {
+  flex: 1 1 auto;
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font: var(--pc-type-meta);
+  appearance: none;
+}
+
+.mono {
+  font: var(--pc-type-path);
+}
+
+.control:focus {
+  outline: none;
+}
+
+.control::placeholder {
+  color: var(--pc-text-4);
+  opacity: 1;
+}
+
+.control:disabled {
+  color: var(--pc-text-4);
+  cursor: not-allowed;
+}
+
+.glyph {
+  width: calc(var(--pc-icon-size) - var(--pc-space-2));
+  height: calc(var(--pc-icon-size) - var(--pc-space-2));
+  flex: none;
+  color: var(--pc-text-3);
+}
+
+/* Trailing "value accepted" tick. Status colour used as a glyph next to text — never a fill. */
+.valid {
+  color: var(--pc-status-success);
+  margin-left: auto;
+}
+
+.trailing {
+  margin-left: auto;
+  display: inline-flex;
+  align-items: center;
+  gap: var(--pc-space-4);
+}
+
+.hint {
+  font: var(--pc-type-meta);
+  color: var(--pc-text-3);
+}
+
+.error {
+  font: var(--pc-type-meta);
+  color: var(--pc-status-danger);
+}

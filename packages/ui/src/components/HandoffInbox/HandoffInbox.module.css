@@ -1,0 +1,223 @@
+/*
+ * Handoff inbox. Identity colour appears twice and only twice: the avatar (role #1, via Avatar)
+ * and the 2px left edge of a card (role #2, via zoneEdgeStyle — written inline). Status colour is
+ * limited to the count pill, the waiting text and the advisory glyph.
+ */
+
+.panel {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  background: var(--pc-bg-window);
+}
+
+/* ---------- header ---------- */
+
+.head {
+  display: flex;
+  align-items: center;
+  gap: var(--pc-row-gap);
+  flex: none;
+  height: calc(var(--pc-row-height) + var(--pc-space-2));
+  padding: 0 var(--pc-space-12);
+  border-bottom: var(--pc-border-width) solid var(--pc-border-subtle);
+  background: var(--pc-bg-window);
+}
+
+.headTitle {
+  margin: 0;
+  font: var(--pc-type-eyebrow);
+  letter-spacing: var(--pc-tracking-eyebrow);
+  text-transform: uppercase;
+  color: var(--pc-text-3);
+}
+
+/* Status colour as a pill — the permitted role. */
+.count {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: var(--pc-space-16);
+  height: var(--pc-space-16);
+  padding: 0 var(--pc-space-4);
+  border-radius: var(--pc-radius-sm);
+  background: color-mix(in srgb, var(--pc-status-warning) 18%, transparent);
+  font: var(--pc-type-eyebrow);
+  font-weight: 600;
+  letter-spacing: 0;
+  color: var(--pc-status-warning);
+}
+
+.body {
+  display: flex;
+  flex-direction: column;
+  gap: var(--pc-space-12);
+  min-height: 0;
+  overflow-y: auto;
+  padding: var(--pc-space-12);
+}
+
+/* ---------- cards ---------- */
+
+.list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--pc-space-8);
+}
+
+.card {
+  display: flex;
+  flex-direction: column;
+  gap: var(--pc-space-8);
+  padding: var(--pc-space-8) var(--pc-space-12);
+  background: var(--pc-bg-panel);
+  border: var(--pc-border-width) solid var(--pc-border);
+  /* border-left is overwritten inline with the identity edge — role #2. */
+  border-radius: 0 var(--pc-radius-md) var(--pc-radius-md) 0;
+}
+
+/* My own outgoing request: same shape, one step quieter — it is information, not a decision. */
+.cardQuiet {
+  gap: var(--pc-space-6);
+  border-color: var(--pc-border-subtle);
+}
+
+.cardHead {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--pc-space-8);
+}
+
+.cardTitleBlock {
+  display: flex;
+  flex-direction: column;
+  gap: var(--pc-space-2);
+  min-width: 0;
+}
+
+.cardTitle {
+  margin: 0;
+  font: var(--pc-type-meta);
+  font-weight: 500;
+  color: var(--pc-text-1);
+}
+
+.cardClaim {
+  margin: 0;
+  font: var(--pc-type-path);
+  color: var(--pc-text-3);
+  overflow-wrap: anywhere;
+}
+
+/* Status colour as text: how long somebody has been waiting is the only urgency on the card. */
+.waited {
+  flex: none;
+  margin-left: auto;
+  font: var(--pc-type-status);
+  color: var(--pc-status-warning);
+  white-space: nowrap;
+}
+
+.waitedQuiet {
+  flex: none;
+  margin-left: auto;
+  font: var(--pc-type-status);
+  color: var(--pc-text-3);
+  white-space: nowrap;
+}
+
+/*
+ * The explanation. Body type, neutral colour, no icon: it must read as an account of the mechanism
+ * rather than as a warning about the person who asked.
+ */
+.reason {
+  margin: 0;
+  font: var(--pc-type-meta);
+  line-height: 1.55;
+  color: var(--pc-text-2);
+}
+
+.code {
+  font: var(--pc-type-status);
+  color: var(--pc-text-1);
+  white-space: nowrap;
+}
+
+.reason .code {
+  color: var(--pc-text-1);
+}
+
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--pc-space-4);
+}
+
+/* «Отказать» / «Отменить запрос» keep a visible border so they read as real, legitimate options. */
+.quiet {
+  border-color: var(--pc-border);
+}
+
+.quiet:hover:not(:disabled) {
+  border-color: var(--pc-border-strong);
+}
+
+/* ---------- outgoing ---------- */
+
+.outgoing {
+  display: flex;
+  flex-direction: column;
+  gap: var(--pc-space-6);
+}
+
+.subTitle {
+  margin: 0;
+  font: var(--pc-type-eyebrow);
+  letter-spacing: var(--pc-tracking-eyebrow);
+  text-transform: uppercase;
+  color: var(--pc-text-3);
+}
+
+.outgoingHead {
+  display: flex;
+  align-items: center;
+  gap: var(--pc-space-8);
+}
+
+.outgoingTitle {
+  font: var(--pc-type-meta);
+  color: var(--pc-text-1);
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/*
+ * The advisory. A low-alpha warning tint behind two lines of text is a pill, not a panel fill —
+ * the same recipe the warning button uses. The glyph carries the status colour; the sentence stays
+ * neutral, because "you may not need this request" is good news, not an alarm.
+ */
+.advisory {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--pc-space-6);
+  margin: 0;
+  padding: var(--pc-space-6) var(--pc-space-8);
+  border-radius: var(--pc-radius-sm);
+  background: color-mix(in srgb, var(--pc-status-warning) 10%, transparent);
+  font: var(--pc-type-meta);
+  line-height: 1.45;
+  color: var(--pc-text-2);
+}
+
+.advisoryGlyph {
+  flex: none;
+  width: calc(var(--pc-icon-size) - var(--pc-space-4));
+  height: calc(var(--pc-icon-size) - var(--pc-space-4));
+  margin-top: var(--pc-space-2);
+  color: var(--pc-status-warning);
+}

@@ -1,0 +1,198 @@
+/*
+ * Navigation rail — 52px of permanent chrome down the left edge.
+ *
+ * Geometry note: like the title bar, the rail is window furniture rather than content, so its
+ * widths come from the spacing scale and not from --pc-row-height. Density changes the lists it
+ * navigates to, not the rail itself — otherwise the icons would jump every time the user flips it.
+ *
+ * Colour note: the design paints the rail one step darker than the window (#0A0C0E vs #0D0F11).
+ * No token exists for that step, so the rail uses --pc-bg-window and leans on its right border for
+ * the separation; hover and the active state step UP to --pc-bg-panel / --pc-bg-raised.
+ */
+
+.rail {
+  box-sizing: border-box;
+  flex: none;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  width: calc(var(--pc-space-32) + var(--pc-space-20));
+  padding-block: var(--pc-space-8);
+  background: var(--pc-bg-window);
+  border-right: var(--pc-border-width) solid var(--pc-border-subtle);
+  -webkit-user-select: none;
+  user-select: none;
+}
+
+/* ---------- project square ---------- */
+
+.project {
+  appearance: none;
+  -webkit-appearance: none;
+  box-sizing: border-box;
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: calc(var(--pc-space-32) - var(--pc-space-2));
+  height: calc(var(--pc-space-32) - var(--pc-space-2));
+  margin: 0 0 var(--pc-space-12);
+  padding: 0;
+  background: var(--pc-bg-raised);
+  border: var(--pc-border-width) solid var(--pc-border);
+  border-radius: var(--pc-radius-md);
+  cursor: pointer;
+}
+
+.project:hover {
+  border-color: var(--pc-border-strong);
+}
+
+.project:focus-visible {
+  outline: none;
+  box-shadow: var(--pc-focus-ring);
+}
+
+.projectInitial {
+  font: var(--pc-type-meta);
+  font-weight: 600;
+  line-height: 1;
+  /* Chrome accent — the project mark is not a person, so it never takes an identity colour. */
+  color: var(--pc-accent);
+  text-transform: uppercase;
+}
+
+/* ---------- sections ---------- */
+
+.nav {
+  width: 100%;
+}
+
+.list {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--pc-space-4);
+  width: 100%;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.listItem {
+  display: flex;
+  justify-content: center;
+  width: 100%;
+}
+
+.item {
+  appearance: none;
+  -webkit-appearance: none;
+  position: relative;
+  box-sizing: border-box;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: calc(var(--pc-space-32) + var(--pc-space-6));
+  height: var(--pc-space-32);
+  margin: 0;
+  padding: 0;
+  background: none;
+  /* Reserved even when inactive so the glyph never shifts as the selection moves. */
+  border: 0;
+  border-left: var(--pc-zone-edge-width) solid transparent;
+  border-radius: var(--pc-radius-sm);
+  color: var(--pc-text-3);
+  cursor: pointer;
+  transition:
+    background var(--pc-duration-fast) var(--pc-ease),
+    color var(--pc-duration-fast) var(--pc-ease);
+}
+
+.item:hover:not([data-active]) {
+  background: var(--pc-bg-panel);
+  color: var(--pc-text-2);
+}
+
+.item:focus-visible {
+  outline: none;
+  box-shadow: var(--pc-focus-ring);
+}
+
+.item[data-active] {
+  background: var(--pc-bg-raised);
+  /* Accent, not identity: the edge says "you are here", not "this belongs to somebody". */
+  border-left-color: var(--pc-accent);
+  color: var(--pc-text-1);
+}
+
+.icon {
+  width: var(--pc-icon-size);
+  height: var(--pc-icon-size);
+}
+
+/* ---------- badges ---------- */
+
+.dot {
+  position: absolute;
+  top: var(--pc-space-4);
+  right: var(--pc-space-6);
+  width: calc(var(--pc-space-4) + var(--pc-border-width));
+  height: calc(var(--pc-space-4) + var(--pc-border-width));
+  border-radius: 50%;
+  background: var(--pc-status-warning);
+}
+
+.count {
+  position: absolute;
+  top: var(--pc-space-4);
+  right: var(--pc-space-2);
+  box-sizing: border-box;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: var(--pc-space-12);
+  height: var(--pc-space-12);
+  padding-inline: var(--pc-space-2);
+  border-radius: var(--pc-radius-lg);
+  background: var(--pc-border);
+  color: var(--pc-text-1);
+  font: var(--pc-type-eyebrow);
+  font-weight: 600;
+}
+
+/* ---------- foot: connection health + me ---------- */
+
+.foot {
+  margin-top: auto;
+  padding-top: var(--pc-space-8);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--pc-space-6);
+}
+
+/* Status colour, dot role — the only role connection health is allowed to take. */
+.health {
+  flex: none;
+  width: var(--pc-space-6);
+  height: var(--pc-space-6);
+  border-radius: 50%;
+  background: var(--pc-text-4);
+}
+
+.health[data-health='ok'] {
+  background: var(--pc-status-success);
+}
+
+.health[data-health='degraded'] {
+  background: var(--pc-status-warning);
+}
+
+.health[data-health='down'] {
+  background: var(--pc-status-danger);
+}
+
+.avatar {
+  flex: none;
+}

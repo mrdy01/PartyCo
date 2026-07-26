@@ -1,0 +1,285 @@
+/*
+ * Two check rails. Design 2.4 «Merge queue», the strip under the header.
+ *
+ * The geometry has one job: make «fast» read as short and synchronous and «full» as long and
+ * asynchronous. So the rail is a single line across the full width with the first chip flush left
+ * and the last flush right — the distance between chips is not a duration, it is simply the width
+ * of the path, and both lanes get the same width so their *contents* are what differ.
+ *
+ * Chip height is derived from the row height, so density moves the rails without touching what is
+ * on them: a compact rail is shorter, never shorter of a check.
+ */
+
+.root {
+  --lane-chip-height: calc(var(--pc-row-height) - var(--pc-space-4));
+
+  display: flex;
+  flex-direction: column;
+  gap: var(--pc-row-gap);
+  min-width: 0;
+  padding: var(--pc-space-12) calc(var(--pc-row-padding-x) + var(--pc-space-6));
+}
+
+.lane {
+  display: flex;
+  flex-direction: column;
+  gap: var(--pc-row-gap);
+  min-width: 0;
+}
+
+/* ------------------------------------------------------------------ header */
+
+.head {
+  display: flex;
+  align-items: center;
+  gap: var(--pc-row-gap);
+  min-width: 0;
+}
+
+/* The lane name is the one place status colour appears as text at full strength — role §5. */
+.title {
+  flex: none;
+  font: var(--pc-type-eyebrow);
+  font-weight: 600;
+  letter-spacing: var(--pc-tracking-eyebrow);
+  text-transform: uppercase;
+  color: var(--pc-text-2);
+  white-space: nowrap;
+}
+
+.lane[data-lane='fast'] .title {
+  color: var(--pc-status-success);
+}
+
+.lane[data-lane='full'] .title {
+  color: var(--pc-status-running);
+}
+
+.hint {
+  min-width: 0;
+  overflow: hidden;
+  font: var(--pc-type-status);
+  color: var(--pc-text-4);
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.median {
+  flex: none;
+  margin-left: auto;
+  padding-left: var(--pc-space-8);
+  font: var(--pc-type-status);
+  color: var(--pc-text-3);
+  white-space: nowrap;
+}
+
+/* -------------------------------------------------------------------- rail */
+
+.rail {
+  position: relative;
+  display: flex;
+  align-items: center;
+  min-height: var(--lane-chip-height);
+  min-width: 0;
+}
+
+/*
+ * The path itself. It spans the full width regardless of how many chips stand on it — an empty lane
+ * still has a path, and that is the point of drawing it as a line rather than as connectors.
+ */
+.line {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 50%;
+  height: var(--pc-zone-edge-width);
+  margin-top: calc(var(--pc-zone-edge-width) / -2);
+  background: var(--pc-border-subtle);
+  border-radius: var(--pc-radius-xs);
+}
+
+.chips {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  flex: 1;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--pc-row-gap);
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.bare {
+  position: relative;
+  z-index: 1;
+  padding-right: var(--pc-space-8);
+  background: var(--pc-bg-panel);
+  font: var(--pc-type-status);
+  color: var(--pc-text-4);
+}
+
+/* -------------------------------------------------------------------- chip */
+
+.chip {
+  --chip-color: var(--pc-text-3);
+
+  flex: 0 1 auto;
+  display: inline-flex;
+  align-items: center;
+  gap: var(--pc-space-4);
+  box-sizing: border-box;
+  min-width: 0;
+  height: var(--lane-chip-height);
+  padding: 0 var(--pc-space-8);
+  /* Opaque on purpose: the chip has to cover the line it stands on, not filter it. */
+  background: var(--pc-bg-panel);
+  border: var(--pc-border-width) solid var(--pc-border-subtle);
+  border-radius: calc(var(--lane-chip-height) / 2);
+}
+
+.chip[data-tone='success'] {
+  --chip-color: var(--pc-status-success);
+
+  border-color: color-mix(in srgb, var(--pc-status-success) 32%, transparent);
+}
+
+/* A refusal counter, not a failure: amber outline, normal name — see `checkTone`. */
+.chip[data-tone='warning'] {
+  --chip-color: var(--pc-status-warning);
+
+  border-color: color-mix(in srgb, var(--pc-status-warning) 42%, transparent);
+}
+
+.chip[data-tone='danger'] {
+  --chip-color: var(--pc-status-danger);
+
+  border-color: color-mix(in srgb, var(--pc-status-danger) 45%, transparent);
+}
+
+/* The only chip carrying a tint, and it is a pill-sized one — status as pill, role §5. */
+.chip[data-tone='running'] {
+  --chip-color: var(--pc-status-running);
+
+  background: color-mix(in srgb, var(--pc-status-running) 10%, var(--pc-bg-panel));
+  border-color: color-mix(in srgb, var(--pc-status-running) 45%, transparent);
+}
+
+/* The auto-revert window is not a check: dashed says «this is a period, not a verdict». */
+.chip[data-kind='window'] {
+  --chip-color: var(--pc-text-4);
+
+  padding: 0 calc(var(--pc-space-8) + var(--pc-space-2));
+  border-style: dashed;
+  border-color: var(--pc-border);
+}
+
+.chipLabel {
+  min-width: 0;
+  overflow: hidden;
+  font: var(--pc-type-eyebrow);
+  font-weight: 400;
+  letter-spacing: normal;
+  color: var(--pc-text-2);
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+/* The running check is the one the human is waiting on, so its name is the brightest on the rail. */
+.chip[data-state='running'] .chipLabel {
+  color: var(--pc-text-1);
+}
+
+.chip[data-state='pending'] .chipLabel,
+.chip[data-state='skipped'] .chipLabel,
+.chip[data-kind='window'] .chipLabel {
+  color: var(--pc-text-3);
+}
+
+/* ------------------------------------------------------------------ marks */
+
+.glyph {
+  flex: none;
+  width: calc(var(--pc-icon-size) - var(--pc-space-6));
+  height: calc(var(--pc-icon-size) - var(--pc-space-6));
+  color: var(--chip-color);
+}
+
+.spinner {
+  flex: none;
+  box-sizing: border-box;
+  width: calc(var(--pc-icon-size) - var(--pc-space-6));
+  height: calc(var(--pc-icon-size) - var(--pc-space-6));
+  border: var(--pc-border-width) solid var(--pc-border-subtle);
+  border-top-color: var(--chip-color);
+  border-radius: 50%;
+  animation: global(pc-spin) var(--pc-duration-spin) linear infinite;
+}
+
+/* A check that has not started: an outline of a mark, deliberately empty. */
+.pip {
+  flex: none;
+  box-sizing: border-box;
+  width: var(--pc-space-6);
+  height: var(--pc-space-6);
+  border: var(--pc-border-width) solid var(--pc-border-strong);
+  border-radius: 50%;
+}
+
+/* ---------------------------------------------------------------- progress */
+
+.bar {
+  flex: none;
+  display: inline-block;
+  overflow: hidden;
+  width: calc(var(--pc-space-32) + var(--pc-space-2));
+  height: calc(var(--pc-space-4) - var(--pc-border-width));
+  background: var(--pc-bg-input);
+  border-radius: var(--pc-radius-xs);
+}
+
+.barFill {
+  display: block;
+  height: 100%;
+  background: var(--chip-color);
+  border-radius: inherit;
+}
+
+.progress,
+.note {
+  flex: none;
+  font: var(--pc-type-eyebrow);
+  font-weight: 500;
+  letter-spacing: normal;
+  color: var(--chip-color);
+  white-space: nowrap;
+}
+
+/* ------------------------------------------------------------ empty / load */
+
+.state {
+  padding: var(--pc-space-8) 0;
+}
+
+/*
+ * Same capsule as a real chip, so the rail keeps its shape while the composition loads. Scoped
+ * under `.chips` to outrank `Skeleton`'s own height and radius without an inline style.
+ */
+.chips .chipSkeleton {
+  height: var(--lane-chip-height);
+  border-radius: calc(var(--lane-chip-height) / 2);
+}
+
+.srOnly {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+  border: 0;
+}

@@ -1,0 +1,157 @@
+/*
+ * Switch. Design System, «Checkbox и Switch · все состояния»: 26×15 comfortable, 22×13 compact,
+ * states off / on / disabled / focus. No third position — indeterminate belongs to Checkbox only.
+ *
+ * Geometry from the density block, per convention §4: the track is exactly the avatar square tall
+ * (15px / 13px), twice that minus 4px wide (26px / 22px), the knob is the track minus 4px (11px /
+ * 9px), and the on-travel is the track height minus 6px (9px / 7px) — the same two numbers in both
+ * densities without a single literal.
+ *
+ * The on-fill is --pc-accent, because a switch turns a subsystem on; --pc-accent-on is the knob,
+ * which is exactly the pair the spec draws (near-black on dark, white on light).
+ */
+
+.root {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--pc-row-gap);
+  min-width: 0;
+}
+
+.root[data-stacked='true'] {
+  align-items: flex-start;
+}
+
+.root[data-disabled='true'] {
+  cursor: not-allowed;
+}
+
+.control {
+  position: relative;
+  flex: none;
+  display: inline-flex;
+  width: calc(var(--pc-avatar-size) * 2 - var(--pc-space-4));
+  height: var(--pc-avatar-size);
+}
+
+/* The real control: invisible, exactly on top of the track, so keyboard and semantics are native. */
+.input {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  margin: 0;
+  padding: 0;
+  opacity: 0;
+  appearance: none;
+  cursor: pointer;
+}
+
+.input:disabled {
+  cursor: not-allowed;
+}
+
+.track {
+  box-sizing: border-box;
+  position: relative;
+  width: 100%;
+  height: 100%;
+  background: var(--pc-bg-input);
+  border: var(--pc-border-width) solid var(--pc-border-strong);
+  /* Half the height = a true pill at both densities, and never above the 7px radius ceiling. */
+  border-radius: calc(var(--pc-avatar-size) / 2);
+  transition:
+    background-color var(--pc-duration-fast) var(--pc-ease),
+    border-color var(--pc-duration-fast) var(--pc-ease);
+}
+
+.knob {
+  position: absolute;
+  top: 50%;
+  left: var(--pc-space-2);
+  width: calc(var(--pc-avatar-size) - var(--pc-space-4));
+  height: calc(var(--pc-avatar-size) - var(--pc-space-4));
+  border-radius: 50%;
+  background: var(--pc-text-3);
+  transform: translateY(-50%);
+  transition:
+    transform var(--pc-duration-fast) var(--pc-ease),
+    background-color var(--pc-duration-fast) var(--pc-ease);
+}
+
+/* Transparent rather than absent: the border keeps its 1px, so nothing shifts when it turns on. */
+.input:checked + .track {
+  background: var(--pc-accent);
+  border-color: transparent;
+}
+
+.input:checked + .track .knob {
+  background: var(--pc-accent-on);
+  transform: translateY(-50%) translateX(calc(var(--pc-avatar-size) - var(--pc-space-6)));
+}
+
+.input:hover:not(:disabled):not(:checked) + .track {
+  border-color: var(--pc-text-3);
+}
+
+/* Convention §7 — the ring is the token, never a bespoke glow. */
+.input:focus-visible + .track {
+  box-shadow: var(--pc-focus-ring);
+}
+
+.input:disabled + .track {
+  background: var(--pc-bg-raised);
+  border-color: var(--pc-border);
+}
+
+.input:disabled + .track .knob {
+  background: var(--pc-border-strong);
+}
+
+.input:disabled:checked + .track {
+  background: color-mix(in srgb, var(--pc-accent) 45%, transparent);
+  border-color: transparent;
+}
+
+.input:disabled:checked + .track .knob {
+  background: color-mix(in srgb, var(--pc-accent-on) 55%, transparent);
+}
+
+.text {
+  display: flex;
+  flex-direction: column;
+  gap: var(--pc-space-2);
+  min-width: 0;
+}
+
+.title {
+  font: var(--pc-type-meta);
+  color: var(--pc-text-2);
+  cursor: pointer;
+}
+
+.root[data-checked='true'] .title {
+  color: var(--pc-text-1);
+}
+
+.description {
+  font: var(--pc-type-meta);
+  color: var(--pc-text-3);
+}
+
+.root[data-disabled='true'] .title,
+.root[data-disabled='true'] .description {
+  color: var(--pc-text-4);
+  cursor: not-allowed;
+}
+
+/*
+ * The token layer already flattens every transition under reduced-motion; this makes the knob's
+ * travel explicitly instant, so the on/off state is still unmistakable without the slide.
+ */
+@media (prefers-reduced-motion: reduce) {
+  .knob,
+  .track {
+    transition: none;
+  }
+}

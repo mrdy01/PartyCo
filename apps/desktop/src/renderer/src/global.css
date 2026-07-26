@@ -1,0 +1,104 @@
+/*
+ * Global reset and window chrome. Component styling lives in @partyco/ui — nothing here should
+ * ever style a component.
+ */
+
+@import '@partyco/tokens/fonts';
+@import '@partyco/tokens/css';
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#root {
+  height: 100%;
+  margin: 0;
+  padding: 0;
+}
+
+body {
+  background: var(--pc-bg-window);
+  color: var(--pc-text-1);
+  font: var(--pc-type-body);
+  font-family: var(--pc-font-sans);
+  -webkit-font-smoothing: antialiased;
+  text-wrap: pretty;
+  /* A desktop app is not a web page: no rubber-banding, no accidental text selection of chrome. */
+  overflow: hidden;
+  user-select: none;
+  cursor: default;
+}
+
+/* Content areas opt back into selection — code, diffs, terminal output must be copyable. */
+[data-selectable],
+input,
+textarea,
+pre,
+code {
+  user-select: text;
+  cursor: auto;
+}
+
+a {
+  color: var(--pc-status-running);
+  text-decoration: none;
+}
+
+a:hover {
+  text-decoration: underline;
+}
+
+:focus-visible {
+  outline: none;
+  box-shadow: var(--pc-focus-ring);
+}
+
+/* Scrollbars: present but quiet. Overlay style so they never steal layout width. */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: var(--pc-border-strong) transparent;
+}
+
+*::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+
+*::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+*::-webkit-scrollbar-thumb {
+  background: var(--pc-border);
+  border: 3px solid transparent;
+  border-radius: 999px;
+  background-clip: content-box;
+}
+
+*::-webkit-scrollbar-thumb:hover {
+  background: var(--pc-border-strong);
+  background-clip: content-box;
+}
+
+/* The draggable titlebar strip. Height must match `titleBarOverlay.height` in the main process. */
+.pc-titlebar {
+  height: 36px;
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: var(--pc-space-8);
+  padding: 0 var(--pc-space-12);
+  background: var(--pc-bg-panel);
+  border-bottom: 1px solid var(--pc-border-subtle);
+  -webkit-app-region: drag;
+}
+
+.pc-titlebar button,
+.pc-titlebar input,
+.pc-titlebar [data-no-drag] {
+  -webkit-app-region: no-drag;
+}

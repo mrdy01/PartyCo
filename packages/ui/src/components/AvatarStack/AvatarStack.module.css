@@ -1,0 +1,45 @@
+/*
+ * AvatarStack — overlapping avatars plus a "+N" chip and a one-line head count.
+ * The overlap is exactly one --pc-space-6 step, as in the design.
+ */
+
+.stack {
+  display: inline-flex;
+  align-items: center;
+  min-width: 0;
+}
+
+.avatars {
+  display: inline-flex;
+  align-items: center;
+}
+
+/* Each item overlaps its predecessor; the ring on the avatar keeps the silhouettes readable. */
+.avatars > * {
+  position: relative;
+}
+
+.avatars > * + * {
+  margin-left: calc(-1 * var(--pc-space-6));
+}
+
+/* Lift the hovered/focused avatar above its neighbours so its ring and focus ring are whole. */
+.avatars > *:hover,
+.avatars > *:focus-visible,
+.avatars > *:focus-within {
+  z-index: 1;
+}
+
+.summary {
+  margin-left: var(--pc-space-12);
+  font: var(--pc-type-meta);
+  color: var(--pc-text-3);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.empty {
+  font: var(--pc-type-meta);
+  color: var(--pc-text-3);
+}

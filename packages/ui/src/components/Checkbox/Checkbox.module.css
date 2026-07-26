@@ -1,0 +1,138 @@
+/*
+ * Checkbox. Design System, «Checkbox и Switch · все состояния»:
+ * off / on / indeterminate / disabled / on+disabled / focus, 14px comfortable and 12px compact.
+ *
+ * Both sizes fall out of the density block instead of a literal: the avatar square is 15px / 13px
+ * and its radius 3px / 2px, so the box is that square minus its own 1px border. One rule, both
+ * densities, no branch — convention §4.
+ *
+ * The fill is --pc-status-running: a tick means «выбрано в наборе». The tick glyph itself uses
+ * --pc-accent-on, the only token pair that is near-black on dark and white on light, which is what
+ * the spec draws on top of the filled box in each theme.
+ */
+
+.root {
+  display: inline-flex;
+  align-items: center;
+  gap: calc(var(--pc-row-gap) - var(--pc-border-width));
+  min-width: 0;
+}
+
+/* With a description the box belongs to the first line, not to the middle of the block. */
+.root[data-stacked='true'] {
+  align-items: flex-start;
+}
+
+.root[data-disabled='true'] {
+  cursor: not-allowed;
+}
+
+.control {
+  position: relative;
+  flex: none;
+  display: inline-flex;
+  width: calc(var(--pc-avatar-size) - var(--pc-border-width));
+  height: calc(var(--pc-avatar-size) - var(--pc-border-width));
+}
+
+/* The real control: invisible, exactly on top of the box, so semantics and keyboard are native. */
+.input {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  margin: 0;
+  padding: 0;
+  opacity: 0;
+  appearance: none;
+  cursor: pointer;
+}
+
+.input:disabled {
+  cursor: not-allowed;
+}
+
+.box {
+  box-sizing: border-box;
+  width: 100%;
+  height: 100%;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--pc-control-bg);
+  border: var(--pc-border-width) solid var(--pc-border-strong);
+  border-radius: var(--pc-avatar-radius);
+  color: var(--pc-accent-on);
+  transition:
+    background-color var(--pc-duration-fast) var(--pc-ease),
+    border-color var(--pc-duration-fast) var(--pc-ease);
+}
+
+.input:hover:not(:disabled):not(:checked):not(:indeterminate) + .box {
+  border-color: var(--pc-text-3);
+}
+
+.input:checked + .box,
+.input:indeterminate + .box {
+  background: var(--pc-status-running);
+  border-color: transparent;
+}
+
+/* Convention §7 — the ring is the token, never a bespoke glow. */
+.input:focus-visible + .box {
+  box-shadow: var(--pc-focus-ring);
+}
+
+.input:disabled + .box {
+  background: var(--pc-bg-raised);
+  border-color: var(--pc-border);
+}
+
+.input:disabled:checked + .box,
+.input:disabled:indeterminate + .box {
+  background: var(--pc-border-strong);
+  border-color: transparent;
+  color: var(--pc-text-4);
+}
+
+.tick {
+  width: calc(var(--pc-avatar-size) - var(--pc-space-4));
+  height: calc(var(--pc-avatar-size) - var(--pc-space-4));
+  color: inherit;
+}
+
+/* Indeterminate: a bar, never a second tick — «часть набора». */
+.dash {
+  width: calc(var(--pc-avatar-size) / 2);
+  height: var(--pc-space-2);
+  border-radius: var(--pc-radius-xs);
+  background: currentColor;
+}
+
+.text {
+  display: flex;
+  flex-direction: column;
+  gap: var(--pc-space-2);
+  min-width: 0;
+}
+
+.title {
+  font: var(--pc-type-meta);
+  color: var(--pc-text-2);
+  cursor: pointer;
+}
+
+.root[data-checked='true'] .title {
+  color: var(--pc-text-1);
+}
+
+.description {
+  font: var(--pc-type-meta);
+  color: var(--pc-text-3);
+}
+
+.root[data-disabled='true'] .title,
+.root[data-disabled='true'] .description {
+  color: var(--pc-text-4);
+  cursor: not-allowed;
+}

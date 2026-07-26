@@ -1,0 +1,547 @@
+/*
+ * «Владение» — the on-demand view, screen 06 of the shell export.
+ *
+ * Colour rules honoured here:
+ *  - this stylesheet never names an --pc-id-* token. Every identity colour on the board arrives
+ *    inline from an identity.ts helper: the avatar fill (#1), the 2px left edge of a card and of a
+ *    table row (#2), the ownership area of a held card and the gutter tint of my own row (#4);
+ *  - status colour stays a dot, a text tone and an outline. The held card's fill is its holder's,
+ *    never its state's, and the only status border on the board is the disputed card's 1px
+ *    perimeter — an outline, not the 2px zone edge, which is the thing §5 protects.
+ *
+ * Geometry knobs are local custom properties derived from the density tokens, so compact shrinks
+ * the whole view without any of its rows losing a field.
+ */
+
+.root {
+  /* 44 / 22 / 132 / 38 px in comfortable; the same shape one step tighter in compact. */
+  --pc-zoneboard-head-height: calc(var(--pc-row-height) + var(--pc-space-16));
+  --pc-zoneboard-pad: calc(var(--pc-space-20) + var(--pc-space-2));
+  --pc-zoneboard-card-height: calc(var(--pc-row-height) * 4 + var(--pc-space-20));
+  --pc-zoneboard-row-height: calc(var(--pc-row-height) + var(--pc-space-8));
+  --pc-zoneboard-dot: var(--pc-space-6);
+
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  min-height: 0;
+  box-sizing: border-box;
+  color: var(--pc-text-1);
+}
+
+/* ----------------------------------------------------------------- header */
+
+.header {
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: var(--pc-space-12);
+  min-width: 0;
+  height: var(--pc-zoneboard-head-height);
+  padding: 0 var(--pc-zoneboard-pad);
+  border-bottom: var(--pc-border-width) solid var(--pc-border-subtle);
+}
+
+.title {
+  flex: none;
+  margin: 0;
+  font: var(--pc-type-card);
+  color: var(--pc-text-heading);
+  white-space: nowrap;
+}
+
+/*
+ * The segmented switch. `Tabs`/`Tab` is the editor's file strip — a kind glyph, a close affordance,
+ * a «+», an identity edge on top — so this view draws its own two-segment control instead.
+ */
+.tabs {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  gap: var(--pc-space-2);
+  padding: var(--pc-space-2);
+  background: var(--pc-bg-panel);
+  border: var(--pc-border-width) solid var(--pc-border-subtle);
+  border-radius: var(--pc-radius-sm);
+}
+
+.tab {
+  appearance: none;
+  -webkit-appearance: none;
+  margin: 0;
+  border: 0;
+  background: none;
+  padding: var(--pc-space-6) var(--pc-space-12);
+  border-radius: var(--pc-radius-xs);
+  font: var(--pc-type-label);
+  color: var(--pc-text-3);
+  white-space: nowrap;
+  cursor: pointer;
+  transition:
+    background var(--pc-duration-fast) var(--pc-ease),
+    color var(--pc-duration-fast) var(--pc-ease);
+}
+
+.tab:hover:not([data-active]) {
+  color: var(--pc-text-2);
+}
+
+.tab[data-active] {
+  background: var(--pc-border);
+  color: var(--pc-text-1);
+}
+
+.tab:focus-visible {
+  outline: none;
+  box-shadow: var(--pc-focus-ring);
+}
+
+.meta {
+  min-width: 0;
+  margin-left: auto;
+  font: var(--pc-type-label);
+  font-weight: 400;
+  color: var(--pc-text-3);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* ------------------------------------------------------------------- body */
+
+.body {
+  flex: 1;
+  min-height: 0;
+  min-width: 0;
+  overflow: auto;
+  display: flex;
+  flex-direction: column;
+  gap: var(--pc-zoneboard-pad);
+  padding: var(--pc-zoneboard-pad);
+}
+
+/* The state blocks fill the view rather than hugging the top of an otherwise empty column. */
+.state {
+  flex: 1;
+  min-height: var(--pc-zoneboard-card-height);
+}
+
+/* ------------------------------------------------------------------ cards */
+
+.grid {
+  flex: none;
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: var(--pc-space-12);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.card {
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  gap: var(--pc-space-8);
+  min-width: 0;
+  height: var(--pc-zoneboard-card-height);
+  padding: var(--pc-space-12) calc(var(--pc-space-12) + var(--pc-space-2));
+  border-radius: var(--pc-radius-md);
+  /*
+   * The default surface. `mine`, `held` and `free` overwrite background and border inline from the
+   * identity helpers — an inline shorthand cannot be repainted from here, which is exactly why the
+   * disputed rule below is the only state this file styles.
+   */
+  background: var(--pc-bg-panel);
+  border: var(--pc-border-width) solid var(--pc-border-subtle);
+  overflow: hidden;
+}
+
+/*
+ * A disputed boundary belongs to nobody, so there is no identity colour to protect: the danger
+ * outline may run the whole perimeter. It stays at --pc-border-width — an outline, never the 2px
+ * zone edge that means "this is mine".
+ */
+.card[data-state='disputed'] {
+  border-color: color-mix(in srgb, var(--pc-status-danger) 45%, transparent);
+}
+
+.cardHead {
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: var(--pc-space-8);
+  min-width: 0;
+}
+
+.cardName {
+  min-width: 0;
+  font: var(--pc-type-label);
+  color: var(--pc-text-1);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/*
+ * «это ты» takes the product accent, not the local user's identity colour. Identity colour as text
+ * would be a fifth role and §5 allows four; in the dark export the two happen to be the same teal.
+ */
+.cardSelf {
+  flex: none;
+  margin-left: auto;
+  font: var(--pc-type-note);
+  color: var(--pc-accent);
+  white-space: nowrap;
+}
+
+.cardPath {
+  flex: none;
+  min-width: 0;
+  font: var(--pc-type-figure);
+  color: var(--pc-text-read);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.card[data-state='free'] .cardPath,
+.card[data-state='disputed'] .cardPath {
+  color: var(--pc-text-2);
+}
+
+.cardFree {
+  flex: none;
+  font: var(--pc-type-label);
+  font-weight: 400;
+  color: var(--pc-text-3);
+}
+
+.cardNote {
+  margin: 0;
+  min-width: 0;
+  font: var(--pc-type-note);
+  color: var(--pc-text-3);
+  overflow: hidden;
+}
+
+.cardFoot {
+  margin-top: auto;
+  display: flex;
+  flex-direction: column;
+  gap: var(--pc-space-4);
+  min-width: 0;
+}
+
+.cardActivity {
+  font: var(--pc-type-label);
+  font-weight: 400;
+  color: var(--pc-text-2);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.cardMeta {
+  font: var(--pc-type-note);
+  color: var(--pc-text-3);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.cardAction {
+  margin-top: auto;
+  align-self: flex-start;
+}
+
+/* ------------------------------------------- status chip (dot + text only) */
+
+.chip {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  gap: var(--pc-space-4);
+  margin-left: auto;
+  font: var(--pc-type-note);
+  color: var(--pc-text-3);
+  white-space: nowrap;
+}
+
+/* In the flow of a card rather than pinned to the right of its header. */
+.chip[data-flow='true'] {
+  margin-left: 0;
+  font: var(--pc-type-label);
+}
+
+.chip[data-tone='success'],
+.release[data-tone='success'] {
+  color: var(--pc-status-success);
+}
+
+.chip[data-tone='warning'],
+.release[data-tone='warning'] {
+  color: var(--pc-status-warning);
+}
+
+.chip[data-tone='danger'],
+.release[data-tone='danger'] {
+  color: var(--pc-status-danger);
+}
+
+.chip[data-tone='running'],
+.release[data-tone='running'] {
+  color: var(--pc-status-running);
+}
+
+/* The dot borrows the tone from its parent — status role #1, and never anything larger. */
+.dot {
+  flex: none;
+  width: var(--pc-zoneboard-dot);
+  height: var(--pc-zoneboard-dot);
+  border-radius: 50%;
+  background: currentColor;
+}
+
+/* ------------------------------------------------------------------ table */
+
+.tablePanel {
+  flex: none;
+  min-width: 0;
+  border: var(--pc-border-width) solid var(--pc-border-subtle);
+  border-radius: var(--pc-radius-md);
+  overflow: hidden;
+}
+
+.tableScroll {
+  overflow-x: auto;
+}
+
+/*
+ * `border-collapse: separate` with zero spacing looks identical to a collapsed table here — every
+ * separator is a cell's border-bottom — but a collapsed table refuses to paint the inline 2px
+ * identity edge cleanly against its neighbour's border.
+ */
+.table {
+  width: 100%;
+  border-collapse: separate;
+  border-spacing: 0;
+  table-layout: fixed;
+}
+
+/*
+ * Widths in `ch`: there is no width token, and `ch` keeps the columns legible when the host bumps
+ * its base font size. They land near the design's 230 / 150 / 210 / 230 / rest.
+ */
+.colPath {
+  width: 30ch;
+}
+
+.colHolder {
+  width: 18ch;
+}
+
+.colDoing {
+  width: 26ch;
+}
+
+.colRelease {
+  width: 28ch;
+}
+
+.colAction {
+  width: auto;
+}
+
+.head {
+  background: var(--pc-bg-chrome);
+}
+
+.headCell {
+  height: calc(var(--pc-row-height) + var(--pc-space-4));
+  padding: 0 var(--pc-space-4);
+  font: var(--pc-type-note);
+  font-weight: 500;
+  color: var(--pc-text-3);
+  text-align: left;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  border-bottom: var(--pc-border-width) solid var(--pc-border-subtle);
+}
+
+.headCell:first-child {
+  padding-left: calc(var(--pc-row-padding-x) + var(--pc-space-4));
+}
+
+.headCell:last-child {
+  padding-right: calc(var(--pc-row-padding-x) + var(--pc-space-4));
+}
+
+.headCell[data-align='end'] {
+  text-align: right;
+}
+
+.row > th,
+.row > td {
+  box-sizing: border-box;
+  height: var(--pc-zoneboard-row-height);
+  padding: 0 var(--pc-space-4);
+  font: var(--pc-type-label);
+  font-weight: 400;
+  color: var(--pc-text-read);
+  text-align: left;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  border-bottom: var(--pc-border-width) solid var(--pc-border-subtle);
+}
+
+.row:last-child > th,
+.row:last-child > td {
+  border-bottom: 0;
+}
+
+/* The 2px identity edge and the own-row tint are applied inline by the identity helpers. */
+.cellPath {
+  padding-left: var(--pc-row-padding-x);
+  font: var(--pc-type-figure);
+  color: var(--pc-text-1);
+}
+
+.holder {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--pc-space-6);
+  min-width: 0;
+  max-width: 100%;
+}
+
+.holderName {
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.muted {
+  color: var(--pc-text-3);
+}
+
+/* Per-column tones, as the design sets them: the two middle columns read, the release quieter. */
+.cellHolder,
+.cellDoing {
+  color: var(--pc-text-read);
+}
+
+.cellRelease {
+  color: var(--pc-text-2);
+}
+
+.release {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--pc-space-6);
+  min-width: 0;
+  max-width: 100%;
+}
+
+.releaseText {
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.cellAction {
+  padding-right: calc(var(--pc-row-padding-x) + var(--pc-space-4));
+  text-align: right;
+}
+
+/* A real button that reads as a link — the row's one action, never a bare div. */
+.link {
+  appearance: none;
+  -webkit-appearance: none;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  background: none;
+  font: inherit;
+  color: var(--pc-link);
+  white-space: nowrap;
+  cursor: pointer;
+  border-radius: var(--pc-radius-xs);
+}
+
+.link:hover {
+  color: var(--pc-link-hover);
+  text-decoration: underline;
+}
+
+.link:focus-visible {
+  outline: none;
+  box-shadow: var(--pc-focus-ring);
+}
+
+/* --------------------------------------------------------------- footnote */
+
+.footnote {
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: var(--pc-space-8);
+  min-width: 0;
+  padding: var(--pc-space-12) calc(var(--pc-space-12) + var(--pc-space-2));
+  background: var(--pc-bg-panel);
+  border: var(--pc-border-width) solid var(--pc-border-subtle);
+  border-radius: var(--pc-radius-md);
+}
+
+.footnoteIcon {
+  flex: none;
+  color: var(--pc-text-3);
+}
+
+.footnoteText {
+  margin: 0;
+  min-width: 0;
+  font: var(--pc-type-note);
+  color: var(--pc-text-3);
+}
+
+/* ---------------------------------------------------------------- loading */
+
+/*
+ * The placeholder keeps the real geometry: six card slots at card height and a table panel of rows
+ * on the same column tracks, so nothing jumps when the data lands.
+ */
+.loading {
+  display: flex;
+  flex-direction: column;
+  gap: var(--pc-zoneboard-pad);
+  min-width: 0;
+}
+
+.cardGhost {
+  display: flex;
+  min-width: 0;
+  height: var(--pc-zoneboard-card-height);
+}
+
+.loadingRows {
+  padding: var(--pc-space-8) 0;
+}
+
+/* ------------------------------------------------------------------ a11y */
+
+.srOnly {
+  position: absolute;
+  width: var(--pc-space-2);
+  height: var(--pc-space-2);
+  margin: calc(-1 * var(--pc-space-2));
+  padding: 0;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+  border: 0;
+}

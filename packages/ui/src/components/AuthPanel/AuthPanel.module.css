@@ -1,0 +1,338 @@
+/*
+ * Sign-in / sign-up panel. Dressed from screen 01 of the shell export (lines 394–475).
+ *
+ * The composition did not change — the designer's note says as much — so this sheet is the same
+ * elements at the sizes the door is drawn at: an inline switcher, roomier fields, a 40px submit and
+ * a hub row that carries its address. Every value is arithmetic on the token scale, so both themes
+ * and both densities still fall out for free (CONVENTIONS §1, §3, §4).
+ *
+ * Two chromes, one panel (`data-chrome`):
+ *   card — the panel is the surface: frame, brand header, keychain footer. What apps/desktop mounts.
+ *   bare — SignInScreen owns the frame, the mark and the promise; only the form lives here.
+ */
+
+.root {
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  gap: var(--pc-space-20);
+  min-width: 0;
+  /*
+   * The door is a comfortable surface: the export draws 38px fields here against the 28px rows of
+   * the shell. Derived from the density token rather than fixed, so compact still reads as compact
+   * — one step up from whatever the current density is, never a hard 38.
+   */
+  --pc-field-height: calc(var(--pc-row-height) + var(--pc-space-8));
+}
+
+.root[data-chrome='card'] {
+  /* design: 360px — expressed off the spacing scale so nothing raw sneaks in */
+  width: min(100%, calc(var(--pc-space-32) * 11 + var(--pc-space-8)));
+  margin-inline: auto;
+  padding: var(--pc-space-24);
+  background: var(--pc-bg-panel);
+  border: var(--pc-border-width) solid var(--pc-border);
+  border-radius: var(--pc-radius-lg);
+}
+
+/* Bare, the flow gap is the screen's own 22px rhythm — the panel is one stretch of that column. */
+.root[data-chrome='bare'] {
+  gap: calc(var(--pc-space-20) + var(--pc-space-2));
+}
+
+/* ---------- identity mark and name ---------- */
+
+.brand {
+  display: flex;
+  align-items: center;
+  gap: var(--pc-space-12);
+  min-width: 0;
+}
+
+/* Chrome accent, not an identity colour — the mark stands for the app, not for a person. */
+.mark {
+  position: relative;
+  flex: none;
+  width: var(--pc-space-24);
+  height: var(--pc-space-24);
+  border-radius: var(--pc-radius-md);
+  background: var(--pc-accent);
+}
+
+.pip {
+  position: absolute;
+  width: var(--pc-space-6);
+  height: var(--pc-space-6);
+  border-radius: var(--pc-radius-xs);
+  background: var(--pc-accent-on);
+}
+
+.pip[data-pip='a'] {
+  inset-inline-start: var(--pc-space-4);
+  inset-block-start: var(--pc-space-4);
+}
+
+.pip[data-pip='b'] {
+  inset-inline-end: var(--pc-space-4);
+  inset-block-start: var(--pc-space-4);
+  opacity: 0.5;
+}
+
+.pip[data-pip='c'] {
+  inset-inline-start: var(--pc-space-4);
+  inset-block-end: var(--pc-space-4);
+  opacity: 0.5;
+}
+
+.wordmark {
+  display: flex;
+  flex-direction: column;
+  gap: var(--pc-space-4);
+  min-width: 0;
+}
+
+.productName {
+  font: var(--pc-type-title);
+  letter-spacing: var(--pc-tracking-title);
+  color: var(--pc-text-heading);
+}
+
+.tagline {
+  font: var(--pc-type-body);
+  color: var(--pc-text-2);
+}
+
+/* ---------- Вход / Регистрация ---------- */
+
+/*
+ * Inline and left-aligned, not stretched across the column: the design puts the two words next to
+ * each other at their own width so the eye reads a choice, not two halves of a bar.
+ */
+.segmented {
+  display: inline-flex;
+  align-self: flex-start;
+  max-width: 100%;
+  gap: var(--pc-space-2);
+  padding: var(--pc-space-2);
+  /* One step below the panel, so the track reads as recessed and the active chip as raised. */
+  background: var(--pc-bg-panel);
+  border: var(--pc-border-width) solid var(--pc-border-subtle);
+  border-radius: var(--pc-radius-md);
+}
+
+.root[data-chrome='card'] .segmented {
+  background: var(--pc-bg-window);
+}
+
+.segment {
+  appearance: none;
+  -webkit-appearance: none;
+  box-sizing: border-box;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 0;
+  min-height: calc(var(--pc-row-height) - var(--pc-space-2));
+  margin: 0;
+  padding: 0 calc(var(--pc-space-12) + var(--pc-space-2));
+  border: 0;
+  border-radius: var(--pc-radius-sm);
+  background: none;
+  color: var(--pc-text-3);
+  font: var(--pc-type-label);
+  cursor: pointer;
+  white-space: nowrap;
+  transition:
+    background var(--pc-duration-fast) var(--pc-ease),
+    color var(--pc-duration-fast) var(--pc-ease);
+}
+
+.segment:hover:not([data-active]) {
+  background: var(--pc-bg-raised);
+  color: var(--pc-text-2);
+}
+
+.segment:focus-visible {
+  outline: none;
+  box-shadow: var(--pc-focus-ring);
+}
+
+.segment[data-active] {
+  background: var(--pc-border);
+  color: var(--pc-text-1);
+}
+
+/* ---------- form ---------- */
+
+.form {
+  display: flex;
+  flex-direction: column;
+  gap: var(--pc-space-16);
+  min-width: 0;
+}
+
+.root[data-chrome='bare'] .form {
+  gap: calc(var(--pc-space-20) + var(--pc-space-2));
+}
+
+.fields {
+  display: flex;
+  flex-direction: column;
+  gap: calc(var(--pc-space-12) + var(--pc-space-2));
+  min-width: 0;
+}
+
+/* The comfortable field height, handed to Input through the density token it already reads. */
+.fields,
+.hubBody {
+  --pc-row-height: var(--pc-field-height);
+}
+
+/*
+ * 40px. `size="lg"` is 30 and this is the one affirmative action of the whole window, so the height
+ * is raised with min-height — that clamps the Button's own `height` whatever order the two
+ * stylesheets land in, which a competing `height` would not.
+ */
+.submit {
+  min-height: calc(var(--pc-space-32) + var(--pc-space-8));
+}
+
+/*
+ * The server's answer. Status colour as a pill: a low-alpha tint and the label, the same recipe
+ * `Button.danger` already uses — not a filled block and never a left edge (CONVENTIONS §5). Empty
+ * it leaves the flex flow entirely, so the gap does not grow while the region waits.
+ */
+.status {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--pc-space-8);
+  min-width: 0;
+  padding: calc(var(--pc-space-8) + var(--pc-space-2)) calc(var(--pc-space-8) + var(--pc-space-4));
+  border-radius: var(--pc-radius-md);
+  background: color-mix(in srgb, var(--pc-status-danger) 9%, transparent);
+}
+
+/*
+ * Empty, the region takes no room — but it must stay rendered. `display: none` drops an element out
+ * of the accessibility tree, so flipping it back on at the moment the message arrives is the very
+ * thing the permanently-mounted region exists to avoid: the region and its text would appear
+ * together, which is announced unreliably. Out of flow and clipped keeps it in the tree at zero
+ * cost. Static position, so it never lands anywhere that could grow a scrollbar.
+ */
+.status:empty {
+  position: absolute;
+  width: var(--pc-border-width);
+  height: var(--pc-border-width);
+  padding: 0;
+  background: none;
+  overflow: hidden;
+  clip-path: inset(50%);
+}
+
+.statusGlyph {
+  flex: none;
+  width: var(--pc-icon-size);
+  height: var(--pc-icon-size);
+  color: var(--pc-status-danger);
+}
+
+.statusText {
+  font: var(--pc-type-note);
+  color: var(--pc-status-danger);
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+/* ---------- «Подключиться к другому хабу» ---------- */
+
+.hub {
+  min-width: 0;
+}
+
+/*
+ * Native marker replaced by the chevron the design draws on the left; the whole row is the summary
+ * so the focus ring wraps label and address together.
+ */
+.hubSummary {
+  display: flex;
+  align-items: center;
+  gap: var(--pc-space-6);
+  min-width: 0;
+  /* Block padding only: an inline pad would need a negative margin to keep the row on the grid,
+     and that overflows the 404px column by exactly as much as it pads. */
+  padding-block: var(--pc-space-4);
+  border-radius: var(--pc-radius-sm);
+  list-style: none;
+  color: var(--pc-text-3);
+  cursor: pointer;
+}
+
+.hubSummary::-webkit-details-marker {
+  display: none;
+}
+
+.hubSummary:hover {
+  color: var(--pc-text-2);
+}
+
+.hubSummary:focus-visible {
+  outline: none;
+  box-shadow: var(--pc-focus-ring);
+}
+
+.hubChevron {
+  flex: none;
+  width: calc(var(--pc-icon-size) - var(--pc-space-4));
+  height: calc(var(--pc-icon-size) - var(--pc-space-4));
+  transition: transform var(--pc-duration-fast) var(--pc-ease);
+}
+
+.hub[open] .hubChevron {
+  transform: rotate(90deg);
+}
+
+.hubLabel {
+  font: var(--pc-type-label);
+  color: var(--pc-text-2);
+  white-space: nowrap;
+}
+
+/* The address a person checks before pressing anything. Mono, because it is a machine address. */
+.hubAddress {
+  margin-inline-start: auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font: var(--pc-type-figure);
+  color: var(--pc-text-4);
+}
+
+.hubBody {
+  margin-top: var(--pc-space-12);
+}
+
+/* ---------- keychain promise ---------- */
+
+.footer {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--pc-space-8);
+  padding-top: var(--pc-space-12);
+  border-top: var(--pc-border-width) solid var(--pc-border-subtle);
+}
+
+/* Same treatment as the shield in CredentialGuarantee: success colour on the glyph, never a fill. */
+.guaranteeGlyph {
+  flex: none;
+  width: var(--pc-icon-size);
+  height: var(--pc-icon-size);
+  margin-block-start: var(--pc-space-2);
+  color: var(--pc-status-success);
+}
+
+.guaranteeText {
+  font: var(--pc-type-note);
+  color: var(--pc-text-2);
+  min-width: 0;
+}

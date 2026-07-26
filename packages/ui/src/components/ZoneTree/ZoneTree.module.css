@@ -1,0 +1,203 @@
+/*
+ * Files panel. Design «04 Файлы и редактор по требованию», the 236px column.
+ *
+ * Geometry notes, because a few of the design's pixel values have no exact token:
+ *  · panel 236px       → --pc-space-32 × 7 + --pc-space-12;
+ *  · header 38px       → --pc-row-height + 8 + 2, so it shrinks with density like every other head;
+ *  · row 28px          → --pc-row-height exactly, no arithmetic;
+ *  · row padding 0 12 0 10 → --pc-space-12 / --pc-row-padding-x, the density-aware pair;
+ *  · file indent 11px  → the chevron slot, so a file lines up under its zone's name.
+ * The 2px left edge and the wash behind a row are written inline — identity roles #2/#3/#4, and
+ * they come from data, not from the theme.
+ */
+
+.root {
+  box-sizing: border-box;
+  display: flex;
+  flex: none;
+  flex-direction: column;
+  width: calc(var(--pc-space-32) * 7 + var(--pc-space-12));
+  min-height: 0;
+  background: var(--pc-bg-window);
+  border-right: var(--pc-border-width) solid var(--pc-border-subtle);
+}
+
+/* ── header ──────────────────────────────────────────────────────────────────────────────────── */
+
+.head {
+  box-sizing: border-box;
+  display: flex;
+  flex: none;
+  align-items: center;
+  gap: var(--pc-space-8);
+  height: calc(var(--pc-row-height) + var(--pc-space-8) + var(--pc-space-2));
+  padding: 0 var(--pc-space-12);
+  border-bottom: var(--pc-border-width) solid var(--pc-border-subtle);
+}
+
+.title {
+  font: var(--pc-type-label);
+  color: var(--pc-text-1);
+}
+
+.headEnd {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--pc-space-2);
+  margin-left: auto;
+}
+
+/* ── body ────────────────────────────────────────────────────────────────────────────────────── */
+
+.panel {
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+  min-height: 0;
+  padding-top: var(--pc-space-6);
+}
+
+.rows {
+  flex: 0 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  overflow-x: hidden;
+}
+
+/* Empty / loading / error all sit in the same box so the panel never jumps between them. */
+.state {
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+  justify-content: center;
+  min-height: 0;
+  overflow-y: auto;
+}
+
+/* ── row ─────────────────────────────────────────────────────────────────────────────────────── */
+
+.row {
+  box-sizing: border-box;
+  display: flex;
+  align-items: center;
+  gap: calc(var(--pc-row-gap) - var(--pc-space-2));
+  height: var(--pc-row-height);
+  padding: 0 var(--pc-space-12) 0 var(--pc-row-padding-x);
+  /* border-left and background are inline: identity roles #2 and #3. */
+  color: var(--pc-text-3);
+  cursor: pointer;
+  user-select: none;
+}
+
+/*
+ * The ownership wash is an inline background, so a hover rule cannot repaint it. The inset outline
+ * is the hover signal that survives on washed, selected and bare rows alike.
+ */
+.row:hover {
+  box-shadow: inset 0 0 0 var(--pc-border-width) var(--pc-border-subtle);
+}
+
+.row:focus-visible {
+  outline: none;
+  box-shadow: var(--pc-focus-ring);
+}
+
+/* Unclaimed ground has no owner colour to brighten, so selection falls back to the neutral wash. */
+.selected {
+  background: var(--pc-selected-row-bg);
+}
+
+.twisty,
+.indent,
+.glyph {
+  flex: none;
+}
+
+.twisty {
+  width: calc(var(--pc-icon-size) - var(--pc-space-4));
+  height: calc(var(--pc-icon-size) - var(--pc-space-4));
+  transform: rotate(0deg);
+  transition: transform var(--pc-duration-fast) var(--pc-ease);
+}
+
+.twistyOpen {
+  transform: rotate(90deg);
+}
+
+/* A file lines up under the name of its zone, not under the chevron. */
+.indent {
+  width: calc(var(--pc-icon-size) - var(--pc-space-4));
+}
+
+.glyph {
+  width: calc(var(--pc-icon-size) - var(--pc-space-2));
+  height: calc(var(--pc-icon-size) - var(--pc-space-2));
+}
+
+.name {
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  font: var(--pc-type-code);
+  color: var(--pc-text-2);
+}
+
+/* Your own zone and the row you are looking at read one step brighter — nothing else changes. */
+.strong .name {
+  font-weight: 500;
+  color: var(--pc-text-1);
+}
+
+.strong .glyph {
+  color: var(--pc-text-2);
+}
+
+.trailing {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  margin-left: auto;
+}
+
+/* «твоя» — chrome accent, not identity colour: it names the reader, not a member's ownership. */
+.mine {
+  font: var(--pc-type-note);
+  line-height: 1;
+  color: var(--pc-accent);
+}
+
+/* Status colour as text — the permitted role. */
+.added {
+  font: var(--pc-type-figure);
+  color: var(--pc-status-success);
+}
+
+.lock {
+  width: calc(var(--pc-icon-size) - var(--pc-space-4));
+  height: calc(var(--pc-icon-size) - var(--pc-space-4));
+  color: var(--pc-status-warning);
+}
+
+/* Status colour as a dot — the permitted role. */
+.flag {
+  width: var(--pc-space-6);
+  height: var(--pc-space-6);
+  border-radius: 50%;
+  background: var(--pc-status-danger);
+}
+
+/* ── footnote ────────────────────────────────────────────────────────────────────────────────── */
+
+.foot {
+  flex: none;
+  margin-top: auto;
+  padding: var(--pc-space-8) var(--pc-space-12);
+  border-top: var(--pc-border-width) solid var(--pc-border-subtle);
+}
+
+.footText {
+  margin: 0;
+  font: var(--pc-type-note);
+  color: var(--pc-text-3);
+}

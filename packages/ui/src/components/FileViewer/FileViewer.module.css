@@ -1,0 +1,248 @@
+/*
+ * One open file. Design «04 Файлы и редактор по требованию», the right-hand column.
+ *
+ * Geometry notes, because a few of the design's pixel values have no exact token:
+ *  · header 38px    → --pc-row-height + 8 + 2, the same arithmetic the files panel uses, so the two
+ *                     headers stay on one line in both densities;
+ *  · gutter 52px    → --pc-space-32 + --pc-space-20;
+ *  · code line 22px → --pc-space-20 + --pc-space-2, declared once and used by the numbers and the
+ *                     code alike — that shared value is the only thing keeping a number on the
+ *                     baseline of the line it labels;
+ *  · owner edge 3px → --pc-zone-edge-width (2px), the token that owns that role.
+ * The gutter's wash and its edge are written inline: identity role #3, and the colour comes from
+ * data rather than from the theme.
+ */
+
+.root {
+  box-sizing: border-box;
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+  min-width: 0;
+  min-height: 0;
+  background: var(--pc-bg-window);
+}
+
+/* ── header ──────────────────────────────────────────────────────────────────────────────────── */
+
+.head {
+  box-sizing: border-box;
+  display: flex;
+  flex: none;
+  align-items: center;
+  gap: var(--pc-space-8);
+  height: calc(var(--pc-row-height) + var(--pc-space-8) + var(--pc-space-2));
+  padding: 0 var(--pc-space-12);
+  background: var(--pc-bg-chrome);
+  border-bottom: var(--pc-border-width) solid var(--pc-border-subtle);
+  white-space: nowrap;
+  overflow: hidden;
+}
+
+.headGlyph {
+  flex: none;
+  width: calc(var(--pc-icon-size) - var(--pc-space-2));
+  height: calc(var(--pc-icon-size) - var(--pc-space-2));
+  color: var(--pc-text-2);
+}
+
+.name {
+  flex: none;
+  font: var(--pc-type-code);
+  color: var(--pc-text-1);
+}
+
+.dir {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font: var(--pc-type-figure);
+  color: var(--pc-text-4);
+}
+
+/*
+ * «твоя зона · 4 мин». Background and left edge come inline from diffGutterStyle(); the text stays
+ * on a neutral tone on purpose — identity colour has four roles and text is not one of them.
+ */
+.zone {
+  box-sizing: border-box;
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  height: calc(var(--pc-space-20) + var(--pc-space-2));
+  margin-left: var(--pc-space-4);
+  padding: 0 var(--pc-space-8);
+  border-radius: var(--pc-radius-sm);
+  font: var(--pc-type-note);
+  line-height: 1;
+  color: var(--pc-text-2);
+}
+
+.headEnd {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  gap: var(--pc-space-6);
+  margin-left: auto;
+}
+
+/* Pressed reads as "the diff is on", not as a second primary action. */
+.diffToggle[aria-pressed='true'] {
+  background: var(--pc-bg-raised);
+  color: var(--pc-text-1);
+}
+
+/* ── code ────────────────────────────────────────────────────────────────────────────────────── */
+
+.body {
+  --code-line: calc(var(--pc-space-20) + var(--pc-space-2));
+
+  position: relative;
+  display: flex;
+  flex: 1 1 auto;
+  align-items: stretch;
+  min-height: 0;
+  overflow: hidden;
+}
+
+/*
+ * The one scrolling box. The numbers and the code are its two columns, so a wheel event moves both
+ * or neither — the gutter cannot fall behind the lines it labels. `flex-start` rather than
+ * `stretch`: a stretched item in a scrolling flex container is capped at the container's height and
+ * would clip its own overflow instead of scrolling it.
+ */
+.scroll {
+  display: flex;
+  flex: 1 1 auto;
+  align-items: flex-start;
+  min-width: 0;
+  min-height: 0;
+  overflow-x: hidden;
+  overflow-y: auto;
+}
+
+/*
+ * The pane's edge, not the code's: the ring would be clipped away on every side if it were drawn on
+ * .scroll, which fills .body exactly. .body's own shadow is not clipped by its own overflow.
+ */
+.body:has(.scroll:focus-visible) {
+  box-shadow: var(--pc-focus-ring);
+}
+
+.gutter {
+  box-sizing: border-box;
+  display: flex;
+  flex: none;
+  flex-direction: column;
+  align-items: flex-end;
+  width: calc(var(--pc-space-32) + var(--pc-space-20));
+  /* The rule keeps running to the bottom of the pane when the file is shorter than it. */
+  min-height: 100%;
+  padding-top: var(--pc-space-8);
+  padding-right: var(--pc-space-12);
+  border-right: var(--pc-border-width) solid var(--pc-border-subtle);
+  overflow: hidden;
+}
+
+.num {
+  font: var(--pc-type-code);
+  line-height: var(--code-line);
+  color: var(--pc-text-4);
+  -webkit-user-select: none;
+  user-select: none;
+}
+
+/* Status colour as text — the permitted role. */
+.numAdded {
+  color: var(--pc-status-success);
+}
+
+.numRemoved {
+  color: var(--pc-status-danger);
+}
+
+/* Vertical scrolling belongs to .scroll; only a long line moves inside the code itself. */
+.code {
+  box-sizing: border-box;
+  flex: 1 1 auto;
+  min-width: 0;
+  min-height: 100%;
+  margin: 0;
+  padding: var(--pc-space-8) 0 0;
+  overflow-x: auto;
+  overflow-y: hidden;
+  font: var(--pc-type-code);
+  color: var(--pc-text-2);
+  cursor: text;
+}
+
+.scroll:focus-visible {
+  outline: none;
+}
+
+.codeInner {
+  display: block;
+  font: inherit;
+}
+
+.line {
+  display: block;
+  /* 2px transparent edge + 12px padding = the design's 14px inset, so a changed line never shifts. */
+  padding-left: var(--pc-space-12);
+  border-left: var(--pc-zone-edge-width) solid transparent;
+  line-height: var(--code-line);
+  white-space: pre;
+}
+
+/* A blank line still owns a row: a zero-width space keeps its line box alive. */
+.line:empty::after {
+  content: '\200B';
+}
+
+.lineAdded {
+  background: color-mix(in srgb, var(--pc-status-success) 10%, transparent);
+  border-left-color: color-mix(in srgb, var(--pc-status-success) 55%, transparent);
+  color: color-mix(in srgb, var(--pc-status-success) 42%, var(--pc-text-1));
+}
+
+.lineRemoved {
+  background: color-mix(in srgb, var(--pc-status-danger) 10%, transparent);
+  border-left-color: color-mix(in srgb, var(--pc-status-danger) 55%, transparent);
+  color: color-mix(in srgb, var(--pc-status-danger) 34%, var(--pc-text-3));
+}
+
+/* Floating «твой агент правил это 3 минуты назад». */
+.marker {
+  position: absolute;
+  top: var(--pc-space-12);
+  right: var(--pc-space-12);
+  box-sizing: border-box;
+  display: flex;
+  align-items: center;
+  gap: var(--pc-space-8);
+  height: calc(var(--pc-space-20) + var(--pc-space-4));
+  padding: 0 var(--pc-space-8);
+  background: color-mix(in srgb, var(--pc-bg-panel) 94%, transparent);
+  border: var(--pc-border-width) solid var(--pc-border);
+  border-radius: var(--pc-radius-sm);
+  pointer-events: none;
+}
+
+.markerText {
+  font: var(--pc-type-note);
+  line-height: 1;
+  color: var(--pc-text-2);
+  white-space: nowrap;
+}
+
+/* ── states ──────────────────────────────────────────────────────────────────────────────────── */
+
+/* Empty / loading / error share one box so the pane never jumps between them. */
+.state {
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+  justify-content: center;
+  min-height: 0;
+  overflow-y: auto;
+}

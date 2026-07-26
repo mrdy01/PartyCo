@@ -1,0 +1,198 @@
+/*
+ * What the invited person sees: the code field, and the moment after it worked.
+ *
+ * Geometry: 46px code cells and a 40px call to action in the export, both written as arithmetic on
+ * --pc-row-height so compact density carries them down together (convention §4).
+ *
+ * Colour: the only identity colour here is the new member's avatar — the very thing the screen is
+ * telling them about. The only status colour is the failure plaque, and it stays a tint plus a
+ * glyph plus text; danger never becomes the card's fill and never takes a left edge.
+ */
+
+.card {
+  --pc-join-cell-h: calc(var(--pc-row-height) + var(--pc-space-16) + var(--pc-space-2));
+  --pc-join-cta-h: calc(var(--pc-row-height) + var(--pc-space-12));
+
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  gap: calc(var(--pc-space-16) + var(--pc-space-2));
+  padding: calc(var(--pc-space-20) + var(--pc-space-2)) var(--pc-space-24);
+  background: var(--pc-bg-window);
+  border: var(--pc-border-width) solid var(--pc-border-subtle);
+  border-radius: var(--pc-radius-lg);
+  color: var(--pc-text-1);
+}
+
+/* ---------- state: code ---------- */
+
+.intro {
+  display: flex;
+  flex-direction: column;
+  gap: var(--pc-space-8);
+}
+
+.title {
+  margin: 0;
+  font: var(--pc-type-title);
+  letter-spacing: var(--pc-tracking-title);
+  color: var(--pc-text-heading);
+}
+
+.read {
+  margin: 0;
+  font: var(--pc-type-read);
+  color: var(--pc-text-read);
+}
+
+.code {
+  display: flex;
+  align-items: center;
+  gap: var(--pc-space-8);
+}
+
+.separator {
+  flex: none;
+  font: var(--pc-type-figure);
+  color: var(--pc-text-4);
+  -webkit-user-select: none;
+  user-select: none;
+}
+
+/*
+ * One group of the code. The ramp has no semibold mono step, so the size comes from
+ * --pc-type-title and only the family is swapped — one declaration, both densities, no literal.
+ */
+.cell {
+  flex: 1;
+  min-width: 0;
+  box-sizing: border-box;
+  height: var(--pc-join-cell-h);
+  margin: 0;
+  padding: 0;
+  background: var(--pc-bg-panel);
+  border: var(--pc-border-width) solid var(--pc-border);
+  border-radius: var(--pc-radius-md);
+  font: var(--pc-type-title);
+  font-family: var(--pc-font-mono);
+  letter-spacing: var(--pc-tracking-eyebrow);
+  color: var(--pc-text-1);
+  text-align: center;
+  text-transform: uppercase;
+  appearance: none;
+  transition:
+    border-color var(--pc-duration-fast) var(--pc-ease),
+    background-color var(--pc-duration-fast) var(--pc-ease);
+}
+
+.cell:hover {
+  border-color: var(--pc-border-strong);
+}
+
+.cell:focus {
+  outline: none;
+  border-color: var(--pc-border-strong);
+}
+
+.cell:focus-visible {
+  box-shadow: var(--pc-focus-ring);
+}
+
+.cell[aria-invalid='true'] {
+  border-color: var(--pc-status-danger);
+}
+
+/*
+ * The export draws both calls to action at 38–40px — taller than <Button>'s tallest size. Raised
+ * from here rather than by adding a size to Button; `button.cta` (0,1,1) beats Button's own `.lg`
+ * (0,1,0) whatever the stylesheet order turns out to be.
+ */
+button.cta {
+  height: var(--pc-join-cta-h);
+  border-radius: var(--pc-radius-md);
+}
+
+/*
+ * The failure plaque. A 9% tint of the danger token — the same strength the identity gutters use —
+ * so the colour reads as a marked line rather than as a filled area. Text and glyph carry the rest.
+ */
+.error {
+  display: flex;
+  align-items: center;
+  gap: var(--pc-space-8);
+  margin: 0;
+  padding: var(--pc-space-8) calc(var(--pc-space-8) + var(--pc-space-2));
+  background: color-mix(in srgb, var(--pc-status-danger) 9%, transparent);
+  border-radius: var(--pc-radius-md);
+}
+
+.errorGlyph {
+  flex: none;
+  width: calc(var(--pc-icon-size) - var(--pc-space-2));
+  height: calc(var(--pc-icon-size) - var(--pc-space-2));
+  color: var(--pc-status-danger);
+}
+
+.errorText {
+  font: var(--pc-type-note);
+  color: color-mix(in srgb, var(--pc-status-danger) 62%, var(--pc-text-1));
+}
+
+/* ---------- state: joined ---------- */
+
+.identity {
+  display: flex;
+  align-items: center;
+  gap: var(--pc-space-12);
+}
+
+/*
+ * The export draws this avatar at 34px, two steps above the largest <Avatar> size. The box is a
+ * local override of Avatar's own custom property; the doubled class keeps it ahead of `.md`
+ * whatever order the two stylesheets end up in.
+ */
+.bigAvatar.bigAvatar {
+  --avatar-box: calc(var(--pc-avatar-size) + var(--pc-space-20));
+  --avatar-corner: var(--pc-radius-lg);
+  --avatar-text: calc(var(--avatar-box) * 0.36);
+}
+
+.identityText {
+  display: flex;
+  flex-direction: column;
+  gap: var(--pc-space-4);
+  min-width: 0;
+}
+
+.joinedTitle {
+  margin: 0;
+  font: var(--pc-type-title);
+  letter-spacing: var(--pc-tracking-title);
+  color: var(--pc-text-heading);
+}
+
+.colour {
+  font: var(--pc-type-note);
+  color: var(--pc-text-2);
+}
+
+.presence {
+  display: flex;
+  align-items: center;
+  gap: var(--pc-space-8);
+  padding: calc(var(--pc-space-8) + var(--pc-space-2)) var(--pc-space-12);
+  background: var(--pc-bg-panel);
+  border: var(--pc-border-width) solid var(--pc-border-subtle);
+  border-radius: var(--pc-radius-md);
+}
+
+.presenceText {
+  font: var(--pc-type-note);
+  color: var(--pc-text-2);
+}
+
+.footnote {
+  margin: 0;
+  font: var(--pc-type-note);
+  color: var(--pc-text-3);
+}

@@ -1,0 +1,284 @@
+/*
+ * Composer — the field plus its row of chips.
+ *
+ * Geometry from the export: 7px radius on the card, 24px chips, a 28px send button in the wide
+ * variant and 26px in the narrow one. Everything hangs off --pc-row-height and the spacing scale,
+ * so compact density shrinks the whole row together instead of leaving the send button behind.
+ */
+
+.root {
+  box-sizing: border-box;
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: calc(var(--pc-space-12) - var(--pc-border-width));
+  padding: var(--pc-space-12) calc(var(--pc-space-12) + var(--pc-border-width))
+    calc(var(--pc-space-12) - var(--pc-space-2));
+  background: var(--pc-bg-panel);
+  border: var(--pc-border-width) solid var(--pc-border);
+  border-radius: var(--pc-radius-lg);
+  transition: border-color var(--pc-duration-fast) var(--pc-ease);
+}
+
+.root[data-focused='true'] {
+  border-color: var(--pc-border-strong);
+}
+
+/* Focus lives on the card, not on the textarea: the field has no border of its own. */
+.root:has(.field:focus-visible) {
+  box-shadow: var(--pc-focus-ring);
+}
+
+.root[data-disabled='true'] {
+  background: var(--pc-bg-window);
+}
+
+/* --- field --------------------------------------------------------------------------------- */
+
+.fieldWrap {
+  position: relative;
+  display: flex;
+  min-width: 0;
+}
+
+.field {
+  box-sizing: border-box;
+  width: 100%;
+  min-height: calc(var(--pc-space-20) + var(--pc-space-4));
+  max-height: calc(var(--pc-space-32) * 5);
+  margin: 0;
+  padding: 0;
+  border: 0;
+  outline: none;
+  overflow-y: auto;
+  resize: none;
+  background: transparent;
+  color: var(--pc-text-1);
+  font: var(--pc-type-read);
+}
+
+.field::placeholder {
+  color: var(--pc-text-3);
+}
+
+/* The painted ghost line is showing — one placeholder on screen, not two. */
+.field[data-ghost='true']::placeholder {
+  color: transparent;
+}
+
+.field:disabled {
+  color: var(--pc-text-3);
+  cursor: default;
+}
+
+.ghost {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  font: var(--pc-type-read);
+  color: var(--pc-text-3);
+  white-space: pre-wrap;
+}
+
+.caretBar {
+  display: inline-block;
+  width: var(--pc-border-width);
+  height: var(--pc-space-16);
+  margin-left: var(--pc-border-width);
+  vertical-align: text-bottom;
+  background: var(--pc-accent);
+  animation: global(pc-caret) 1.05s step-end infinite;
+}
+
+/* --- chips --------------------------------------------------------------------------------- */
+
+.chips {
+  display: flex;
+  align-items: center;
+  gap: calc(var(--pc-space-6) + var(--pc-border-width));
+  min-width: 0;
+}
+
+.chip {
+  box-sizing: border-box;
+  display: inline-flex;
+  align-items: center;
+  gap: var(--pc-space-6);
+  flex: none;
+  min-width: 0;
+  height: calc(var(--pc-row-height) - var(--pc-space-4));
+  margin: 0;
+  padding: 0 var(--pc-space-8);
+  border: 0;
+  border-radius: var(--pc-radius-sm);
+  background: var(--pc-bg-raised);
+  color: var(--pc-text-read);
+  text-align: left;
+}
+
+.chipButton {
+  cursor: pointer;
+  -webkit-appearance: none;
+  appearance: none;
+  transition: background var(--pc-duration-fast) var(--pc-ease);
+}
+
+.chipButton:hover {
+  background: var(--pc-bg-input);
+}
+
+.chipButton:focus-visible {
+  outline: none;
+  box-shadow: var(--pc-focus-ring);
+}
+
+.zonePath {
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  font: var(--pc-type-figure);
+  color: var(--pc-text-read);
+}
+
+.zoneNote {
+  flex: none;
+  font: var(--pc-type-meta);
+  color: var(--pc-text-3);
+}
+
+.modeSlot {
+  position: relative;
+  display: inline-flex;
+  min-width: 0;
+}
+
+/* Status colour as a dot — role #1 of the status palette. */
+.modeDot {
+  flex: none;
+  width: calc(var(--pc-space-4) + var(--pc-border-width));
+  height: calc(var(--pc-space-4) + var(--pc-border-width));
+  border-radius: 50%;
+  background: var(--pc-text-3);
+}
+
+.modeDot[data-tone='success'] {
+  background: var(--pc-status-success);
+}
+
+.modeDot[data-tone='warning'] {
+  background: var(--pc-status-warning);
+}
+
+.modeDot[data-tone='danger'] {
+  background: var(--pc-status-danger);
+}
+
+.modeDot[data-tone='running'] {
+  background: var(--pc-status-running);
+}
+
+.modeLabel {
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  font: var(--pc-type-label);
+  color: var(--pc-text-read);
+}
+
+.caret {
+  flex: none;
+  width: calc(var(--pc-icon-size) - var(--pc-space-6));
+  height: calc(var(--pc-icon-size) - var(--pc-space-6));
+  color: var(--pc-text-3);
+}
+
+.modelName {
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  font: var(--pc-type-figure);
+  color: var(--pc-text-read);
+}
+
+.menu {
+  position: absolute;
+  bottom: calc(100% + var(--pc-space-6));
+  left: 0;
+  z-index: 2;
+}
+
+/* --- send ---------------------------------------------------------------------------------- */
+
+.trailing {
+  margin-left: auto;
+  display: flex;
+  align-items: center;
+  gap: var(--pc-space-8);
+  flex: none;
+}
+
+.hint {
+  font: var(--pc-type-figure);
+  color: var(--pc-text-4);
+  white-space: nowrap;
+}
+
+.send {
+  box-sizing: border-box;
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: var(--pc-row-height);
+  height: var(--pc-row-height);
+  padding: 0;
+  border: 0;
+  border-radius: var(--pc-radius-md);
+  background: var(--pc-accent);
+  color: var(--pc-accent-on);
+  cursor: pointer;
+  -webkit-appearance: none;
+  appearance: none;
+  transition: background var(--pc-duration-fast) var(--pc-ease);
+}
+
+.send:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--pc-accent) 88%, var(--pc-text-1));
+}
+
+.send:focus-visible {
+  outline: none;
+  box-shadow: var(--pc-focus-ring);
+}
+
+.send:disabled {
+  background: var(--pc-control-bg);
+  color: var(--pc-text-3);
+  cursor: default;
+}
+
+.sendGlyph {
+  width: calc(var(--pc-icon-size) - var(--pc-space-2));
+  height: calc(var(--pc-icon-size) - var(--pc-space-2));
+}
+
+/* --- narrow pane (screen 04) --------------------------------------------------------------- */
+
+.root[data-variant='narrow'] {
+  gap: calc(var(--pc-space-8) + var(--pc-space-2));
+  padding: calc(var(--pc-space-12) - var(--pc-border-width)) var(--pc-space-12)
+    calc(var(--pc-space-8) + var(--pc-border-width));
+}
+
+.root[data-variant='narrow'] .send {
+  width: calc(var(--pc-row-height) - var(--pc-space-2));
+  height: calc(var(--pc-row-height) - var(--pc-space-2));
+}
+
+.root[data-variant='narrow'] .sendGlyph {
+  width: calc(var(--pc-icon-size) - var(--pc-space-4));
+  height: calc(var(--pc-icon-size) - var(--pc-space-4));
+}

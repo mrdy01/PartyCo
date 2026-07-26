@@ -1,0 +1,265 @@
+/*
+ * «Не пропущен гейтом» — the gate refusal.
+ *
+ * Colour discipline on this surface, because it is the one place the two palettes meet:
+ *   · the author's identity colour arrives inline (zoneEdgeStyle / Avatar) and owns the 2px left
+ *     edge — it is never painted from this sheet, and the linter enforces that;
+ *   · the status danger colour appears only as an outline, a pill tint, a 10px glyph and text.
+ *     There is deliberately no danger *fill* anywhere: the queue row draws its own faint wash, and
+ *     a card flooded with red would say "you are in trouble" instead of "the gate held".
+ *
+ * The design's card is #0d0f11 on a #0a0c0e header, i.e. one step darker than the panel. There is
+ * no token for that pair, so the card takes --pc-bg-panel with a --pc-bg-window header: the same
+ * relationship (header recedes, body sits forward) and it lands exactly on the light twin, where
+ * the design does use #ffffff over #f4f5f6.
+ */
+
+.root {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+/* ------------------------------------------------------------------- card */
+
+.card {
+  box-sizing: border-box;
+  background: var(--pc-bg-panel);
+  /* Status role #4 — outline. The left edge is overwritten inline by the author's colour. */
+  border: var(--pc-border-width) solid color-mix(in srgb, var(--pc-status-danger) 30%, transparent);
+  /* Left corners stay square: the identity edge is a marker, not a frame. */
+  border-radius: 0 var(--pc-radius-md) var(--pc-radius-md) 0;
+  overflow: hidden;
+}
+
+.header {
+  display: flex;
+  align-items: center;
+  gap: var(--pc-row-gap);
+  min-width: 0;
+  min-height: calc(var(--pc-row-height) + var(--pc-space-6));
+  padding: 0 var(--pc-space-12);
+  background: var(--pc-bg-window);
+  border-bottom: var(--pc-border-width) solid var(--pc-border-subtle);
+}
+
+.branch {
+  min-width: 0;
+  font: var(--pc-type-path);
+  font-weight: 500;
+  color: var(--pc-text-1);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* «пока патч ехал» — quiet on purpose; the loud fact is already the chip next to it. */
+.reason {
+  flex: none;
+  margin-left: auto;
+  font: var(--pc-type-status);
+  color: var(--pc-text-4);
+}
+
+.body {
+  display: flex;
+  flex-direction: column;
+  gap: var(--pc-space-12);
+  min-width: 0;
+  padding: var(--pc-space-12);
+}
+
+/* ----------------------------------------------------------------- inline */
+
+/*
+ * Disclosure inside a queue row. No frame and no header — the row carries both. The left inset
+ * lines the body up under the branch column, past the position cell, and follows the density.
+ */
+.inline {
+  gap: var(--pc-space-8);
+  padding: 0 var(--pc-row-padding-x) var(--pc-space-12)
+    calc(var(--pc-row-padding-x) + var(--pc-space-32) + var(--pc-space-6));
+}
+
+/*
+ * Reading measure. The design stops prose, strip and step list at 760px; expressed off the spacing
+ * scale so it stays a design value rather than a magic number. The card is already column-width
+ * and never reaches it.
+ */
+.body > *,
+.inline > * {
+  max-width: calc(var(--pc-space-32) * 24);
+}
+
+/* ------------------------------------------------------------------- body */
+
+.meta {
+  display: flex;
+  align-items: center;
+  gap: var(--pc-space-8);
+  min-width: 0;
+}
+
+/* The guarded path the code points at. Mono, quiet — it is evidence, not a headline. */
+.subject {
+  min-width: 0;
+  font: var(--pc-type-status);
+  color: var(--pc-text-3);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.explanation {
+  margin: 0;
+  font: var(--pc-type-meta);
+  /* Prose leading: the sentence runs three lines and 1.4 packs it too tight. */
+  line-height: 1.6;
+  color: var(--pc-text-2);
+  overflow-wrap: anywhere;
+}
+
+/* ------------------------------------------------------------------ lists */
+
+.list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--pc-space-2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.row {
+  display: flex;
+  align-items: center;
+  gap: var(--pc-row-gap);
+  min-width: 0;
+  min-height: var(--pc-row-height);
+  padding: 0 var(--pc-row-padding-x);
+  background: var(--pc-bg-raised);
+  border-radius: var(--pc-radius-sm);
+}
+
+.path,
+.checkName {
+  min-width: 0;
+  font: var(--pc-type-path);
+  color: var(--pc-text-1);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.rowEnd {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  gap: var(--pc-space-6);
+  margin-left: auto;
+}
+
+.added {
+  font: var(--pc-type-status);
+  color: var(--pc-status-success);
+}
+
+.removed {
+  font: var(--pc-type-status);
+  color: var(--pc-status-danger);
+}
+
+/* Relative age only — «11 мин назад». Wall clock never reaches this block. */
+.ago {
+  font: var(--pc-type-status);
+  color: var(--pc-text-3);
+}
+
+/* Status role #1-ish: a 10px glyph standing in for the dot, in the danger colour. */
+.checkGlyph {
+  flex: none;
+  width: calc(var(--pc-icon-size) - var(--pc-space-6));
+  height: calc(var(--pc-icon-size) - var(--pc-space-6));
+  color: var(--pc-status-danger);
+}
+
+/* «2 из 88», «граница нарушена» — status colour as text. */
+.checkFailure {
+  flex: none;
+  font: var(--pc-type-status);
+  color: var(--pc-status-danger);
+}
+
+/* ----------------------------------------------------------------- output */
+
+/*
+ * The rule's own two lines, on the window surface so they read as quoted machine output rather
+ * than as part of the sentence above. Never git: no markers, no diff hunks, no stack traces.
+ */
+.output {
+  display: flex;
+  flex-direction: column;
+  gap: var(--pc-space-4);
+  min-width: 0;
+  padding: var(--pc-space-8) var(--pc-row-padding-x);
+  background: var(--pc-bg-window);
+  border: var(--pc-border-width) solid var(--pc-border-subtle);
+  border-radius: var(--pc-radius-sm);
+}
+
+.outputLine {
+  font: var(--pc-type-status);
+  color: var(--pc-text-2);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+/* First line is the verdict; softened toward the text colour so it states rather than shouts. */
+.outputLine:first-child {
+  color: color-mix(in srgb, var(--pc-status-danger) 62%, var(--pc-text-1));
+}
+
+/* ------------------------------------------------------------- footer/link */
+
+.footer {
+  display: flex;
+  align-items: center;
+  gap: var(--pc-space-8);
+}
+
+/* «Это не выговор…» — the quietest line on the card, and the one that sets the tone. */
+.footnote {
+  min-width: 0;
+  font: var(--pc-type-status);
+  color: var(--pc-text-4);
+}
+
+/*
+ * Bare text control. Not a <Button>: the design draws unboxed mono text, and Button's smallest
+ * size is a 22px control that would outgrow the 28px row it sits in.
+ */
+.link {
+  flex: none;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  background: none;
+  border-radius: var(--pc-radius-xs);
+  font: var(--pc-type-status);
+  color: var(--pc-status-running);
+  text-align: left;
+  cursor: pointer;
+}
+
+.link:hover {
+  text-decoration: underline;
+}
+
+.link:focus-visible {
+  outline: none;
+  box-shadow: var(--pc-focus-ring);
+}
+
+.more {
+  margin-left: auto;
+}
