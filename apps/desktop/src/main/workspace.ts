@@ -13,6 +13,7 @@ import { basename, isAbsolute, join, relative, resolve, sep } from 'node:path';
 import { platformPaths } from './platform.ts';
 import type {
   IpcResult,
+  Page,
   WorkspaceEntry,
   WorkspaceFile,
   WorkspaceInfo,
@@ -35,9 +36,10 @@ import type {
  * containment check nobody can trust.
  *
  * **Refuse rather than distort.** A binary file is not decoded as if it were text, a 40 MB file is
- * not streamed into a web page, a directory with more entries than we are willing to list is not
- * silently truncated into a list that lies about being complete. Each of those answers says what
- * happened. The same reasoning as `agents.ts`: an error a person can read beats a plausible result.
+ * not streamed into a web page, and a directory too large to list whole comes back as a page that
+ * states how many entries it does not contain — never as a truncated list that looks complete. Each
+ * of those answers says what happened. The same reasoning as `agents.ts`: a sentence a person can
+ * read beats a plausible result.
  *
  * What is NOT here: git *operations*. `branch` is read out of `.git/HEAD` as a string, because a
  * spawned `git` is a dependency on a binary that may not exist and a process on the UI's critical
@@ -57,14 +59,28 @@ const STATE_FILE = 'workspace.json';
 const STATE_VERSION = 1;
 
 /**
- * Entries listed in one directory.
+ * Entries returned for one directory.
  *
  * A generated folder we failed to filter (a `venv`, a build cache, a downloads dump) can hold tens
  * of thousands of files. Serialising that across the bridge and turning it into DOM nodes is a
- * frozen window, so past this point we refuse the directory instead — see the note in
- * {@link listDirectory} for why refusing beats silently showing the first 2000.
+ * frozen window, so past this point the rest is left out of the answer — and counted. The page
+ * carries how many entries are missing and the panel says the number in words; see
+ * {@link listDirectory}.
  */
 const MAX_ENTRIES = 2000;
+
+/**
+ * How large the working buffer is allowed to grow while a big directory is being read.
+ *
+ * The first {@link MAX_ENTRIES} entries *in display order* are not the first ones the filesystem
+ * hands over: NTFS returns names already sorted, ext4 returns them in hash order, and either way
+ * «directories first» cuts across whatever order arrives. So the page cannot be decided until every
+ * entry has been seen — but holding every entry is exactly what a hundred-thousand-file folder must
+ * not be able to make us do. The buffer is therefore sorted and cut back to `MAX_ENTRIES` whenever
+ * it reaches this size: memory stays at twice a page, and what survives each cut is still precisely
+ * the entries that come first in display order.
+ */
+const PRUNE_AT = MAX_ENTRIES * 2;
 
 /** 2 MB. Past this a file is a data file, not something a person reads in a panel. */
 const MAX_FILE_BYTES = 2 * 1024 * 1024;
@@ -513,6 +529,17 @@ interface RawEntry {
 }
 
 /**
+ * The one order the panel has: directories first, then files, each group by {@link compareNames}.
+ *
+ * Named rather than inlined because the page depends on it twice — once for every cut of the
+ * working buffer and once at the end — and «first 2000 in display order» only means something while
+ * both use the same comparison.
+ */
+function byDisplayOrder(a: RawEntry, b: RawEntry): number {
+  return a.kind === b.kind ? compareNames(a.name, b.name) : a.kind === 'dir' ? -1 : 1;
+}
+
+/**
  * What a symlink actually points at, or `null` if we will not show it.
  *
  * A link out of the workspace is dropped from the listing rather than shown-and-then-refused: an
@@ -546,10 +573,23 @@ async function fileSize(absolute: string): Promise<number | null> {
  * path, for a tree the member will expand three nodes of. The renderer asks for a directory when it
  * opens one.
  *
- * `opendir` rather than `readdir` so that a pathological directory is abandoned after
- * {@link MAX_ENTRIES} entries instead of being fully materialised in memory first.
+ * `opendir` rather than `readdir` so that a pathological directory streams past us one entry at a
+ * time instead of being fully materialised in memory first; {@link PRUNE_AT} is what keeps that true
+ * now that every entry has to be looked at.
+ *
+ * A directory larger than {@link MAX_ENTRIES} is a page, not a refusal. The old answer here — «too
+ * many, open a smaller folder» — was honest but it took away the whole folder because part of it did
+ * not fit, and the folder somebody has to work in is the one that is too big. What the contract now
+ * allows instead is showing the first page and *saying the number left out*, which is the same
+ * honesty at a fraction of the cost: a truncated list that looks complete is the only answer that
+ * was ever forbidden.
+ *
+ * `omitted` counts real entries — what a person would find in this folder and not in this panel.
+ * Everything the filters drop (`.git`, `node_modules`, a socket, a symlink out of the workspace) is
+ * not counted, because it was never going to be shown at any ceiling: counting it would inflate the
+ * number into a claim about files that do not exist as far as this panel is concerned.
  */
-async function listDirectory(target: ResolvedPath): Promise<IpcResult<readonly WorkspaceEntry[]>> {
+async function listDirectory(target: ResolvedPath): Promise<IpcResult<Page<WorkspaceEntry>>> {
   try {
     if (!(await stat(target.absolute)).isDirectory()) {
       return fail(`«${target.relative || '.'}» — это не каталог.`);
@@ -558,12 +598,16 @@ async function listDirectory(target: ResolvedPath): Promise<IpcResult<readonly W
     return fail(`Каталог «${target.relative || '.'}» недоступен.`);
   }
 
-  const raw: RawEntry[] = [];
-  let overflowed = false;
+  const kept: RawEntry[] = [];
+  /** Entries that survived the filters — the honest denominator behind `omitted`. */
+  let shown = 0;
 
   try {
-    // Exiting this loop early closes the directory handle: the async iterator's cleanup runs on
-    // `break` and on a throw alike, so there is no `close()` after it (that would double-close).
+    // The loop runs to the end even for a folder far past the ceiling: `omitted` is a count, and a
+    // count nobody made is a guess. Reading names is the cheap half of listing a directory — the
+    // expensive half is the `stat` below, and that is paid only for the entries that made the page.
+    // A throw still closes the directory handle by itself: the async iterator's cleanup runs on the
+    // way out, so there is no `close()` after this (that would double-close).
     for await (const dirent of await opendir(target.absolute)) {
       const { name } = dirent;
       if (name === '.git') continue; // plumbing, whether it is a directory or a worktree pointer
@@ -577,35 +621,30 @@ async function listDirectory(target: ResolvedPath): Promise<IpcResult<readonly W
       if (kind === null) continue;
       if (kind === 'dir' && SKIP_DIRS.has(name.toLowerCase())) continue;
 
-      if (raw.length >= MAX_ENTRIES) {
-        overflowed = true;
-        break;
+      shown += 1;
+      kept.push({ name, kind, absolute });
+      if (kept.length >= PRUNE_AT) {
+        kept.sort(byDisplayOrder);
+        kept.length = MAX_ENTRIES;
       }
-      raw.push({ name, kind, absolute });
     }
   } catch (cause) {
     return fail(`Не удалось прочитать каталог «${target.relative || '.'}»: ${describe(cause)}`);
   }
 
-  if (overflowed) {
-    // Deliberately a refusal and not a truncated list. A list of the first 2000 names looks exactly
-    // like a complete list — the member has no way to tell that the file they are looking for is
-    // missing rather than absent. Saying «слишком много» is the honest half of «показывать правду».
-    return fail(
-      `В каталоге «${target.relative || '.'}» больше ${MAX_ENTRIES} записей. PartyCo не показывает ` +
-        'такой список целиком, а показать половину и промолчать — значит соврать. Открой каталог ' +
-        'поменьше.',
-    );
-  }
-
-  raw.sort((a, b) => (a.kind === b.kind ? compareNames(a.name, b.name) : a.kind === 'dir' ? -1 : 1));
+  kept.sort(byDisplayOrder);
+  // Guarded: assigning `length` on a shorter array would *grow* it with holes, and every hole would
+  // reach `Promise.all` as `undefined`.
+  if (kept.length > MAX_ENTRIES) kept.length = MAX_ENTRIES;
 
   // Every entry of one call sits at the same level: `depth` is a property of the directory asked for.
   const depth = target.relative === '' ? 0 : target.relative.split('/').length;
   const prefix = target.relative === '' ? '' : `${target.relative}/`;
 
-  const entries = await Promise.all(
-    raw.map(async (item): Promise<WorkspaceEntry> => {
+  // Sizes are read only for the entries that made the page. `stat` is the expensive part of listing
+  // a directory, and paying it for entries nobody will see is how a big folder gets slow twice.
+  const items = await Promise.all(
+    kept.map(async (item): Promise<WorkspaceEntry> => {
       const entry: WorkspaceEntry = {
         path: `${prefix}${item.name}`,
         name: item.name,
@@ -618,7 +657,7 @@ async function listDirectory(target: ResolvedPath): Promise<IpcResult<readonly W
     }),
   );
 
-  return succeed(entries);
+  return succeed({ items, omitted: shown - items.length });
 }
 
 /* ------------------------------------------------------------------ *
@@ -776,10 +815,15 @@ export function registerWorkspaceIpc(): void {
     return succeed(null);
   });
 
-  /** One directory of the real tree. `dir` omitted means the root. */
+  /**
+   * One directory of the real tree, as a page. `dir` omitted means the root.
+   *
+   * `omitted > 0` is not an error and not a special case for the renderer to unwrap: the entries in
+   * `items` are exactly as real as they would be in a complete listing.
+   */
   ipcMain.handle(
     'workspace:tree',
-    async (_event, rawDir: unknown): Promise<IpcResult<readonly WorkspaceEntry[]>> => {
+    async (_event, rawDir: unknown): Promise<IpcResult<Page<WorkspaceEntry>>> => {
       if (rawDir !== undefined && rawDir !== null && typeof rawDir !== 'string') {
         return fail('Каталог должен быть строкой.');
       }

@@ -25,15 +25,22 @@ import {
   type ShellView,
   type ZoneTreeNode,
 } from '@partyco/ui';
-import { canManageInvites, toInviteRecord, toProjectMember } from '../present.ts';
+import {
+  canManageInvites,
+  toInviteRecord,
+  toProjectMember,
+  toProjectRosterMember,
+} from '../present.ts';
 import { useProviderLayer } from '../providers.ts';
 import { pathOfRow, useFileTree, useOpenFile } from '../files.ts';
 import { useConversation } from '../conversation.ts';
+import { useProjects, type ProjectsModel } from '../projects.ts';
 import type { WorkspaceHandle } from '../workspace.ts';
 import {
   createInvite as hubCreateInvite,
   invites as hubInvites,
   members as hubMembers,
+  projectMembers as hubProjectMembers,
   revokeInvite as hubRevokeInvite,
   type HubInvite,
   type HubSession,
@@ -76,7 +83,8 @@ export function ShellPage({
   const [draft, setDraft] = useState('');
   const [ownershipTab, setOwnershipTab] = useState<OwnershipTab>('zones');
 
-  const team = useTeam(session);
+  const projects = useProjects(session);
+  const team = useTeam(session, projects.current?.id ?? null);
   const self = useMemo(
     () => toProjectMember(session.member, session.member.id),
     [session.member],
@@ -113,9 +121,18 @@ export function ShellPage({
 
   /* ---------- chrome ---------- */
 
+  /**
+   * Two different things are called «проект», and the title bar says the one that is shared.
+   *
+   * The hub's project is what a team has in common — it is where the roster lives and where an
+   * invitation lands. The folder is one member's copy on one machine. Until a project exists the
+   * folder's name is the honest stand-in, because it is the only name anybody has agreed on.
+   */
+  const projectName = projects.current?.name ?? folder?.name ?? 'PartyCo';
+
   const titleBar = (
     <ShellTitleBar
-      projectName={folder?.name ?? session.member.displayName}
+      projectName={projectName}
       searchValue={search}
       onSearchChange={(value) => {
         setSearch(value);
@@ -125,7 +142,14 @@ export function ShellPage({
         if (value.trim()) setView('files');
       }}
       searchShortcut={['Ctrl', 'K']}
-      onProjectSwitch={() => void workspace.clear()}
+      // The chevron goes to settings rather than opening a popover the designer has not drawn.
+      // Everything a person could want from it — switch project, create one, change the folder —
+      // is there in full, and inventing a second surface for the same three actions would mean
+      // shipping a control nobody designed and then owning both.
+      onProjectSwitch={() => {
+        setView('settings');
+        setDetail(null);
+      }}
     />
   );
 
@@ -138,7 +162,7 @@ export function ShellPage({
         // whatever was slid out over the previous one.
         setDetail(null);
       }}
-      projectInitial={(folder?.name ?? 'P').slice(0, 1).toUpperCase()}
+      projectInitial={projectName.slice(0, 1).toUpperCase()}
       onNewTask={() => {
         setView('conversation');
         setDetail(null);
@@ -239,6 +263,14 @@ export function ShellPage({
       onToggleWork={talk.toggleWork}
       onRetry={talk.reload}
       copy={{ empty: greeting(session.member.displayName, talk.blocked) }}
+      // What is missing from the top of the ribbon, said where it is missing from. Silence here
+      // would make a conversation that starts mid-sentence look like the whole of it.
+      {...(talk.omittedEarlierTurns > 0
+        ? {
+            header: `Показаны последние ходы. Раньше них было ещё ${talk.omittedEarlierTurns} — ` +
+              'они на месте, в файле истории, просто не в этом окне.',
+          }
+        : {})}
       footer={composer}
     />
   );
@@ -260,6 +292,7 @@ export function ShellPage({
         self={self}
         memberCount={team.members.length}
         workspace={workspace}
+        projects={projects}
         providers={providers}
         onOpenTeam={() => setDetail('team')}
         onSignOut={onSignOut}
@@ -293,7 +326,11 @@ export function ShellPage({
                 nodes={filtered}
                 state={search.trim() && filtered.length === 0 ? 'empty' : files.state}
                 {...(files.selectedId ? { selectedId: files.selectedId } : {})}
-                footnote={search.trim() ? SEARCH_FOOTNOTE : TREE_FOOTNOTE}
+                footnote={treeFootnote(
+                  files.omittedInTreeTotal,
+                  files.unreadableDirs,
+                  search.trim() !== '',
+                )}
                 onSelect={activate}
                 onOpen={activate}
                 onToggle={(node) => files.toggle(pathOfRow(node.id))}
@@ -323,6 +360,55 @@ const TREE_FOOTNOTE =
   'Цветной кромки пока нет: проект не поделён на зоны, поэтому ничья территория здесь не отмечена.';
 
 const SEARCH_FOOTNOTE = 'Поиск идёт по уже открытым папкам — закрытые он не смотрит.';
+
+/**
+ * The line under the file tree, assembled from what is actually missing from it.
+ *
+ * Three different silences, and each of them looks identical to «здесь ничего нет» if it is not
+ * said out loud: a directory whose listing hit the ceiling, a directory that could not be read at
+ * all, and a search that only covers what has been opened. A person who cannot find a file has to
+ * be able to tell which of those they are looking at — otherwise the honest answer «файла нет»
+ * becomes indistinguishable from the tool quietly giving up.
+ */
+function treeFootnote(
+  omittedTotal: number,
+  unreadable: ReadonlyMap<string, string>,
+  searching: boolean,
+): string {
+  const parts: string[] = [];
+
+  if (omittedTotal > 0) {
+    parts.push(
+      `Показано не всё: ${omittedTotal} ${plural(omittedTotal, 'запись', 'записи', 'записей')} ` +
+        'в открытых папках не поместились. Ищи по имени или открывай вложенную папку.',
+    );
+  }
+
+  if (unreadable.size > 0) {
+    // One folder gets its own reason; several get a count, because four permission errors stacked
+    // under a tree is a wall of text where a number and one example are enough to act on.
+    const first = [...unreadable.entries()][0];
+    parts.push(
+      unreadable.size === 1 && first
+        ? `«${first[0] || '/'}» не открылась: ${first[1]}`
+        : `${unreadable.size} ${plural(unreadable.size, 'папка', 'папки', 'папок')} не открылись — ` +
+          'скорее всего к ним нет доступа. Они остались закрытыми, а не пустыми.',
+    );
+  }
+
+  parts.push(searching ? SEARCH_FOOTNOTE : TREE_FOOTNOTE);
+  return parts.join(' ');
+}
+
+/** Russian plural forms. The same three-form rule `present.ts` uses; kept local to avoid a barrel. */
+function plural(n: number, one: string, few: string, many: string): string {
+  const mod100 = n % 100;
+  if (mod100 >= 11 && mod100 <= 14) return many;
+  const mod10 = n % 10;
+  if (mod10 === 1) return one;
+  if (mod10 >= 2 && mod10 <= 4) return few;
+  return many;
+}
 
 const OWNERSHIP_META = 'Границ ещё нет — их раздаёт ядро, а его в этой сборке нет.';
 
@@ -380,6 +466,132 @@ function copyToClipboard(text: string): void {
   void navigator.clipboard?.writeText(text).catch(() => undefined);
 }
 
+/**
+ * Projects on the hub: which one this member is in, and the way to make the first.
+ *
+ * There is no picker popover in the title bar because the designer has not drawn one, and the three
+ * things a person wants from it — switch, create, see who is in it — all fit here without inventing
+ * a surface. The chevron up in the chrome navigates to this section.
+ *
+ * The create field is seeded with the folder's name rather than left blank. That is not a guess
+ * dressed up as data: it is a suggestion in an input the person edits before pressing anything, and
+ * on a first project it is almost always right.
+ */
+function ProjectSection({
+  projects,
+  workspace,
+}: {
+  projects: ProjectsModel;
+  workspace: WorkspaceHandle;
+}): React.ReactElement {
+  const [name, setName] = useState('');
+  const [creating, setCreating] = useState(false);
+
+  const suggested = workspace.workspace?.name ?? '';
+  const value = creating ? name : '';
+
+  return (
+    <section className={styles.block}>
+      <h2 className={styles.blockTitle}>Проект на хабе</h2>
+
+      {projects.state === 'loading' ? (
+        <p className={styles.blockNote}>Смотрим, в каких проектах ты состоишь…</p>
+      ) : projects.state === 'error' ? (
+        <div className={styles.row}>
+          <span className={styles.rowLabel}>
+            {projects.error ?? 'Хаб не ответил. Работать можно — это только список.'}
+          </span>
+          <button type="button" className={styles.rowAction} onClick={projects.reload}>
+            Ещё раз
+          </button>
+        </div>
+      ) : projects.projects.length === 0 ? (
+        <p className={styles.blockNote}>
+          Проектов пока нет. Проект — это то, во что можно позвать людей: у него есть состав и роли.
+          Создай первый, и приглашения начнут вести именно в него.
+        </p>
+      ) : (
+        projects.projects.map((project) => {
+          const current = project.id === projects.current?.id;
+          return (
+            <div className={styles.row} key={project.id}>
+              <span className={styles.rowLabel}>
+                {project.name} · {PROJECT_ROLE_WORD[project.role] ?? project.role} ·{' '}
+                {project.memberCount === 1 ? 'ты один' : `${project.memberCount} человек`}
+              </span>
+              {current ? (
+                <span className={styles.rowFact}>сейчас открыт</span>
+              ) : (
+                <button
+                  type="button"
+                  className={styles.rowAction}
+                  onClick={() => projects.select(project.id)}
+                >
+                  Открыть
+                </button>
+              )}
+            </div>
+          );
+        })
+      )}
+
+      {projects.state === 'ready' ? (
+        creating ? (
+          <div className={styles.row}>
+            <input
+              className={styles.rowInput}
+              value={value}
+              onChange={(event) => setName(event.target.value)}
+              placeholder="Название проекта"
+              aria-label="Название нового проекта"
+              autoFocus
+            />
+            <button
+              type="button"
+              className={styles.rowAction}
+              disabled={projects.busy || value.trim() === ''}
+              onClick={() => {
+                void projects.create(value.trim()).then((created) => {
+                  if (created) {
+                    setCreating(false);
+                    setName('');
+                  }
+                });
+              }}
+            >
+              {projects.busy ? 'Создаём…' : 'Создать'}
+            </button>
+          </div>
+        ) : (
+          <div className={styles.row}>
+            <span className={styles.rowLabel}>Новый проект</span>
+            <button
+              type="button"
+              className={styles.rowAction}
+              onClick={() => {
+                setName(suggested);
+                setCreating(true);
+              }}
+            >
+              Создать
+            </button>
+          </div>
+        )
+      ) : null}
+
+      {creating && projects.error ? <p className={styles.blockNote}>{projects.error}</p> : null}
+    </section>
+  );
+}
+
+/** The role in words, because `maintainer` is a table value and not something a person says. */
+const PROJECT_ROLE_WORD: Record<string, string> = {
+  owner: 'ты владелец',
+  maintainer: 'ты мейнтейнер',
+  member: 'ты участник',
+  observer: 'ты наблюдатель',
+};
+
 /* ------------------------------------------------------------------ *
  * The team
  * ------------------------------------------------------------------ */
@@ -417,7 +629,7 @@ interface TeamState {
  * Russian sentence, because the hub already refuses in words a person can act on («На эту почту уже
  * есть аккаунт», «Слишком много попыток»), and paraphrasing them here would only make them worse.
  */
-function useTeam(session: HubSession): TeamState {
+function useTeam(session: HubSession, projectId: string | null): TeamState {
   const [members, setMembers] = useState<readonly ProjectMember[]>([]);
   const [raw, setRaw] = useState<readonly HubInvite[]>([]);
   const [state, setState] = useState<'ready' | 'loading' | 'error'>('loading');
@@ -437,15 +649,29 @@ function useTeam(session: HubSession): TeamState {
     let cancelled = false;
     setState('loading');
 
+    // Two different rosters, and which one is right depends on whether a project exists yet. With
+    // one, «команда» means the people in that project — the smaller, truer answer. Without one it
+    // can only mean everybody on the hub, and saying so is better than showing an empty panel to a
+    // member who has colleagues.
+    const roster: Promise<readonly ProjectMember[]> = projectId
+      ? hubProjectMembers(session.hubUrl, session.token, projectId).then((answer) =>
+          // `toProjectRosterMember`, not `toProjectMember`: inside a project the role that matters
+          // is the one in the project, and the two are frequently different.
+          answer.members.map((m) => toProjectRosterMember(m, session.member.id)),
+        )
+      : hubMembers(session.hubUrl, session.token).then((rows) =>
+          rows.map((m) => toProjectMember(m, session.member.id)),
+        );
+
     // The invitation list is only readable by somebody who may hand out seats; asking for it as an
     // observer would be a 403 that turns the whole panel red for no reason.
     void Promise.all([
-      hubMembers(session.hubUrl, session.token),
+      roster,
       manages ? hubInvites(session.hubUrl, session.token) : Promise.resolve([] as HubInvite[]),
     ])
       .then(([memberRows, inviteRows]) => {
         if (cancelled) return;
-        setMembers(memberRows.map((m) => toProjectMember(m, session.member.id)));
+        setMembers(memberRows);
         setRaw(inviteRows);
         setState('ready');
       })
@@ -456,7 +682,7 @@ function useTeam(session: HubSession): TeamState {
     return () => {
       cancelled = true;
     };
-  }, [session.hubUrl, session.token, session.member.id, manages, nonce]);
+  }, [session.hubUrl, session.token, session.member.id, manages, projectId, nonce]);
 
   const reload = useCallback(() => setNonce((n) => n + 1), []);
 
@@ -562,6 +788,7 @@ function SettingsView({
   self,
   memberCount,
   workspace,
+  projects,
   providers,
   onOpenTeam,
   onSignOut,
@@ -569,6 +796,7 @@ function SettingsView({
   self: ProjectMember;
   memberCount: number;
   workspace: WorkspaceHandle;
+  projects: ProjectsModel;
   providers: ReturnType<typeof useProviderLayer>;
   onOpenTeam: () => void;
   onSignOut: () => void;
@@ -580,12 +808,14 @@ function SettingsView({
       <div className={styles.settingsColumn}>
         <h1 className={styles.settingsTitle}>Настройки</h1>
         <p className={styles.settingsLead}>
-          Эта страница ещё не нарисована — здесь только то, что переехало из титлбара, папка проекта
+          Эта страница ещё не нарисована — здесь только то, что переехало из титлбара, проект, папка
           и провайдеры.
         </p>
 
+        <ProjectSection projects={projects} workspace={workspace} />
+
         <section className={styles.block}>
-          <h2 className={styles.blockTitle}>Проект</h2>
+          <h2 className={styles.blockTitle}>Папка на этой машине</h2>
           <div className={styles.row}>
             <span className={styles.rowLabel}>
               {workspace.workspace
@@ -601,6 +831,11 @@ function SettingsView({
               Сменить
             </button>
           </div>
+          <p className={styles.blockNote}>
+            Проект — общий для команды, папка — твоя копия на этом компьютере. Связать их
+            по-настоящему сможет только репозиторий на хабе, а его ещё нет: пока это две отдельные
+            вещи, и приложение не делает вид, что они одна.
+          </p>
         </section>
 
         <section className={styles.block}>
@@ -633,6 +868,9 @@ function SettingsView({
           <ProviderSetup
             providers={providers.providers}
             state={providers.state}
+            {...(providers.keysPersisted === undefined
+              ? {}
+              : { keysPersisted: providers.keysPersisted })}
             busyProviderId={providers.busyProviderId}
             onModeChange={providers.setMode}
             onKeySubmit={providers.submitKey}

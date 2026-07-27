@@ -14,11 +14,19 @@
  *  3. **`peek` answers the same thing to every dead code.** Expired, revoked, exhausted and
  *     never-existed are one answer, or the endpoint becomes an oracle that tells an
  *     unauthenticated guesser when a guess was *nearly* right.
+ *  4. **An invitation may carry a project, and then admission to both happens at once.**
+ *     `invite.project_id` is the project the code leads into; taking the seat, writing the
+ *     ledger row and putting the person into that project are one transaction, so nobody
+ *     ends up on the hub having been promised a project they are not in. The column is
+ *     nullable and stays null when the inviter has no project or did not say which one —
+ *     an invitation without a project is a seat on the hub, exactly as before.
  *
  * Dependency direction: this module imports nothing from `auth.js` (`auth.js` imports
  * `claimInvite` from here, and a cycle between the two would be a trap for whoever edits
  * them next). The consequence is that the email grammar is not owned here — the caller
- * passes an address already normalised by `auth.normalizeEmail`.
+ * passes an address already normalised by `auth.normalizeEmail`. The same applies to the
+ * project: `projects.js` sits above `auth.js`, so which project an invitation may point at
+ * is decided by a function the caller lends to `createInvite`, not by an import.
  *
  * The hub stays a coordination plane: an invitation grants a seat in the team, never access
  * to anyone's machine, files or provider keys.
@@ -280,6 +288,11 @@ export function publicInvite(row, options = {}, now = Date.now()) {
     channel: row.email ? 'email' : 'code',
     email: row.email ?? null,
     role: row.role,
+    // The id, never the name. This list is readable by every signed-in member, and a project
+    // name is exactly what `GET /v1/projects` refuses to show somebody who is not in the
+    // project. The id grants nothing on its own: every project endpoint answers 404 to a
+    // caller who is not a member, so it cannot be turned into an oracle either.
+    projectId: row.project_id ?? null,
     status: inviteStatus(row, now),
     createdBy: row.created_by,
     createdAt: Number(row.created_at),
@@ -305,10 +318,14 @@ const SELECT_WITH_LEDGER =
  *
  * @param {DatabaseSync} db
  * @param {MemberRow} actor session owner; must be owner or maintainer
- * @param {{ role?: unknown, email?: unknown, lifetime?: unknown, seats?: unknown }} input
- * @param {{ joinBaseUrl?: string, normalizeEmail?: (raw: unknown) => string }} [options]
- *   `normalizeEmail` is handed in rather than imported: the email grammar belongs to
- *   `auth.js`, which depends on this module, and reaching back would make a cycle.
+ * @param {{ role?: unknown, email?: unknown, lifetime?: unknown, seats?: unknown, projectId?: unknown }} input
+ * @param {{ joinBaseUrl?: string, normalizeEmail?: (raw: unknown) => string,
+ *           resolveProject?: (raw: unknown) => string|null }} [options]
+ *   `normalizeEmail` and `resolveProject` are handed in rather than imported: the email
+ *   grammar belongs to `auth.js` and the project rules to `projects.js`, both of which sit
+ *   above this module, and reaching back would make a cycle. `resolveProject` returns the
+ *   project the invitation leads into, or null; it is called only after the caller has been
+ *   found allowed to invite at all.
  * @param {number} [now]
  * @returns {ReturnType<typeof publicInvite>}
  */
@@ -353,9 +370,25 @@ export function createInvite(db, actor, input, options = {}, now = Date.now()) {
   const expiresAt = ttl == null ? null : now + ttl;
   const maxUses = INVITE_SEAT_COUNT[/** @type {keyof typeof INVITE_SEAT_COUNT} */ (seatsKey)];
 
+  // A project was asked for and nobody can decide whether it is real: that is a wiring mistake in
+  // this process, and the only two ways out of it are both worse than throwing. Answering the
+  // caller's `projectId` unresolved would write a project reference nothing authorised; dropping it
+  // to null — what this line did before the guard — hands back an ordinary hub invitation that
+  // looks exactly like the one that was asked for, and the people it admits quietly land nowhere
+  // near the project somebody meant to invite them into. Not an InviteError: no request the router
+  // can build reaches this, because `index.js` always injects the resolver.
+  if (input?.projectId != null && input.projectId !== '' && !options.resolveProject) {
+    throw new TypeError('createInvite: projectId was given without resolveProject to check it.');
+  }
+
+  // After the manager check, so a caller who may not invite anybody cannot use the answer to
+  // find out which project ids are real. Null means "this code leads onto the hub only" —
+  // see rule 4 in the header; no project is ever picked for somebody who has none.
+  const projectId = options.resolveProject ? options.resolveProject(input?.projectId) : null;
+
   const insert = db.prepare(
-    `INSERT INTO invite(code, role, email, created_by, created_at, expires_at, max_uses, used_count, revoked_at)
-     VALUES(?, ?, ?, ?, ?, ?, ?, 0, NULL)`,
+    `INSERT INTO invite(code, role, email, created_by, created_at, expires_at, max_uses, used_count, revoked_at, project_id)
+     VALUES(?, ?, ?, ?, ?, ?, ?, 0, NULL, ?)`,
   );
 
   // A collision is ~2^-59 per attempt; retrying twice costs nothing and turns "astronomically
@@ -364,7 +397,7 @@ export function createInvite(db, actor, input, options = {}, now = Date.now()) {
   for (let attempt = 0; attempt < 3; attempt += 1) {
     code = generateInviteCode();
     try {
-      insert.run(code, role, email, actor.id, now, expiresAt, maxUses);
+      insert.run(code, role, email, actor.id, now, expiresAt, maxUses, projectId);
       break;
     } catch (err) {
       const collided = err instanceof Error && /UNIQUE constraint failed: invite\.code/.test(err.message);
@@ -438,19 +471,27 @@ export function revokeInvite(db, actor, rawCode, options = {}, now = Date.now())
 /**
  * The look-before-you-leap answer for someone who has a code and no account yet.
  *
- * Deliberately minimal: whether it works, and what it would make them. Nothing about who
- * invited them, nothing about who is already in the team — this is the one endpoint that
- * takes a guessable secret without a session, and everything it says is said to whoever
- * guessed. Every unusable code — expired, revoked, exhausted, malformed, never existed —
- * produces the identical body, so the endpoint cannot be used to sort guesses.
+ * Deliberately minimal: whether it works, what it would make them, and — when the invitation
+ * carries one — the name of the project it leads into. Nothing about who invited them,
+ * nothing about who is already in the team. This is the one endpoint that takes a guessable
+ * secret without a session, and everything it says is said to whoever guessed. Every unusable
+ * code — expired, revoked, exhausted, malformed, never existed — produces the identical body,
+ * so the endpoint cannot be used to sort guesses.
+ *
+ * The project name is not a hole in that. It is read from the invitation's own row, so the
+ * only name a guesser can reach is the one belonging to a live code they already hold — which
+ * is a name its author disclosed by handing the code out. There is no parameter here but the
+ * code, so no project can be asked about directly and the list of projects on a hub cannot be
+ * walked; a wrong guess still answers `{ valid: false }` and costs from the same bucket as a
+ * password attempt. An invitation with no project simply has no `projectName` field, and so
+ * does one whose project name is somehow empty — the field is never a placeholder.
  *
  * @param {DatabaseSync} db
  * @param {unknown} rawCode
- * @param {{ projectName?: string|null }} [options]
  * @param {number} [now]
  * @returns {{ valid: boolean, role?: string, projectName?: string }}
  */
-export function peekInvite(db, rawCode, options = {}, now = Date.now()) {
+export function peekInvite(db, rawCode, now = Date.now()) {
   /** @type {string} */
   let code;
   try {
@@ -459,12 +500,22 @@ export function peekInvite(db, rawCode, options = {}, now = Date.now()) {
     return { valid: false };
   }
 
-  const row = /** @type {InviteRow|undefined} */ (db.prepare('SELECT * FROM invite WHERE code = ?').get(code));
+  const row = /** @type {(InviteRow & { project_name?: string|null })|undefined} */ (
+    db
+      .prepare(
+        `SELECT i.*, p.name AS project_name
+           FROM invite i LEFT JOIN project p ON p.id = i.project_id
+          WHERE i.code = ?`,
+      )
+      .get(code)
+  );
   if (!row || !isLive(row, now)) return { valid: false };
 
   /** @type {{ valid: boolean, role?: string, projectName?: string }} */
   const answer = { valid: true, role: row.role };
-  if (options.projectName) answer.projectName = options.projectName;
+  if (typeof row.project_name === 'string' && row.project_name.length > 0) {
+    answer.projectName = row.project_name;
+  }
   return answer;
 }
 
@@ -518,6 +569,41 @@ export function recordInviteUse(db, code, memberId, now = Date.now()) {
 }
 
 /**
+ * Put the redeemer into the project the invitation leads into, with the role the invitation
+ * promised. **Must be called inside the same transaction as `claimInvite`** — that is the
+ * whole point: a person who was promised a project must not end up on the hub without it,
+ * and a failure here must take the seat back with it.
+ *
+ * Somebody who is already in that project keeps the role they already have. This function
+ * admits, it does not promote: `POST /v1/projects/members` refuses to change a role with a
+ * 409 rather than pretend, and a code redeemed by accident must not be a way around that.
+ * The hub role is a different matter and is raised by `redeemInvite` as before.
+ *
+ * The write is here rather than in `projects.js` for the reason given in the header:
+ * `projects.js` sits above this module and importing it back would make a cycle. This is a
+ * two-column insert into a table whose invariants are in its schema, not a second copy of
+ * that module's rules.
+ *
+ * @param {DatabaseSync} db
+ * @param {string} projectId
+ * @param {string} memberId
+ * @param {string} role the invitation's role; never 'owner' — invitations cannot offer it
+ * @param {number} [now]
+ * @returns {boolean} whether a row was written
+ */
+export function joinInviteProject(db, projectId, memberId, role, now = Date.now()) {
+  const existing = db
+    .prepare('SELECT 1 FROM project_member WHERE project_id = ? AND member_id = ?')
+    .get(projectId, memberId);
+  if (existing) return false;
+
+  db.prepare(
+    'INSERT INTO project_member(project_id, member_id, role, joined_at) VALUES(?, ?, ?, ?)',
+  ).run(projectId, memberId, role, now);
+  return true;
+}
+
+/**
  * Redeem a code with an account that already exists.
  *
  * Idempotent by the shape of the table, not by a check that could be forgotten:
@@ -527,6 +613,10 @@ export function recordInviteUse(db, code, memberId, now = Date.now()) {
  * A redemption may raise the member's role and never lowers it. Lowering would turn a code
  * into a weapon: hand a maintainer an `observer` invitation and watch them demote
  * themselves. The owner is never touched at all.
+ *
+ * If the invitation carries a project, the same transaction puts the redeemer into it with
+ * the role the invitation promised — unless they are already there, in which case their
+ * existing project role stands (see `joinInviteProject`).
  *
  * @param {DatabaseSync} db
  * @param {MemberRow} member
@@ -552,6 +642,13 @@ export function redeemInvite(db, member, rawCode, options = {}, now = Date.now()
     } else {
       const claimed = claimInvite(db, code, now);
       recordInviteUse(db, code, member.id, now);
+
+      // Both or neither: the seat, the ledger row, the project row and the role live in one
+      // transaction, so there is no state where somebody spent a seat on a project they are
+      // not in.
+      if (claimed.project_id != null) {
+        joinInviteProject(db, claimed.project_id, member.id, claimed.role, now);
+      }
 
       const current = ROLE_RANK[member.role] ?? 0;
       const offered = ROLE_RANK[claimed.role] ?? 0;

@@ -109,3 +109,45 @@
   outline: none;
   box-shadow: var(--pc-focus-ring);
 }
+
+/*
+ * A sentence under a block, for the thing the rows cannot say.
+ *
+ * Every one of these in this file exists because a control would otherwise be ambiguous — «проект»
+ * and «папка» are two different things with one word, and a person who does not know that will
+ * eventually be surprised by which one an invitation joins.
+ */
+.blockNote {
+  margin: var(--pc-space-4) 0 0;
+  font: var(--pc-type-note);
+  color: var(--pc-text-3);
+}
+
+/** A fact where a button would otherwise be. Not a control, and it must not look like one. */
+.rowFact {
+  margin-left: auto;
+  flex: none;
+  padding: var(--pc-space-4) var(--pc-space-8);
+  font: var(--pc-type-label);
+  color: var(--pc-text-3);
+}
+
+.rowInput {
+  flex: 1 1 auto;
+  min-width: 0;
+  padding: var(--pc-space-6) var(--pc-space-8);
+  background: var(--pc-bg-input);
+  border: var(--pc-border-width) solid var(--pc-border);
+  border-radius: var(--pc-radius-sm);
+  font: var(--pc-type-body);
+  color: var(--pc-text-1);
+}
+
+.rowInput::placeholder {
+  color: var(--pc-text-4);
+}
+
+.rowInput:focus-visible {
+  outline: none;
+  box-shadow: var(--pc-focus-ring);
+}

@@ -24,14 +24,56 @@ export interface FileTree {
   state: FileTreeState;
   /** Which row the panel highlights. A directory path or a file path. */
   selectedId: string | undefined;
+  /**
+   * How many entries of a directory were **left out** of its listing, per directory.
+   *
+   * Not a count of what is in the panel — the opposite of it: the number that did not fit under the
+   * main process's ceiling and is therefore invisible. The key is the path `tree()` takes (the root
+   * is the empty string, which is what `pathOfRow` returns for the root row). A directory that is
+   * absent from the map had nothing left out, so `omittedInDir.get(path) ?? 0` is the whole read.
+   *
+   * The panel has to state this. A listing cut short looks exactly like a complete one, and somebody
+   * who cannot find a file concludes it is not there.
+   */
+  omittedInDir: ReadonlyMap<string, number>;
+  /**
+   * Those numbers added up over every directory read so far, expanded or not.
+   *
+   * Again, this is what is *missing*, not what is shown: `0` means everything read is complete.
+   */
+  omittedInTreeTotal: number;
+  /**
+   * Directories whose listing could not be read, and the main process's sentence about why.
+   *
+   * This exists because the alternative is the panel's worst lie. Expanding a directory used to be
+   * unconditional: the row opened, the read failed, nothing came back, and an open directory with no
+   * children under it is *exactly* how this panel draws a directory that is genuinely empty. A
+   * permission wall, an unplugged drive and «здесь ничего нет» became the same picture, and the only
+   * one of the three the person could act on was the one that was not true.
+   *
+   * So a failed read now leaves the row shut and lands here instead. Shut is honest — it says
+   * nothing about the contents — but it is still silent, and silence is not the finished answer:
+   * the panel has to put this sentence next to the row. Absent from the map ⇒ nothing failed.
+   */
+  unreadableDirs: ReadonlyMap<string, string>;
   /** Expand or collapse a directory, loading its contents the first time. */
   toggle: (path: string) => void;
   select: (id: string) => void;
   reload: () => void;
 }
 
-/** Entries of one directory, once read. Absent from the map ⇒ not read yet. */
-type Listing = readonly WorkspaceEntry[];
+/**
+ * One directory as it was read: its entries and how many more there were.
+ *
+ * The pair is kept together rather than split into two maps because they are one answer — a listing
+ * whose `omitted` went missing is a listing that quietly claims to be whole. Absent from the map ⇒
+ * not read yet.
+ */
+interface Listing {
+  entries: readonly WorkspaceEntry[];
+  /** Entries this directory has that are not in `entries`. `0` means the listing is complete. */
+  omitted: number;
+}
 
 /**
  * The root's own row is keyed by the empty string, because that is what `tree()` takes for the root
@@ -41,6 +83,7 @@ const ROOT = '';
 
 export function useFileTree(workspace: WorkspaceInfo | null): FileTree {
   const [listings, setListings] = useState<ReadonlyMap<string, Listing>>(new Map());
+  const [unreadableDirs, setUnreadableDirs] = useState<ReadonlyMap<string, string>>(new Map());
   const [expanded, setExpanded] = useState<ReadonlySet<string>>(() => new Set([ROOT]));
   const [selectedId, setSelectedId] = useState<string | undefined>(undefined);
   const [state, setState] = useState<FileTreeState>('loading');
@@ -52,6 +95,7 @@ export function useFileTree(workspace: WorkspaceInfo | null): FileTree {
   // project's files under the new project's name for as long as the first read takes.
   useEffect(() => {
     setListings(new Map());
+    setUnreadableDirs(new Map());
     setExpanded(new Set([ROOT]));
     setSelectedId(undefined);
   }, [root]);
@@ -74,8 +118,11 @@ export function useFileTree(workspace: WorkspaceInfo | null): FileTree {
           setState('error');
           return;
         }
-        setListings(new Map([[ROOT, result.value]]));
-        setState(result.value.length > 0 ? 'ready' : 'empty');
+        const page = result.value;
+        setListings(new Map([[ROOT, { entries: page.items, omitted: page.omitted }]]));
+        // `omitted > 0` with nothing shown is not «пусто»: the folder has entries, this answer just
+        // has none of them, and the panel's own empty state would deny that.
+        setState(page.items.length > 0 || page.omitted > 0 ? 'ready' : 'empty');
       })
       .catch(() => {
         if (!cancelled) setState('error');
@@ -85,6 +132,16 @@ export function useFileTree(workspace: WorkspaceInfo | null): FileTree {
       cancelled = true;
     };
   }, [root, nonce]);
+
+  /** Undo an optimistic expansion. Written as its own callback so the failure paths cannot drift. */
+  const collapse = useCallback((path: string) => {
+    setExpanded((current) => {
+      if (!current.has(path)) return current;
+      const next = new Set(current);
+      next.delete(path);
+      return next;
+    });
+  }, []);
 
   const toggle = useCallback(
     (path: string) => {
@@ -100,16 +157,47 @@ export function useFileTree(workspace: WorkspaceInfo | null): FileTree {
       // every click.
       if (listings.has(path)) return;
       const bridge = window.partyco?.workspace;
-      if (!bridge) return;
+      if (!bridge) {
+        collapse(path);
+        setUnreadableDirs((current) =>
+          new Map(current).set(path, 'Файлы читает основной процесс, а он сейчас недоступен.'),
+        );
+        return;
+      }
+      // A retry starts from «not known to be broken»: leaving the old sentence up while the read is
+      // in flight would keep accusing a folder that may well open this time.
+      setUnreadableDirs((current) => {
+        if (!current.has(path)) return current;
+        const next = new Map(current);
+        next.delete(path);
+        return next;
+      });
       void bridge
         .tree(path)
         .then((result) => {
-          if (!result.ok) return;
-          setListings((current) => new Map(current).set(path, result.value));
+          if (!result.ok) {
+            // Shut, with the reason kept. Open-and-empty would be this panel's drawing of «пусто»,
+            // and a folder nobody could read is not a folder anybody knows to be empty.
+            collapse(path);
+            setUnreadableDirs((current) => new Map(current).set(path, result.error));
+            return;
+          }
+          const page = result.value;
+          setListings((current) =>
+            new Map(current).set(path, { entries: page.items, omitted: page.omitted }),
+          );
         })
-        .catch(() => undefined);
+        .catch((cause: unknown) => {
+          collapse(path);
+          setUnreadableDirs((current) =>
+            new Map(current).set(
+              path,
+              `Не удалось прочитать каталог: ${cause instanceof Error ? cause.message : String(cause)}`,
+            ),
+          );
+        });
     },
-    [listings],
+    [collapse, listings],
   );
 
   const nodes = useMemo(
@@ -117,10 +205,29 @@ export function useFileTree(workspace: WorkspaceInfo | null): FileTree {
     [workspace, listings, expanded],
   );
 
+  // Only the directories that actually lost something. A zero in the map would be indistinguishable
+  // from a directory nobody has opened, and both would have to be read as «ничего не потеряно».
+  const omittedInDir = useMemo<ReadonlyMap<string, number>>(() => {
+    const cut = new Map<string, number>();
+    for (const [dir, listing] of listings) {
+      if (listing.omitted > 0) cut.set(dir, listing.omitted);
+    }
+    return cut;
+  }, [listings]);
+
+  const omittedInTreeTotal = useMemo(() => {
+    let total = 0;
+    for (const count of omittedInDir.values()) total += count;
+    return total;
+  }, [omittedInDir]);
+
   return {
     nodes,
     state,
     selectedId,
+    omittedInDir,
+    omittedInTreeTotal,
+    unreadableDirs,
     toggle,
     select: setSelectedId,
     reload: useCallback(() => setNonce((n) => n + 1), []),
@@ -152,7 +259,7 @@ function buildRows(
     });
     if (!open) return;
 
-    const entries = listings.get(dir) ?? [];
+    const entries = listings.get(dir)?.entries ?? [];
     for (const entry of entries) {
       if (entry.kind === 'file') {
         rows.push({ id: entry.path, label: entry.name, kind: 'file', state: 'free' });

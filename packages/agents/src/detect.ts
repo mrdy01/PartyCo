@@ -19,10 +19,12 @@
  *    building the environment two different ways in two places is exactly how the second one ends
  *    up wrong; there is one builder and this file uses it.
  *
- * The PATH walk is ours rather than `which` / `where` because both of those are shell-resolved
- * programs, and this package never starts a shell — not for detection, not for running. The walk is
- * also stricter than the OS: it ignores relative PATH entries and never looks in the current
- * directory, both of which resolve against wherever the daemon happens to have been started.
+ * The PATH walk is ours rather than `which` / `where` because those answer with whatever the caller's
+ * environment happens to say, and because the walk is stricter than the OS: it ignores relative PATH
+ * entries and never looks in the current directory, both of which resolve against wherever the
+ * daemon happens to have been started. Nothing here is passed to a shell to parse; when a `.cmd`
+ * wrapper has to be started, `engine.ts` builds the interpreter's argument vector itself and this
+ * file reuses that decision rather than making a second one.
  */
 
 import { spawn } from 'node:child_process';
@@ -32,6 +34,7 @@ import path from 'node:path';
 
 import { assertNoLeakedCredentials, buildAgentEnv } from './env.ts';
 import { PROVIDERS, checkAllowed, findProvider } from './policy.ts';
+import { executableKind, planSpawn } from './spawn.ts';
 
 export interface CliDetection {
   providerId: string;
@@ -63,9 +66,10 @@ export interface CliDetection {
    * Почему детект неполный, человеческим языком.
    *
    * Set when `installed` is false, and also in the one case where the binary was found but cannot be
-   * started: a Windows script shim (`.cmd` / `.bat` / `.ps1`), which no process can launch without a
-   * shell. A member told only "installed" would then watch the run fail with "not found in PATH",
-   * which is both wrong and unactionable.
+   * started: a PowerShell script (`.ps1`), which needs an interpreter PartyCo does not use. A member
+   * told only "installed" would then watch the run fail with "not found in PATH", which is both
+   * wrong and unactionable. The npm `.cmd` / `.bat` wrappers used to be in this category and no
+   * longer are — `engine.ts` starts them, because the prompt no longer travels in argv.
    */
   hint?: string;
 }
@@ -110,14 +114,12 @@ const DEFAULT_PATHEXT = '.COM;.EXE;.BAT;.CMD';
  *
  * `.exe` and `.com` lead because on Windows they are the only extensions a process can start
  * directly: Node refuses `.cmd` and `.bat` outright unless a shell is opted into (EINVAL, the fix
- * for CVE-2024-27980) and the OS refuses `.ps1` (EFTYPE). We still search for the shims — finding
- * `claude.cmd` proves Claude Code is installed, which is what the member asked — but a shim can only
- * be reported, never run. Everything not listed sorts after these, and `.ps1` sorts last.
+ * for CVE-2024-27980) and the OS refuses `.ps1` (EFTYPE). The npm wrappers rank next because
+ * `engine.ts` can now start them through `cmd.exe` — fewer moving parts is still better, so a real
+ * executable beside a wrapper still wins. Everything not listed sorts after these, and `.ps1` sorts
+ * last: it is the one extension nothing here will run.
  */
 const EXT_PREFERENCE: readonly string[] = ['.exe', '.com', '.cmd', '.bat'];
-
-/** Extensions a child process can actually be started from, with no shell involved. */
-const DIRECTLY_SPAWNABLE: ReadonlySet<string> = new Set(['.exe', '.com']);
 
 function extRank(ext: string): number {
   const index = EXT_PREFERENCE.indexOf(ext);
@@ -210,9 +212,22 @@ async function findOnPath(
   return null;
 }
 
-function isDirectlySpawnable(filePath: string, platform: NodeJS.Platform): boolean {
-  if (platform !== 'win32') return true;
-  return DIRECTLY_SPAWNABLE.has(path.win32.extname(filePath).toLowerCase());
+/**
+ * The PATH walk on its own, for the one caller that needs a path rather than a description.
+ *
+ * `engine.ts` uses it when it was handed a bare binary name: on Windows an npm wrapper cannot be
+ * found that way at all, and the file extension is what decides how the process must be started.
+ * Exported from here rather than reimplemented there so that "which file will run" has exactly one
+ * answer — a run that started a different file than the providers screen reported would be a bug
+ * nobody could see.
+ */
+export async function resolveExecutable(
+  binary: string,
+  env: Record<string, string>,
+  platform: NodeJS.Platform,
+  accessFn?: AccessFn,
+): Promise<string | null> {
+  return await findOnPath(binary, env, platform, accessFn ?? defaultAccessFn(platform));
 }
 
 /** First line of output with colour codes and control characters removed, or null if there is none. */
@@ -234,22 +249,42 @@ function firstUsefulLine(text: string): string | null {
  * Every failure mode returns null rather than throwing. A version is a nicety — the member wants to
  * know whether the thing is there, and an unreadable version must not turn a working installation
  * into a reported-missing one. Windows in particular fails *synchronously* out of `spawn` for files
- * it will not start without a shell, which is why the call is wrapped rather than only listened to.
+ * it will not start directly, which is why the call is wrapped rather than only listened to.
+ *
+ * How to start it is decided by `planSpawn`, the same function the real run uses, so a wrapper that
+ * detection could read a version from is by construction a wrapper the run can start. Deciding it
+ * twice, in two files, is how the two answers drift apart. `--version` is the whole argument vector
+ * and it is this package's own flag, so the interpreter check passes trivially — there is no
+ * untrusted text in a version probe at all.
  */
+const VERSION_ARGS: readonly string[] = ['--version'];
+
 async function probeVersion(
   command: string,
   env: Record<string, string>,
   spawnFn: typeof spawn,
   timeoutMs: number,
+  platform: NodeJS.Platform,
 ): Promise<string | null> {
+  const planned = planSpawn({
+    command,
+    args: VERSION_ARGS,
+    platform,
+    promptInArgv: false,
+    ownFlags: VERSION_ARGS,
+    systemRoot: env['SystemRoot'],
+  });
+  if (!planned.ok) return null;
+
   let child: ReturnType<typeof spawn>;
   try {
-    child = spawnFn(command, ['--version'], {
+    child = spawnFn(planned.plan.command, [...planned.plan.args], {
       env,
       // No shell here either. Detection has no untrusted input in its argv, but a second spawn site
       // with different rules is how the first rule stops being true.
       shell: false,
       windowsHide: true,
+      windowsVerbatimArguments: planned.plan.windowsVerbatimArguments,
       stdio: ['ignore', 'pipe', 'pipe'],
     });
   } catch {
@@ -364,7 +399,7 @@ export async function detectCli(
     );
   }
 
-  if (!isDirectlySpawnable(found, platform)) {
+  if (executableKind(found, platform) === 'unsupported') {
     return {
       providerId,
       binary,
@@ -372,13 +407,13 @@ export async function detectCli(
       path: found,
       auth: 'unknown',
       hint:
-        `«${binary}» найден (${found}), но это скрипт-обёртка — запустить её можно только через ` +
-        `оболочку, а PartyCo не запускает оболочку никогда: через неё в аргументы попадает чужой ` +
-        `текст. Поставь нативную сборку ${provider.label} CLI, чтобы в PATH оказался .exe.`,
+        `«${binary}» найден (${found}), но это сценарий PowerShell — его запуск требует отдельного ` +
+        `интерпретатора, которым PartyCo не пользуется. Поставь ${provider.label} CLI нативной ` +
+        `сборкой или через npm: в обоих случаях в PATH окажется файл, который PartyCo запустит.`,
     };
   }
 
-  const version = await probeVersion(found, childEnv, spawnFn, timeoutMs);
+  const version = await probeVersion(found, childEnv, spawnFn, timeoutMs, platform);
 
   return {
     providerId,

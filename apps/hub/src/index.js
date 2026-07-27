@@ -12,7 +12,11 @@
  * Run:      node apps/hub/src/index.js
  * Env:      PARTYCOD_DB, PARTYCOD_PORT, PARTYCOD_HOST, PARTYCOD_ORIGINS,
  *           PARTYCOD_TRUST_PROXY, PARTYCOD_RATE_LIMIT, PARTYCOD_RATE_WINDOW_MS,
- *           PARTYCOD_PUBLIC_URL, PARTYCOD_PROJECT_NAME, PARTYCOD_SMTP_URL
+ *           PARTYCOD_PUBLIC_URL, PARTYCOD_SMTP_URL
+ *
+ * PARTYCOD_PROJECT_NAME is gone. It existed because `GET /v1/invites/peek` had to name a
+ * project before the `project` table did, so one string stood for the whole installation and
+ * nothing could check it. The name now comes from the project the invitation is written for.
  */
 
 import fs from 'node:fs';
@@ -37,7 +41,13 @@ import {
   redeemInvite,
   canManageInvites,
 } from './invites.js';
-import { createProject, listProjects, listProjectMembers, addProjectMember } from './projects.js';
+import {
+  createProject,
+  listProjects,
+  listProjectMembers,
+  addProjectMember,
+  resolveInviteProject,
+} from './projects.js';
 import { createHttpServer, parseOrigins, createRateLimiter, HttpError } from './http.js';
 
 /** Wire protocol version. Bumped when the shape of these responses changes incompatibly. */
@@ -88,7 +98,6 @@ function requireMember(db, ctx) {
  * @param {boolean} [options.trustProxy]
  * @param {{ limit?: number, windowMs?: number }} [options.rateLimit]
  * @param {string|null} [options.publicUrl] base of the join link handed to invitees
- * @param {string|null} [options.projectName] shown to an invitee before they have an account
  * @param {string|null} [options.smtpUrl] presence alone; the hub sends no mail yet
  * @param {(msg: string) => void} [options.log]
  * @returns {Promise<{ server: import('node:http').Server, db: import('node:sqlite').DatabaseSync, port: number, host: string, url: string, close: () => Promise<void> }>}
@@ -102,7 +111,6 @@ export async function startHub(options = {}) {
     trustProxy = false,
     rateLimit = {},
     publicUrl = null,
-    projectName = null,
     smtpUrl = null,
     log = () => {},
   } = options;
@@ -191,7 +199,14 @@ export async function startHub(options = {}) {
       const input = await ctx.body();
       // The email grammar has exactly one owner — auth.js — and is lent to invites.js here
       // rather than imported there, so the two modules stay a straight line and not a cycle.
-      const invite = createInvite(db, actor, input, { ...inviteOptions(), normalizeEmail });
+      // The project rules travel the same way, and `createInvite` calls this only after it
+      // has refused everyone who may not invite: otherwise the answer would tell an observer
+      // whether a project id is real before telling them they may not invite anybody.
+      const invite = createInvite(db, actor, input, {
+        ...inviteOptions(),
+        normalizeEmail,
+        resolveProject: (rawProjectId) => resolveInviteProject(db, actor, rawProjectId),
+      });
 
       // Never claim a letter went out. No SMTP client ships in this service — that would be
       // a dependency — so `mailSent` is false in every branch that exists today, and
@@ -236,9 +251,11 @@ export async function startHub(options = {}) {
     // The only unauthenticated endpoint that takes a guessable secret, so it shares the
     // password-guessing budget with /register and /login. It answers identically for every
     // code that will not work, which is what keeps it from sorting an attacker's guesses.
+    // The project name it may return is the one on that invitation's own row — a fact its
+    // author disclosed by handing the code out — and never a name from anywhere else.
     'GET /v1/invites/peek': (ctx) => {
       enforceRateLimit(ctx);
-      return { status: 200, body: peekInvite(db, ctx.url.searchParams.get('code'), { projectName }) };
+      return { status: 200, body: peekInvite(db, ctx.url.searchParams.get('code')) };
     },
 
     'GET /v1/projects': (ctx) => ({
@@ -354,7 +371,6 @@ async function main() {
   const origins = parseOrigins(process.env.PARTYCOD_ORIGINS);
   const trustProxy = process.env.PARTYCOD_TRUST_PROXY === '1';
   const publicUrl = process.env.PARTYCOD_PUBLIC_URL || null;
-  const projectName = process.env.PARTYCOD_PROJECT_NAME || null;
   // Presence only. The hub sends no mail; this flag makes the API say "an operator has
   // configured a route" instead of pretending a letter went out.
   const smtpUrl = process.env.PARTYCOD_SMTP_URL || null;
@@ -366,7 +382,6 @@ async function main() {
     origins,
     trustProxy,
     publicUrl,
-    projectName,
     smtpUrl,
     rateLimit: {
       limit: intFromEnv(process.env.PARTYCOD_RATE_LIMIT, 10),

@@ -22,7 +22,18 @@ files:
   - out/**
   - package.json
 
-# Ресурсы лежат внутри asar: приложение обязано работать офлайн и ничего не подтягивать со стороны.
+# Лицензии шрифтов. Обе семьи под SIL OFL 1.1, и лицензия обязана ехать вместе со шрифтом — а сами
+# .woff2 попадают в сборку только как ресурсы Vite (частью в assets/, мелкие подмножества — инлайном
+# в data:), про .txt рядом с ними он ничего не знает и не положит. Поэтому они кладутся явно, рядом
+# с приложением, а не внутрь asar: требование лицензии — чтобы текст можно было найти и прочитать.
+extraResources:
+  - from: ../../packages/tokens/assets/fonts/OFL-IBMPlexSans.txt
+    to: licenses/OFL-IBMPlexSans.txt
+  - from: ../../packages/tokens/assets/fonts/OFL-JetBrainsMono.txt
+    to: licenses/OFL-JetBrainsMono.txt
+
+# Код и ресурсы лежат внутри asar: приложение обязано работать офлайн и ничего не подтягивать со
+# стороны.
 asar: true
 
 win:

@@ -12,7 +12,7 @@
  */
 
 import { initialsOf, type InviteRecord, type ProjectMember } from '@partyco/ui';
-import type { HubInvite, HubMember } from './hub.ts';
+import type { HubInvite, HubMember, HubProjectMember } from './hub.ts';
 
 /**
  * A member as the shell needs them.
@@ -28,9 +28,30 @@ export function toProjectMember(member: HubMember, selfId?: string): ProjectMemb
     initials: initialsOf({ name: member.displayName }),
     colorSlug: member.colorSlug,
     handle: member.handle,
+    // The hub role. Correct for the hub's own roster and **wrong** for a project's — see
+    // `toProjectRosterMember`, which is what a project panel must use.
     role: member.role,
     ...(member.id === selfId ? { isSelf: true } : {}),
   };
+}
+
+/**
+ * The same person, as a **project** panel must show them.
+ *
+ * There are two roles and one word for them. `HubMember.role` says what somebody may do on the hub —
+ * hand out seats, see other people's addresses. `HubProjectMember.projectRole` says what they may do
+ * in one project. They are frequently different, and the panel that shows the wrong one is not
+ * slightly off: it tells an observer they are a maintainer, which is a claim about permission.
+ *
+ * Two functions rather than a flag, because a caller that has a `HubProjectMember` can only reach
+ * for this one, and a caller that has a plain `HubMember` cannot reach for it at all. The type
+ * system makes the choice instead of the reader remembering it.
+ */
+export function toProjectRosterMember(
+  member: HubProjectMember,
+  selfId?: string,
+): ProjectMember {
+  return { ...toProjectMember(member, selfId), role: member.projectRole };
 }
 
 /** Russian plural forms: 1 час, 2 часа, 5 часов. */

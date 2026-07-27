@@ -53,6 +53,9 @@ import { DatabaseSync } from 'node:sqlite';
  * @property {number|null} max_uses null = as many people as come
  * @property {number} used_count
  * @property {number|null} revoked_at
+ * @property {string|null} project_id null = the invitation leads onto the hub only. Added by
+ *   migration 4; every invitation written before it has NULL here and cannot be back-filled,
+ *   because nothing recorded which project it was meant for.
  */
 
 /**
@@ -221,6 +224,32 @@ const MIGRATIONS = [
       db.exec('CREATE INDEX IF NOT EXISTS ix_project_member_member ON project_member(member_id);');
       // The project list is ordered by creation.
       db.exec('CREATE INDEX IF NOT EXISTS ix_project_created ON project(created_at);');
+    },
+  },
+  {
+    version: 4,
+    name: 'invite-project',
+    up(db) {
+      // Which project an invitation leads into. NULLABLE on purpose, and in three different
+      // situations at once: every invitation written before this step (nothing recorded what
+      // it was for, and inventing an answer now would be worse than saying nothing), an
+      // invitation from somebody who has no project yet, and one whose author never said
+      // which of their projects they meant. A NOT NULL column would have needed a default,
+      // and a default here is a project the invitee did not agree to join.
+      //
+      // Before this step the name shown to an invitee came from PARTYCOD_PROJECT_NAME — one
+      // string for the whole installation, true only for a hub with exactly one project, and
+      // unverifiable by anything. The table is now the source, so the variable is gone.
+      //
+      // SQLite adds a column with a REFERENCES clause only when its default is NULL, which
+      // is exactly what this column is; the foreign key is enforced from here on.
+      db.exec('ALTER TABLE invite ADD COLUMN project_id TEXT REFERENCES project(id);');
+
+      // "Which invitations lead into this project" — the team panel of one project, and the
+      // question that has to be answered before a project could ever be deleted. Partial,
+      // like the one on `invite.email`: the rows that say NULL are the majority and are never
+      // what this index is asked about.
+      db.exec('CREATE INDEX IF NOT EXISTS ix_invite_project ON invite(project_id) WHERE project_id IS NOT NULL;');
     },
   },
 ];

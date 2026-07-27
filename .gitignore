@@ -10,6 +10,13 @@ build/
 packages/tokens/dist/
 packages/tokens/src/tokens.generated.css
 
+# Third-party webfont binaries + their licences and the range manifest, fetched once by
+# `npm run fonts -w @partyco/tokens`. ~300 KB of .woff2 that git cannot diff and review cannot read;
+# the fetch script pins the versions, so the repository does not need to hold the bytes.
+# The README stays — it is what tells a fresh clone how to get them.
+packages/tokens/assets/fonts/*
+!packages/tokens/assets/fonts/README.md
+
 # Electron build output
 apps/desktop/release/
 

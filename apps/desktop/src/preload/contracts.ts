@@ -92,6 +92,38 @@ export interface TranscriptEntry {
  * Bridges
  * ------------------------------------------------------------------ */
 
+/* ------------------------------------------------------------------ *
+ * Bounded reads
+ * ------------------------------------------------------------------ */
+
+/**
+ * A page of something there may be too much of, and the one fact that makes it readable: whether
+ * anything was left out.
+ *
+ * This type exists because of a real dead end. Both `tree()` and `load()` have to put a ceiling
+ * somewhere — a directory with a hundred thousand entries and a transcript of ten thousand turns
+ * are both real — and every way of doing it without saying so is a lie of a different shape. A
+ * silently truncated list looks exactly like a complete one, so a person concludes their file does
+ * not exist. Refusing outright takes away everything because there was too much of it. Splicing in
+ * a synthetic «здесь обрезано» row invents a record that nothing produced, which in a transcript is
+ * a sentence nobody said.
+ *
+ * So the count travels with the page and the interface states it in words. `omitted` is the number
+ * dropped, not a boolean, because «показаны не все» and «показаны 2000 из 41 300» are different
+ * amounts of help.
+ */
+export interface Page<T> {
+  items: readonly T[];
+  /**
+   * How many real entries are not in `items`. `0` means this is everything.
+   *
+   * For the transcript the omission is at the **start** — the oldest turns — because the end of a
+   * conversation is the part a person came back for. For a directory listing it is the tail of the
+   * display order, which is the only order the panel has.
+   */
+  omitted: number;
+}
+
 export interface WorkspaceBridge {
   /** Open the OS folder picker. Resolves to `null` when the member cancels — not an error. */
   choose(): Promise<IpcResult<WorkspaceInfo | null>>;
@@ -102,15 +134,23 @@ export interface WorkspaceBridge {
   /**
    * The file tree, already filtered and bounded. `dir` is relative to the root; omit for the root.
    * Never returns anything outside the workspace — the main process resolves and checks every path.
+   *
+   * A directory larger than the ceiling comes back as a page with `omitted > 0` rather than as a
+   * failure: a huge folder is still a folder somebody wants to look at.
    */
-  tree(dir?: string): Promise<IpcResult<readonly WorkspaceEntry[]>>;
+  tree(dir?: string): Promise<IpcResult<Page<WorkspaceEntry>>>;
   /** Read one file by workspace-relative path. */
   readFile(path: string): Promise<IpcResult<WorkspaceFile>>;
 }
 
 export interface TranscriptBridge {
-  /** Everything stored for this workspace, oldest first. */
-  load(): Promise<IpcResult<readonly TranscriptEntry[]>>;
+  /**
+   * The stored conversation, oldest first, bounded from the start.
+   *
+   * A very long history returns its most recent turns with `omitted` counting what came before.
+   * Nothing is deleted by reading — `omitted` is about this answer, not about the file.
+   */
+  load(): Promise<IpcResult<Page<TranscriptEntry>>>;
   /** Append one entry. Returns what was stored, including the id the main process assigned. */
   append(entry: Omit<TranscriptEntry, 'id' | 'at'>): Promise<IpcResult<TranscriptEntry>>;
   /** Start a fresh transcript for this workspace. */

@@ -45,6 +45,7 @@ export type {
  * and two identical envelopes under one name in one file would only invite a wrong fix later.
  */
 export type {
+  Page,
   TranscriptBridge,
   TranscriptEntry,
   WorkspaceBridge,

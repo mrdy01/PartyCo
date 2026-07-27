@@ -1,32 +1,76 @@
-# Font assets
+# Шрифты
 
-These files are **not committed** — they are third-party binaries fetched once at setup.
-`packages/tokens/src/fonts.css` expects exactly these filenames in this directory:
+Здесь лежат сами файлы шрифтов. **Они не коммитятся** — это сторонние бинарники, которые
+скачиваются один раз при настройке репозитория. В git остаётся только этот README
+(см. `.gitignore`).
+
+## Как их получить
 
 ```
-IBMPlexSans-Regular.woff2
-IBMPlexSans-Medium.woff2
-IBMPlexSans-SemiBold.woff2
-JetBrainsMono-Regular.woff2
-JetBrainsMono-Medium.woff2
-JetBrainsMono-SemiBold.woff2
+npm run fonts -w @partyco/tokens
 ```
 
-## Where to get them
+Скрипт — `packages/tokens/scripts/fetch-fonts.mjs`. Он идемпотентный: если всё на месте и цело,
+он ничего не качает. `-- --force` перекачивает заново, `-- --check` только проверяет.
 
-Both families are **SIL Open Font License 1.1**, which permits bundling them inside the
-application. Keep a copy of each licence next to the fonts (`OFL-IBMPlexSans.txt`,
-`OFL-JetBrainsMono.txt`) — the OFL requires the licence to travel with the font.
+Без сети он честно падает с объяснением и **не оставляет полупустую папку**. Приложение при этом
+запускается — просто на системных фолбэках из `FONT_STACKS` (`palette.ts`), с другими метриками.
 
-- IBM Plex Sans — <https://github.com/IBM/plex> (`packages/plex-sans/fonts/complete/woff2/`)
-- JetBrains Mono — <https://github.com/JetBrains/JetBrainsMono/releases>
+## Что именно кладётся
 
-Subsetting to Latin + Cyrillic is worth doing: the UI is RU/EN and the full character sets are
-several times larger than needed. `glyphhanger` or `fonttools pyftsubset` both work.
+Две семьи, обе под **SIL Open Font License 1.1** — её условия разрешают встраивать шрифты в
+приложение при условии, что текст лицензии едет вместе с файлами. Поэтому рядом кладутся
+`OFL-IBMPlexSans.txt` и `OFL-JetBrainsMono.txt`.
 
-## Until they are here
+| | |
+|---|---|
+| IBM Plex Sans | интерфейс — `FONT_STACKS.sans` |
+| JetBrains Mono | код, пути, ID, диффы, терминал, счётчики — `FONT_STACKS.mono` |
 
-The app still runs. `FONT_STACKS` in `packages/tokens/src/palette.ts` falls back to
-Segoe UI Variable Text / Cascadia Mono on Windows and system fonts on macOS. Metrics differ
-slightly, so do not sign off pixel parity against the design source without the real fonts in
-place.
+Источник — npm-пакеты `@fontsource/ibm-plex-sans` и `@fontsource/jetbrains-mono` (это сборки
+Google Fonts, версии в скрипте **прибиты гвоздями**). Пакеты не добавлены в `package.json`
+намеренно: они тянут все начертания, стили и письменности целиком, а продукту нужны двенадцать
+файлов на семью. Скрипт берёт их через `npm pack`, который ходит только в реестр и не трогает
+ни `package.json`, ни `node_modules`.
+
+### Имена файлов
+
+Контракт «шесть файлов `IBMPlexSans-Regular.woff2` и далее по списку» **больше не действует**.
+Шрифты нарезаны по письменностям, имена — как у fontsource, чтобы файл всегда можно было
+проследить до источника:
+
+```
+<семья>-<подмножество>-<вес>-normal.woff2
+```
+
+* подмножества: `latin`, `latin-ext`, `cyrillic`, `cyrillic-ext`
+* веса: `400`, `500`, `600` (только те, что есть в `TYPE` в `palette.ts`)
+
+Итого 4 × 3 × 2 = **24 `.woff2`**, около 310 КБ, плюс два файла лицензии и
+`unicode-ranges.json` (диапазоны последней загрузки — по ним работает `--check`).
+
+Нарезка — не экономия ради экономии. Интерфейс русский, а код в нём латинский; `unicode-range`
+в `fonts.css` заставляет браузер сначала сопоставить текст с диапазонами и только потом качать
+нужные куски. `-ext`-половины лежат здесь потому, что до появления соответствующего символа они
+ничего не стоят, а когда такой символ появляется (чешская фамилия, украинское имя ветки) —
+без них слово посреди строки уезжает на запасной шрифт.
+
+## Что скрипт проверяет сам
+
+Он не просто копирует файлы — он не даёт `fonts.css` разойтись с тем, что лежит на диске:
+
+* каждый `url()` в `fonts.css` указывает на существующий файл, и каждый положенный файл кем-то
+  используется;
+* каждый `unicode-range` совпадает с тем, что публикует fontsource в своём `unicode.json`
+  (диапазоны нигде не написаны руками — неверный диапазон никак не проявляется: подмножество
+  просто никогда не запрашивается);
+* каждый `font-family` в `fonts.css` — это первая семья в соответствующем стеке
+  `FONT_STACKS`. Это единственная ошибка здесь без внешних симптомов: шрифт загружен, но не
+  применяется.
+
+## Открытый вопрос: лицензия в собранном приложении
+
+`OFL-*.txt` лежат рядом с `.woff2`, но их никто не импортирует, поэтому Vite не положит их в
+сборку — в бандл попадут только сами шрифты. Для дистрибутива лицензии нужно доложить отдельно
+(`extraResources` в electron-builder или экран «О программе»). Пока это не сделано, требование
+OFL «лицензия едет вместе со шрифтом» выполнено в репозитории, но не в установщике.

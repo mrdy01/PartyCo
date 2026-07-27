@@ -1,6 +1,7 @@
 import { useId, useState, type FormEvent, type ReactElement } from 'react';
 import { Icon } from '@partyco/icons';
 import { KEY_GUARANTEE_STORAGE } from '../AppShell/model.ts';
+import type { TextSegment } from '../Toast/rich.tsx';
 import { Badge } from '../Badge/Badge.tsx';
 import { Button } from '../Button/Button.tsx';
 import { CredentialGuarantee } from '../CredentialGuarantee/CredentialGuarantee.tsx';
@@ -159,6 +160,12 @@ export interface ProviderSetupCopy {
   keyEnv: string;
   keyPresent: string;
   keyAbsent: string;
+  /**
+   * What happens to a key when the app closes. Two sentences because there are two outcomes and the
+   * difference is the member's problem, not an implementation detail — see `keysPersisted`.
+   */
+  keyPersisted: string;
+  keyNotPersisted: string;
   /** The sentence that makes the delegated mode honest. Shown whenever that mode is chosen. */
   cliDelegation: string;
   /** `{binary}` is replaced. The one thing we cannot know and say so. */
@@ -180,10 +187,16 @@ export interface ProviderSetupCopy {
   errorTitle: string;
   errorBody: string;
   retry: string;
-  /** Name of the OS credential store, for the guarantee at the bottom. */
+  /** Where the sealed keys end up, for the guarantee at the bottom. Rendered as a code chip. */
   storeName: string;
+  /** `{store}` is replaced with `storeName`. The guarantee's body when keys survive a restart. */
+  guaranteeStored: string;
+  /** The same body when nothing goes to disk. No store is named, because none is used. */
+  guaranteeVolatile: string;
   /** Where a key goes the moment it is submitted. Same sentence the first-run step makes. */
   guaranteeNote: string;
+  /** The footer of the guarantee when the key will not survive a restart. */
+  guaranteeNoteVolatile: string;
 }
 
 export const PROVIDER_SETUP_COPY: ProviderSetupCopy = {
@@ -213,6 +226,13 @@ export const PROVIDER_SETUP_COPY: ProviderSetupCopy = {
     'собирается по списку, а не наследуется.',
   keyPresent: 'Ключ уже задан',
   keyAbsent: 'Ключа пока нет',
+  keyPersisted:
+    'Ключ сохранён на этой машине, зашифрован средствами системы — после перезапуска вводить его ' +
+    'заново не придётся.',
+  keyNotPersisted:
+    'Сохранить ключ не получится: система не даёт его зашифровать, а открытым текстом PartyCo ' +
+    'ключи на диск не пишет. До закрытия приложения ключ работает, после перезапуска введи его ' +
+    'заново.',
   cliDelegation:
     'Запускаем инструмент, который ты уже установил и в который сам вошёл. PartyCo не видит твой ' +
     'логин, не хранит его и не делает запросов к провайдеру — их делает сам инструмент.',
@@ -236,12 +256,31 @@ export const PROVIDER_SETUP_COPY: ProviderSetupCopy = {
   errorBody: 'Ключи и вход в CLI при этом не тронуты — прочитать список заново безопасно.',
   retry: 'Повторить',
   /*
-   * The real name of the store, so the sentence under it («ляжет в хранилище Windows, рядом с
-   * паролями браузера») and the sentence above it agree. Windows-first is the product's own stance
-   * — see §5.1 of the legality note — and this is a copy prop, so another platform overrides it.
+   * The real place, so the sentence under it («ляжет в хранилище Windows, рядом с паролями
+   * браузера») and the sentence above it agree, and so a member who wants to check can go and look.
+   *
+   * It used to read «Windows Credential Manager», which was aspirational while keys lived only in
+   * memory and became wrong the moment they stopped: the shell seals them with Electron's
+   * `safeStorage` — DPAPI on Windows — and writes the ciphertext next to the rest of PartyCo's
+   * config, never into the Credential Manager. A person who opened that store looking for the key
+   * and found nothing would be right to stop believing the rest of this panel.
+   *
+   * Windows-first is the product's own stance — see §5.1 of the legality note — and this is a copy
+   * prop, so a macOS build passes the Keychain wording instead.
    */
-  storeName: 'Windows Credential Manager',
+  storeName: '%APPDATA%\\PartyCo',
+  guaranteeStored:
+    'Ключи лежат зашифрованными в {store}, и расшифровать их может только твой вход в эту ' +
+    'систему. Хаб, VPS-релей и участники команды видят только имя модели и счётчик токенов — сам ' +
+    'ключ им недоступен, запросы к провайдеру уходят прямо с твоего компьютера.',
+  guaranteeVolatile:
+    'Ключи держатся только в памяти приложения: зашифровать их система не даёт, а открытым текстом ' +
+    'PartyCo их на диск не пишет. Хаб, VPS-релей и участники команды и так видят только имя ' +
+    'модели и счётчик токенов — запросы к провайдеру уходят прямо с твоего компьютера.',
   guaranteeNote: KEY_GUARANTEE_STORAGE,
+  guaranteeNoteVolatile:
+    'В сообщениях хабу для ключа нет поля — он туда физически не попадёт. На диск он тоже не ' +
+    'ложится: после перезапуска введи ключ заново.',
 };
 
 /**
@@ -278,6 +317,17 @@ export interface ProviderSetupProps {
    * providers reporting `hasKey`, which is what this panel can actually see.
    */
   keysStored?: number | undefined;
+  /**
+   * Whether a key given here survives a restart — `AgentKeyReport.persisted` from the main process,
+   * and nothing this panel could work out on its own.
+   *
+   * `true`: the OS sealed it (DPAPI, Keychain) and it will still be here next launch. `false`: the
+   * system refuses to encrypt, so nothing was written — plaintext on disk is not the fallback — and
+   * the member types the key again after a restart. **Omitted means unknown**, and then neither
+   * promise is made: the panel renders as it did before persistence existed rather than guessing
+   * which of the two is true.
+   */
+  keysPersisted?: boolean | undefined;
   /** Opens the OS keychain. Omit and the guarantee has no button. */
   onOpenStore?: (() => void) | undefined;
   copy?: ProviderSetupCopyInput | undefined;
@@ -286,6 +336,23 @@ export interface ProviderSetupProps {
 
 function cx(...parts: Array<string | false | undefined>): string {
   return parts.filter(Boolean).join(' ');
+}
+
+/**
+ * Split a copy string on `{store}` so the place can carry its own typographic weight.
+ *
+ * A path or a store name is the one part of that sentence a member may want to copy and go look at,
+ * which is what the code chip is for; the rest is prose. A template with no placeholder renders as
+ * plain text rather than growing an empty chip.
+ */
+function withStore(template: string, store: string): TextSegment[] {
+  const cut = template.indexOf('{store}');
+  if (cut === -1) return [template];
+  return [
+    template.slice(0, cut),
+    { text: store, emphasis: 'code' },
+    template.slice(cut + '{store}'.length),
+  ];
 }
 
 /* -------------------------------------------------------------- fragments */
@@ -352,7 +419,9 @@ function detectLine(
  *   `type="password"`, autocomplete and spellcheck off, the value leaving through `onKeySubmit`
  *   once and being dropped from state straight after. The key never arrives as a prop, so «ключ
  *   задан» is rendered from `hasKey` — a fact about the keychain — and the key itself is a thing
- *   this component is structurally incapable of showing.
+ *   this component is structurally incapable of showing. `keysPersisted` is the second such fact:
+ *   the shell either sealed the key with the OS or could not, and the panel says which, because
+ *   «введи заново после перезапуска» is the difference between a working morning and a puzzled one.
  * - **Через установленный CLI** — the delegated path, and the only subscription path that survived
  *   the 2026 enforcement rounds (`docs/providers-and-subscription-legality.md` §1, §5.1). It comes
  *   with a sentence, not a checkbox, because what it does is unusual enough that a person deserves
@@ -374,6 +443,7 @@ export function ProviderSetup({
   state = 'ready',
   onRetry,
   keysStored,
+  keysPersisted,
   onOpenStore,
   copy,
   className,
@@ -463,6 +533,26 @@ export function ProviderSetup({
           <Icon name={item.hasKey ? 'keychain' : 'key'} className={s.factGlyph} />
           <span className={s.factText}>{item.hasKey ? t.keyPresent : t.keyAbsent}</span>
         </p>
+
+        {/*
+         * What becomes of the key when the app closes.
+         *
+         * The «не сохранится» half is drawn whether or not a key is set, because it changes what
+         * typing one is worth and a person deserves that before the keystroke, not after. The
+         * «сохранён» half waits for a key to exist: promising that a key which is not there survives
+         * a restart is a sentence about nothing. Unknown draws neither.
+         */}
+        {keysPersisted === false ? (
+          <p className={s.honest}>
+            <Icon name="info" className={s.honestGlyph} />
+            <span className={s.honestText}>{t.keyNotPersisted}</span>
+          </p>
+        ) : keysPersisted === true && item.hasKey ? (
+          <p className={s.honest}>
+            <Icon name="keychain" className={s.honestGlyph} />
+            <span className={s.honestText}>{t.keyPersisted}</span>
+          </p>
+        ) : null}
 
         {/*
          * No field for a transport the catalogue refuses: the policy note above already carries the
@@ -736,14 +826,22 @@ export function ProviderSetup({
    * is still being read — or after it failed — «0 ключей в хранилище» would be a statement the
    * panel cannot back up, exactly as with the head count in `TeamPanel`.
    */
+  /*
+   * The body of the guarantee names a place, so it may only name one when there is one. With
+   * `keysPersisted === false` the whole «лежат в хранилище» sentence is false — the keys are in this
+   * process's memory and nowhere else — and the panel says that instead of naming a folder that
+   * holds nothing.
+   */
+  const unstored = keysPersisted === false;
   const guarantee =
     state === 'ready' ? (
       <CredentialGuarantee
         className={s.guarantee}
         storeName={t.storeName}
+        description={unstored ? t.guaranteeVolatile : withStore(t.guaranteeStored, t.storeName)}
         keysStored={keysStored ?? providers.filter((item) => item.hasKey).length}
         sentToHub={0}
-        verifyNote={t.guaranteeNote}
+        verifyNote={unstored ? t.guaranteeNoteVolatile : t.guaranteeNote}
         {...(onOpenStore ? { onOpenStore } : {})}
       />
     ) : null;

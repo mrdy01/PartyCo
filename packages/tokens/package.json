@@ -9,6 +9,7 @@
     "./fonts": "./src/fonts.css"
   },
   "scripts": {
-    "build": "node scripts/build-css.mjs"
+    "build": "node scripts/build-css.mjs",
+    "fonts": "node scripts/fetch-fonts.mjs"
   }
 }

@@ -16,7 +16,7 @@
 
 import crypto from 'node:crypto';
 
-import { claimInvite, normalizeInviteCode, recordInviteUse } from './invites.js';
+import { claimInvite, joinInviteProject, normalizeInviteCode, recordInviteUse } from './invites.js';
 
 /** @typedef {import('node:sqlite').DatabaseSync} DatabaseSync */
 /** @typedef {import('./db.js').MemberRow} MemberRow */
@@ -419,6 +419,10 @@ export function publicMember(row) {
  * it through "as an ordinary member" would silently ignore what the person was promised and
  * quietly grow the team past what its owner agreed to.
  *
+ * An invitation that carries a project puts the new member into it inside the same
+ * transaction, with the role the invitation promised: on the hub and in the project, or
+ * neither.
+ *
  * @param {DatabaseSync} db
  * @param {{ email: unknown, password: unknown, displayName?: unknown, inviteCode?: unknown }} input
  * @param {number} [now]
@@ -468,6 +472,15 @@ export function registerMember(db, input, now = Date.now()) {
     // The ledger row comes after the member exists: invite_use.member_id is a foreign key
     // and SQLite checks it immediately.
     if (inviteCode) recordInviteUse(db, inviteCode, id, now);
+
+    // An invitation into a project admits to both at once, in this same transaction. A
+    // person who was promised a project and lands only on the hub would see an empty
+    // application and no way to explain it, and nothing here would know they were owed
+    // anything. `invite.role` and not `role`, because the owner branch above cannot be
+    // reached with an invitation in hand.
+    if (invite?.project_id != null) {
+      joinInviteProject(db, invite.project_id, id, invite.role, now);
+    }
 
     created = { id, session: createSession(db, id, now) };
     db.exec('COMMIT');

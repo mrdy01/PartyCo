@@ -15,13 +15,15 @@
     "typecheck": "tsc -p packages/tokens && tsc -p packages/icons && tsc -p packages/agents && tsc -p packages/ui && tsc -p apps/desktop/tsconfig.node.json && tsc -p apps/desktop/tsconfig.web.json",
     "test:agents": "node --test packages/agents/test.mjs",
     "test:hub": "node --test apps/hub/test.mjs",
-    "dev": "npm run build:tokens && npm run -w @partyco/desktop dev",
-    "build": "npm run build:tokens && npm run -w @partyco/desktop build",
+    "dev": "npm run fonts && npm run build:tokens && npm run -w @partyco/desktop dev",
+    "build": "npm run fonts && npm run build:tokens && npm run -w @partyco/desktop build",
     "start": "npm run -w @partyco/desktop preview",
     "dist": "npm run build && npm run -w @partyco/desktop pack",
     "check:design": "node scripts/check-design-rules.mjs",
     "build:ui-barrel": "node packages/ui/scripts/gen-barrel.mjs",
-    "check": "npm run build:tokens && npm run check:design && npm run typecheck"
+    "check": "npm run build:tokens && npm run check:design && npm run typecheck",
+    "fonts": "node packages/tokens/scripts/fetch-fonts.mjs",
+    "test": "node --test apps/hub/test.mjs packages/agents/test.mjs apps/desktop/test-transcript.mjs"
   },
   "allowScripts": {
     "electron@43.2.0": true

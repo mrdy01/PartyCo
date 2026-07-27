@@ -8,8 +8,21 @@ import { readdirSync, readFileSync } from 'node:fs';
 import { join, relative } from 'node:path';
 
 const REPO = process.cwd();
-const UI_SRC = join(REPO, 'packages', 'ui', 'src');
 const TOKENS_CSS = join(REPO, 'packages', 'tokens', 'src', 'tokens.generated.css');
+
+/**
+ * Both places a `.module.css` can live — and the second one was missing for a long time.
+ *
+ * The rules were written for the component library and only ever walked it, which left every screen
+ * in the desktop app unchecked. That is the half of the codebase where a stylesheet is written under
+ * time pressure next to a feature, and it is exactly where `var(--pc-line-1)` — a token that has
+ * never existed — sat in a border shorthand and rendered as `currentColor` without one complaint.
+ * A lint that does not look at the risky half is a lint that reassures.
+ */
+const SOURCE_ROOTS = [
+  join(REPO, 'packages', 'ui', 'src'),
+  join(REPO, 'apps', 'desktop', 'src', 'renderer', 'src'),
+];
 
 const violations = [];
 const report = (file, line, rule, detail) =>
@@ -22,7 +35,7 @@ function walk(dir) {
   });
 }
 
-const files = walk(UI_SRC);
+const files = SOURCE_ROOTS.flatMap(walk);
 const cssFiles = files.filter((f) => f.endsWith('.module.css'));
 const tsFiles = files.filter((f) => f.endsWith('.tsx') || f.endsWith('.ts'));
 

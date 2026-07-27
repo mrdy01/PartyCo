@@ -191,6 +191,21 @@
   background: var(--pc-bg-window);
 }
 
+/*
+ * A screen whose chunk never arrived — see `ScreenBoundary` in App.tsx.
+ *
+ * Sized like body text and left where the screen would have started, not centred in a hero block:
+ * this is a sentence about one broken thing, and dressing it up as a full-page state would suggest
+ * the application is broken when the rail beside it still works.
+ */
+.screenFailed {
+  margin: 0;
+  padding: var(--pc-space-24);
+  max-width: 62ch;
+  font: var(--pc-type-ui);
+  color: var(--pc-text-2);
+}
+
 /* ── the door: sign-in and first run ──────────────────────────────────────────────────────── */
 
 /*

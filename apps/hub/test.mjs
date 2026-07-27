@@ -522,9 +522,39 @@ test('the database survives a restart with its members intact', async (t) => {
   const versions = second.db.prepare('SELECT version FROM schema_version ORDER BY version').all();
   assert.deepEqual(
     versions.map((r) => Number(r.version)),
-    [1, 2, 3],
+    [1, 2, 3, 4],
     'every migration ran exactly once',
   );
+});
+
+test('migration 4 gives invite a nullable project_id and the foreign key that goes with it', async (t) => {
+  const { hub, call } = await bootHub();
+  t.after(() => hub.close());
+
+  const columns = hub.db.prepare('PRAGMA table_info(invite)').all();
+  const projectId = columns.find((c) => c.name === 'project_id');
+  assert.ok(projectId, 'the column exists');
+  assert.equal(Number(projectId.notnull), 0, 'nullable: an invitation may lead onto the hub only');
+  assert.equal(projectId.dflt_value, null, 'and has no default — a default here is an invented project');
+
+  const keys = hub.db.prepare('PRAGMA foreign_key_list(invite)').all();
+  assert.ok(
+    keys.some((k) => k.from === 'project_id' && k.table === 'project'),
+    'the column points at project(id), and SQLite enforces it',
+  );
+
+  // A code cannot be written into a project that does not exist, whatever the handler does.
+  const owner = await bootOwner(call);
+  assert.throws(() =>
+    hub.db
+      .prepare(
+        `INSERT INTO invite(code, role, created_by, created_at, used_count, project_id)
+         VALUES(?, ?, ?, ?, 0, ?)`,
+      )
+      .run('AAAABBBBCCCC', 'member', owner.member.id, Date.now(), crypto.randomUUID()),
+  );
+
+  assert.equal(hub.db.prepare('PRAGMA index_info(ix_invite_project)').all().length, 1, 'and it is indexed');
 });
 
 // ---------------------------------------------------------------------------
@@ -722,22 +752,34 @@ test('owner is not a role an invitation can hand out', async (t) => {
 });
 
 test('peek answers a guest without a session and tells a guesser nothing', async (t) => {
-  const { hub, call } = await bootHub({ projectName: 'Хайтейл' });
+  const { hub, call } = await bootHub();
   t.after(() => hub.close());
 
   const owner = await bootOwner(call);
+  // The name comes from this row and from nowhere else. There is no PARTYCOD_PROJECT_NAME
+  // any more: one string per installation was true only for a hub with a single project.
+  const hightale = await makeProject(call, owner.token, 'Хайтейл');
   /** @param {object} body */
   const make = async (body) => (await call('POST', '/v1/invites', { token: owner.token, body })).json.invite.code;
 
-  const live = await make({ role: 'maintainer', lifetime: 'week', seats: 'five' });
+  const live = await make({ role: 'maintainer', lifetime: 'week', seats: 'five', projectId: hightale.id });
   const peek = await call('GET', `/v1/invites/peek?code=${live}`);
   assert.equal(peek.status, 200, 'no session required');
   assert.deepEqual(peek.json, { valid: true, role: 'maintainer', projectName: 'Хайтейл' });
   assert.ok(!peek.text.includes('ann@example.com'), 'nothing about who invited');
-  assert.ok(!/createdBy|usedCount|expiresAt/.test(peek.text), 'nothing about the invitation beyond the answer');
+  assert.ok(!/createdBy|usedCount|expiresAt|projectId/.test(peek.text), 'nothing beyond the answer');
 
   const lowercase = await call('GET', `/v1/invites/peek?code=${live.toLowerCase()}`);
   assert.deepEqual(lowercase.json, peek.json, 'the code is normalised on the way in');
+
+  // An invitation with no project has no name to give, and the field is simply absent —
+  // not an empty string, not the name of some other project on the hub.
+  const hubOnly = await make({ role: 'member', lifetime: 'week' });
+  assert.deepEqual(
+    (await call('GET', `/v1/invites/peek?code=${hubOnly}`)).json,
+    { valid: true, role: 'member' },
+    'a hub-only invitation names no project',
+  );
 
   const expired = await make({ role: 'member' });
   hub.db.prepare('UPDATE invite SET expires_at = ? WHERE code = ?').run(Date.now() - 1, normalizeInviteCode(expired));
@@ -1495,4 +1537,284 @@ test('the project roster hides other people addresses from a plain member', asyn
   });
   assert.equal(bench.status, 201, 'anyone may run their own project');
   assert.equal(bench.json.member.email, null, 'and still does not get to read an address');
+});
+
+// ---------------------------------------------------------------------------
+// Invitations that lead into a project
+// ---------------------------------------------------------------------------
+
+test('an invitation into a project admits to the hub and to the project at once', async (t) => {
+  const { hub, call } = await bootHub();
+  t.after(() => hub.close());
+
+  const owner = await bootOwner(call);
+  const atlas = await makeProject(call, owner.token, 'Atlas');
+
+  /** @param {string} role */
+  const inviteInto = async (role) => {
+    const res = await call('POST', '/v1/invites', {
+      token: owner.token,
+      body: { role, seats: 'five', lifetime: 'week', projectId: atlas.id },
+    });
+    assert.equal(res.status, 201, role);
+    assert.equal(res.json.invite.projectId, atlas.id, 'the answer says which project it leads into');
+    return res.json.invite.code;
+  };
+
+  // The role in the project is the role the invitation promised — all three of them, and
+  // never `owner`, which no invitation can offer.
+  for (const role of ['maintainer', 'member', 'observer']) {
+    const code = await inviteInto(role);
+
+    const peek = await call('GET', `/v1/invites/peek?code=${code}`);
+    assert.deepEqual(peek.json, { valid: true, role, projectName: 'Atlas' }, `peek names the project for ${role}`);
+
+    const joined = await joinAsCode(call, code, `${role}@example.com`);
+    assert.equal(joined.status, 201, role);
+    assert.equal(joined.json.member.role, role, 'the hub role is the one the invitation promised');
+
+    const row = hub.db
+      .prepare('SELECT role, joined_at FROM project_member WHERE project_id = ? AND member_id = ?')
+      .get(atlas.id, joined.json.member.id);
+    assert.ok(row, `${role} is in the project, not only on the hub`);
+    assert.equal(row.role, role, 'and with the same role the invitation promised');
+
+    // And it is visible where a person would look for it, not only in the table.
+    const mine = await call('GET', '/v1/projects', { token: joined.json.token });
+    assert.deepEqual(mine.json.projects.map((p) => p.name), ['Atlas'], `${role} sees the project they were invited to`);
+  }
+
+  const roster = await rosterOf(call, owner.token, atlas.id);
+  assert.equal(roster.json.members.length, 4, 'the owner plus the three who came in by code');
+  assert.deepEqual(
+    roster.json.members.map((m) => m.projectRole),
+    ['owner', 'maintainer', 'member', 'observer'],
+    'in the order they joined',
+  );
+
+  // An account that already exists takes the same route through /redeem.
+  const walkIn = (await call('POST', '/v1/auth/register', { body: { email: 'marina@example.com', password: 'pw' } }))
+    .json;
+  const before = await call('GET', '/v1/projects', { token: walkIn.token });
+  assert.deepEqual(before.json.projects, [], 'a walk-in belongs to no project');
+
+  const code = await inviteInto('maintainer');
+  const redeemed = await call('POST', '/v1/invites/redeem', { token: walkIn.token, body: { code } });
+  assert.equal(redeemed.status, 200);
+  assert.equal(redeemed.json.member.role, 'maintainer', 'the hub role was raised');
+  assert.equal(redeemed.json.invite.projectId, atlas.id);
+  const after = await call('GET', '/v1/projects', { token: walkIn.token });
+  assert.deepEqual(after.json.projects.map((p) => p.name), ['Atlas'], 'and the project is now theirs too');
+  assert.equal(after.json.projects[0].role, 'maintainer');
+
+  // Redeeming the same code twice spends nothing and does not double the roster.
+  const twice = await call('POST', '/v1/invites/redeem', { token: walkIn.token, body: { code } });
+  assert.equal(twice.json.alreadyRedeemed, true);
+  assert.equal(
+    hub.db.prepare('SELECT count(*) AS n FROM project_member WHERE project_id = ?').get(atlas.id).n,
+    5,
+  );
+});
+
+test('an invitation admits nobody to a project its author did not name', async (t) => {
+  const { hub, call } = await bootHub();
+  t.after(() => hub.close());
+
+  const owner = await bootOwner(call);
+  const atlas = await makeProject(call, owner.token, 'Atlas');
+
+  // The owner runs exactly one project, and the invitation still leads only onto the hub:
+  // the hub does not pick a project for somebody who did not name one. Standing on the hub
+  // is not standing in a project, and one invitation must not quietly grant both.
+  const created = await call('POST', '/v1/invites', { token: owner.token, body: { role: 'member', seats: 'five' } });
+  assert.equal(created.status, 201);
+  assert.equal(created.json.invite.projectId, null, 'the answer says so rather than leaving it to be guessed');
+
+  const code = created.json.invite.code;
+  assert.deepEqual((await call('GET', `/v1/invites/peek?code=${code}`)).json, { valid: true, role: 'member' });
+
+  const joined = await joinAsCode(call, code, 'timur@example.com');
+  assert.equal(joined.status, 201);
+  assert.equal(joined.json.member.role, 'member', 'the hub part works exactly as before');
+  assert.deepEqual((await call('GET', '/v1/projects', { token: joined.json.token })).json.projects, []);
+  assert.equal(
+    hub.db.prepare('SELECT count(*) AS n FROM project_member WHERE project_id = ?').get(atlas.id).n,
+    1,
+    'the roster of Atlas is untouched',
+  );
+
+  // The same for an inviter who has no project at all — nothing is created for them.
+  const { hub: bare, call: callBare } = await bootHub();
+  t.after(() => bare.close());
+  const soloist = await bootOwner(callBare);
+  const plain = await callBare('POST', '/v1/invites', { token: soloist.token, body: { role: 'member' } });
+  assert.equal(plain.status, 201);
+  assert.equal(plain.json.invite.projectId, null);
+  assert.equal(bare.db.prepare('SELECT count(*) AS n FROM project').get().n, 0, 'no project was invented');
+  assert.equal((await joinAsCode(callBare, plain.json.invite.code, 'dima@example.com')).status, 201);
+  assert.equal(bare.db.prepare('SELECT count(*) AS n FROM project_member').get().n, 0);
+});
+
+test('a project you may not add people to is not a project you may invite into', async (t) => {
+  const { hub, call } = await bootHub();
+  t.after(() => hub.close());
+
+  const owner = await bootOwner(call);
+  const timur = await joinAs(call, owner.token, 'maintainer', 'timur@example.com');
+  const petya = await joinAs(call, owner.token, 'observer', 'petya@example.com');
+  const atlas = await makeProject(call, owner.token, 'Atlas');
+
+  /**
+   * @param {string} token
+   * @param {unknown} projectId
+   */
+  const invite = (token, projectId) =>
+    call('POST', '/v1/invites', { token, body: { role: 'member', projectId } });
+
+  // A hub maintainer who was never added to the project sees the same 404 as a stranger:
+  // an invitation must not be a way into a project you cannot even list.
+  const outside = await invite(timur.token, atlas.id);
+  assert.equal(outside.status, 404);
+  assert.equal(outside.json.error.code, 'project_not_found');
+  const invented = await invite(timur.token, crypto.randomUUID());
+  assert.deepEqual(invented.json, outside.json, 'a real project and an imaginary one answer identically');
+
+  // Being in it is not enough either — an invitation would otherwise hand out access its
+  // author cannot hand out through POST /v1/projects/members.
+  await call('POST', '/v1/projects/members', {
+    token: owner.token,
+    body: { projectId: atlas.id, memberId: timur.member.id, role: 'member' },
+  });
+  const asMember = await invite(timur.token, atlas.id);
+  assert.equal(asMember.status, 403);
+  assert.equal(asMember.json.error.code, 'forbidden');
+
+  // Promoted inside the project, the same request goes through.
+  const { hub: h2, call: call2 } = await bootHub();
+  t.after(() => h2.close());
+  const owner2 = await bootOwner(call2);
+  const timur2 = await joinAs(call2, owner2.token, 'maintainer', 'timur@example.com');
+  const atlas2 = await makeProject(call2, owner2.token, 'Atlas');
+  await call2('POST', '/v1/projects/members', {
+    token: owner2.token,
+    body: { projectId: atlas2.id, memberId: timur2.member.id, role: 'maintainer' },
+  });
+  const allowed = await call2('POST', '/v1/invites', {
+    token: timur2.token,
+    body: { role: 'member', projectId: atlas2.id },
+  });
+  assert.equal(allowed.status, 201, 'a maintainer of the project may invite into it');
+  assert.equal(allowed.json.invite.projectId, atlas2.id);
+
+  // Whether an id is a project is judged after whether the caller may invite at all. An
+  // observer asking about an id that does not exist is refused for being an observer.
+  const byObserver = await invite(petya.token, crypto.randomUUID());
+  assert.equal(byObserver.status, 403, 'authorisation comes before the project is looked up');
+  assert.equal(byObserver.json.error.code, 'forbidden');
+
+  for (const [label, bad] of [['blank', '   '], ['not a string', 42]]) {
+    const res = await invite(owner.token, bad);
+    assert.equal(res.status, 400, label);
+    assert.equal(res.json.error.code, 'invalid_project', label);
+  }
+  assert.equal(hub.db.prepare('SELECT count(*) AS n FROM invite WHERE project_id IS NOT NULL').get().n, 0);
+});
+
+test('joining by an invitation is all or nothing: the hub and the project, or neither', async (t) => {
+  const { hub, call } = await bootHub();
+  t.after(() => hub.close());
+
+  const owner = await bootOwner(call);
+  const atlas = await makeProject(call, owner.token, 'Atlas');
+  const walkIn = (await call('POST', '/v1/auth/register', { body: { email: 'marina@example.com', password: 'pw' } }))
+    .json;
+
+  /** @param {object} [body] */
+  const make = async (body = {}) =>
+    (await call('POST', '/v1/invites', { token: owner.token, body: { role: 'member', projectId: atlas.id, ...body } }))
+      .json.invite.code;
+
+  // Eight people racing for five seats of a project invitation: five members, five ledger
+  // rows and five project rows — the seat and the project row are taken together or not
+  // at all, so the three numbers cannot disagree.
+  const shared = await make({ seats: 'five' });
+  const results = await Promise.all(
+    Array.from({ length: 8 }, (_, i) => joinAsCode(call, shared, `racer${i}@example.com`)),
+  );
+  assert.equal(results.filter((r) => r.status === 201).length, 5, 'exactly the number of seats');
+  const stored = normalizeInviteCode(shared);
+  assert.equal(hub.db.prepare('SELECT count(*) AS n FROM invite_use WHERE code = ?').get(stored).n, 5);
+  assert.equal(
+    hub.db.prepare('SELECT count(*) AS n FROM project_member WHERE project_id = ?').get(atlas.id).n,
+    6,
+    'the owner plus five, and not one seat spent without a project row',
+  );
+
+  // And when the project row cannot be written, nothing is. The state is manufactured here
+  // — the foreign key makes it unreachable through the API — precisely to prove that a
+  // failure at the last step takes the seat and the member back with it.
+  const poisoned = await make({ seats: 'one' });
+  hub.db.exec('PRAGMA foreign_keys = OFF');
+  hub.db
+    .prepare('UPDATE invite SET project_id = ? WHERE code = ?')
+    .run(crypto.randomUUID(), normalizeInviteCode(poisoned));
+  hub.db.exec('PRAGMA foreign_keys = ON');
+
+  const membersBefore = (await call('GET', '/v1/health')).json.members;
+  const failed = await joinAsCode(call, poisoned, 'ghost@example.com');
+  assert.equal(failed.status, 500, 'an impossible state is a fault, not a half-done registration');
+  assert.equal(failed.json.error.code, 'internal_error');
+  assert.ok(!/sqlite|foreign|project_member/i.test(failed.json.error.message), 'and says nothing about the inside');
+
+  assert.equal((await call('GET', '/v1/health')).json.members, membersBefore, 'no ghost got in');
+  const dead = normalizeInviteCode(poisoned);
+  assert.equal(hub.db.prepare('SELECT used_count AS n FROM invite WHERE code = ?').get(dead).n, 0, 'the seat is back');
+  assert.equal(hub.db.prepare('SELECT count(*) AS n FROM invite_use WHERE code = ?').get(dead).n, 0);
+  assert.equal(hub.db.prepare('SELECT 1 FROM member WHERE email = ?').get('ghost@example.com'), undefined);
+
+  // The same for an account that already exists: the role is not raised either.
+  const redeem = await call('POST', '/v1/invites/redeem', { token: walkIn.token, body: { code: poisoned } });
+  assert.equal(redeem.status, 500);
+  assert.equal(
+    (await call('GET', '/v1/auth/me', { token: walkIn.token })).json.member.role,
+    'member',
+    'a redemption that could not finish did not promote anybody',
+  );
+  assert.equal(hub.db.prepare('SELECT used_count AS n FROM invite WHERE code = ?').get(dead).n, 0);
+});
+
+test('somebody already in the project keeps the role they have', async (t) => {
+  const { hub, call } = await bootHub();
+  t.after(() => hub.close());
+
+  const owner = await bootOwner(call);
+  const marina = await joinAs(call, owner.token, 'member', 'marina@example.com');
+  const atlas = await makeProject(call, owner.token, 'Atlas');
+  await call('POST', '/v1/projects/members', {
+    token: owner.token,
+    body: { projectId: atlas.id, memberId: marina.member.id, role: 'maintainer' },
+  });
+
+  // An `observer` invitation into a project she is already a maintainer of. Redeeming it
+  // must not demote her — the same rule the hub role follows — and must not silently
+  // promote anybody either: changing a project role is not something any endpoint does,
+  // and POST /v1/projects/members refuses it with a 409 rather than pretend.
+  const weak = await call('POST', '/v1/invites', {
+    token: owner.token,
+    body: { role: 'observer', projectId: atlas.id },
+  });
+  const res = await call('POST', '/v1/invites/redeem', { token: marina.token, body: { code: weak.json.invite.code } });
+  assert.equal(res.status, 200);
+  assert.equal(res.json.alreadyRedeemed, false, 'the seat was spent — she did redeem it');
+  assert.equal(res.json.member.role, 'member', 'and her hub role was not lowered');
+
+  const row = hub.db
+    .prepare('SELECT role FROM project_member WHERE project_id = ? AND member_id = ?')
+    .get(atlas.id, marina.member.id);
+  assert.equal(row.role, 'maintainer', 'her role in the project is the one she had');
+  assert.equal(
+    hub.db.prepare('SELECT count(*) AS n FROM project_member WHERE project_id = ?').get(atlas.id).n,
+    2,
+    'and she is in it once',
+  );
 });

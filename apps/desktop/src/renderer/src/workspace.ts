@@ -46,8 +46,16 @@ export interface WorkspaceHandle {
   busy: boolean;
   /** Open the OS folder picker. Resolves to the chosen folder, or `null` on cancel or failure. */
   choose: () => Promise<WorkspaceInfo | null>;
-  /** Forget the current folder, e.g. to point the app at a different project. */
-  clear: () => Promise<void>;
+  /**
+   * Forget the current folder — to point the app at a different project, or on sign-out.
+   *
+   * Returns the envelope rather than `void` because one caller has to speak when this fails.
+   * Signing out drops the session whether or not the folder could be forgotten, so a failure here
+   * is a fact the *next* person at this machine inherits — and inherits silently unless somebody
+   * prints it. The same sentence still lands in `error` on the snapshot for the screens that read
+   * it; the return value exists for the screen that has already stopped reading it.
+   */
+  clear: () => Promise<IpcResult<null>>;
 }
 
 /**
@@ -184,11 +192,11 @@ async function choose(): Promise<WorkspaceInfo | null> {
   return result.value;
 }
 
-async function clear(): Promise<void> {
+async function clear(): Promise<IpcResult<null>> {
   const bridge = readBridge();
   if (!bridge) {
     publish({ state: 'unavailable', error: WORKSPACE_UNAVAILABLE });
-    return;
+    return { ok: false, error: WORKSPACE_UNAVAILABLE };
   }
 
   publish({ busy: true, error: null });
@@ -196,9 +204,10 @@ async function clear(): Promise<void> {
 
   if (!result.ok) {
     publish({ busy: false, error: result.error });
-    return;
+    return result;
   }
   publish({ workspace: null, state: 'ready', error: null, busy: false });
+  return result;
 }
 
 /* ------------------------------------------------------------------ *

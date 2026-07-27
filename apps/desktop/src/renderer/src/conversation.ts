@@ -34,6 +34,17 @@ export interface RunTarget {
 export interface ConversationModel {
   items: readonly ConversationItem[];
   state: ConversationState;
+  /**
+   * How many of the **oldest** turns this stream does not contain.
+   *
+   * Not a length and not a total: `items` is what is on screen, and this is what was cut off before
+   * it. The stored history is untouched — the number is about this answer, not about the file — and
+   * the interface has to say it, because a conversation that silently starts in the middle reads as
+   * a conversation that started there.
+   *
+   * `0` means the stream begins where the transcript begins.
+   */
+  omittedEarlierTurns: number;
   /** True while a child process is running. The composer becomes a stop button. */
   running: boolean;
   /** Which provider the next turn goes to, or `null` when none on this machine can run one. */
@@ -89,6 +100,15 @@ export function useConversation(
   providersReady: boolean,
 ): ConversationModel {
   const [history, setHistory] = useState<readonly TranscriptEntry[]>([]);
+  /**
+   * The oldest turns the last read left out. Counted from `load()`, never derived from `history`.
+   *
+   * It survives an `append` on purpose: appending puts a turn at the *end*, so the number of turns
+   * missing from the *start* does not change. Recomputing it, or re-reading the whole transcript
+   * after every turn, would be the two ways to get this wrong — the first invents a number, the
+   * second re-truncates a stream the person is already reading and moves its beginning under them.
+   */
+  const [omittedEarlierTurns, setOmittedEarlierTurns] = useState(0);
   const [state, setState] = useState<ConversationState>('loading');
   const [nonce, setNonce] = useState(0);
   const [expandedWork, setExpandedWork] = useState<ReadonlySet<string>>(() => new Set());
@@ -99,10 +119,19 @@ export function useConversation(
 
   const root = workspace?.root ?? null;
 
+  // A different folder is a different conversation. Dropping the old entries here rather than only
+  // on a successful read matters for the read that *fails*: the alternative leaves the previous
+  // project's turns on screen under the new project's name.
+  useEffect(() => {
+    setHistory([]);
+    setOmittedEarlierTurns(0);
+  }, [root]);
+
   useEffect(() => {
     const bridge = window.partyco?.transcript;
     if (!root || !bridge) {
       setHistory([]);
+      setOmittedEarlierTurns(0);
       // No workspace is not a failed read — it is an empty conversation, which is what a person
       // sees on their first launch and exactly what the greeting is for.
       setState(root ? 'error' : 'ready');
@@ -120,7 +149,8 @@ export function useConversation(
           setState('error');
           return;
         }
-        setHistory(result.value);
+        setHistory(result.value.items);
+        setOmittedEarlierTurns(result.value.omitted);
         setState('ready');
       })
       .catch(() => {
@@ -155,6 +185,16 @@ export function useConversation(
     return null;
   }, [workspace, providersReady, target]);
 
+  /**
+   * One turn to disk, and the same turn onto the end of the stream.
+   *
+   * The transcript is **not** re-read afterwards, and that is what keeps truncation honest across a
+   * turn. The main process answers with the entry it stored, including the id it assigned, so the
+   * row appended here is the row on disk — not a guess that a re-read would then duplicate. And
+   * because nothing is re-read, the turns cut from the *start* stay cut: a new turn at the end
+   * cannot resurrect them, and `omittedEarlierTurns` is still exactly how many are missing before
+   * `history[0]`.
+   */
   const append = useCallback((entry: Omit<TranscriptEntry, 'id' | 'at'>): void => {
     const bridge = window.partyco?.transcript;
     if (!bridge) return;
@@ -213,6 +253,7 @@ export function useConversation(
   return {
     items,
     state,
+    omittedEarlierTurns,
     running: live !== null,
     target,
     blocked,

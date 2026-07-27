@@ -1,7 +1,11 @@
 import {
+  Component,
+  Suspense,
+  lazy,
   useCallback,
   useEffect,
   useState,
+  useTransition,
   type ReactElement,
   type ReactNode,
 } from 'react';
@@ -31,14 +35,46 @@ import {
   storeSession,
   type HubSession,
 } from './hub.ts';
-import { DesignSystemPage } from './pages/designsystem/index.tsx';
 import { CoreStatusPage } from './pages/CoreStatus.tsx';
 import { ShellPage } from './pages/Shell.tsx';
-import { WorkspacePage } from './pages/Workspace.tsx';
-import { LeasesPage } from './pages/Leases.tsx';
-import { MergeQueuePage } from './pages/MergeQueue.tsx';
 import { WORKSPACE_UNAVAILABLE, useWorkspace, type WorkspaceHandle } from './workspace.ts';
 import styles from './App.module.css';
+
+/* ------------------------------------------------------------------ *
+ * The bench screens — loaded on demand, never bundled with the product
+ * ------------------------------------------------------------------ */
+
+/**
+ * Screens 2.1 / 2.3 / 2.4 and the design-system gallery, behind `React.lazy`.
+ *
+ * They are the parity bench: each one draws real `@partyco/ui` components against
+ * `@partyco/ui/fixtures/*`, which is demo data — invented people, invented paths, invented merge
+ * queues. That is exactly what it should be for a bench, and exactly what must not travel inside a
+ * packaged application: a build that carries «Марина Ковалёва» in its main chunk is a build one
+ * mistake away from showing her to somebody as if she were a colleague.
+ *
+ * Static imports made that unavoidable. Whether the bench renders at all is decided at runtime —
+ * `SCAFFOLDING` reads `import.meta.env.DEV` **or** a localStorage flag — so Rollup cannot prove the
+ * branch is dead and keeps every fixture module in the entry chunk. A dynamic `import()` moves the
+ * decision from tree-shaking (which needs a proof) to code-splitting (which needs none): the
+ * fixtures land in their own chunks and are fetched only when somebody actually opens a bench
+ * screen. The localStorage escape hatch keeps working in a packaged build, because a separate chunk
+ * is still a chunk that ships — it simply is not loaded until asked for.
+ *
+ * `ShellPage` is deliberately **not** here. It is the product, it is what a member sees a frame
+ * after sign-in, and making the product wait on a second file read to save nothing is the wrong
+ * trade in the only direction that matters.
+ */
+const WorkspacePage = lazy(() =>
+  import('./pages/Workspace.tsx').then((m) => ({ default: m.WorkspacePage })),
+);
+const LeasesPage = lazy(() => import('./pages/Leases.tsx').then((m) => ({ default: m.LeasesPage })));
+const MergeQueuePage = lazy(() =>
+  import('./pages/MergeQueue.tsx').then((m) => ({ default: m.MergeQueuePage })),
+);
+const DesignSystemPage = lazy(() =>
+  import('./pages/designsystem/index.tsx').then((m) => ({ default: m.DesignSystemPage })),
+);
 
 type View = 'shell' | 'workspace' | 'leases' | 'merge-queue' | 'design-system' | 'core';
 
@@ -167,6 +203,21 @@ export function App(): ReactElement | null {
  * revoked or expired token drops the человек back to the panel instead of showing an app that cannot
  * do anything. If the hub is simply unreachable we keep the session: a dead server is not a logout.
  */
+/**
+ * What the sign-in panel says when the folder outlived the session.
+ *
+ * Two facts and one action, in that order: the account is closed, the folder is not, and here is
+ * the one thing that changes it. It names the conversation explicitly — «рабочая папка» sounds like
+ * a preference, and what actually stayed behind is somebody's correspondence.
+ *
+ * The underlying sentence from the main process is appended by the caller in brackets: «файл занят
+ * другим процессом» is the difference between a person who tries again and a person who gives up.
+ */
+const FOLDER_KEPT =
+  'Из аккаунта ты вышел, но забыть рабочую папку не удалось — она осталась выбранной на этом ' +
+  'компьютере вместе с историей разговора в ней. Если за компьютером работает кто-то ещё, войди ' +
+  'снова и выбери другую папку: прежняя перестанет быть выбранной.';
+
 function Gate({ workspace }: { workspace: WorkspaceHandle }): ReactElement {
   const [session, setSession] = useState<HubSession | null>(readStoredSession);
   const [mode, setMode] = useState<AuthMode>('login');
@@ -219,13 +270,70 @@ function Gate({ workspace }: { workspace: WorkspaceHandle }): ReactElement {
       .finally(() => setBusy(false));
   }, []);
 
-  const signOut = useCallback((current: HubSession): void => {
-    storeSession(null);
-    setSession(null);
-    setMode('login');
-    // Best effort: the local session is already gone, so a failed round-trip changes nothing here.
-    void hubLogout(current.hubUrl, current.token).catch(() => undefined);
-  }, []);
+  const signOut = useCallback(
+    (current: HubSession): void => {
+      // The session goes first, and synchronously. Everything after this line is cleanup; a member
+      // who pressed «Выйти» is out of their account before any of it can fail or hang.
+      storeSession(null);
+      setSession(null);
+      setMode('login');
+      setError(null);
+      // Best effort: the local session is already gone, so a failed round-trip changes nothing here.
+      void hubLogout(current.hubUrl, current.token).catch(() => undefined);
+
+      /*
+       * **Signing out forgets the working folder**, and the reason is privacy rather than tidiness.
+       *
+       * The conversation is stored per folder. A folder that outlives the member who chose it hands
+       * the next person to sign in on this machine an opened project *and the correspondence inside
+       * it* — with no first run, no folder picker, nothing that would have told them whose it was
+       * or told its owner that it had been handed over. One extra click on the next launch is a
+       * cheaper thing to pay than that.
+       *
+       * `unavailable` is the one case with nothing to forget: this window never had a bridge, so no
+       * folder was ever read into it (the browser preview, or a preload that failed to load). Asking
+       * anyway would only produce a warning about a leak that cannot exist.
+       */
+      /*
+       * **And it forgets the provider keys**, by the same argument, which only became necessary
+       * when the keys stopped being forgotten by themselves.
+       *
+       * They used to live in the main process's memory and die with it, so quitting was the cleanup.
+       * Now they are encrypted on disk and survive a restart — which is what a member asked for, and
+       * which turns the shared-machine case into a real leak: DPAPI protects the key from another
+       * *Windows* account, not from the next PartyCo member sitting at the same one. Inheriting
+       * somebody's paid key and spending their limit under your own name is worse than retyping it.
+       *
+       * Best effort, and deliberately not awaited before the session is gone: this runs after the
+       * member is already out. `keyStatus` first, so a member with no keys is not charged a
+       * round-trip per provider for nothing.
+       */
+      const keys = window.partyco?.agents;
+      if (keys) {
+        void keys
+          .keyStatus()
+          .then((report) => {
+            if (!report.ok) return;
+            for (const key of report.value.keys) {
+              if (key.hasKey) void keys.setKey(key.providerId, '').catch(() => undefined);
+            }
+          })
+          .catch(() => undefined);
+      }
+
+      if (workspace.state === 'unavailable') return;
+      void workspace.clear().then((result) => {
+        /*
+         * Said on the sign-in panel because that is the only screen left. The member is out of the
+         * app — there is no settings page to put this on and no toast that would outlive the
+         * unmount — and staying quiet would leave the one person who could act on it (close the
+         * app, choose a different folder next time) unaware that the folder is still there.
+         */
+        if (!result.ok) setError(`${FOLDER_KEPT} (${result.error})`);
+      });
+    },
+    [workspace],
+  );
 
   if (!session) {
     // `SignInScreen` centres itself in the window and carries the mark, the sub-line and the
@@ -244,7 +352,27 @@ function Gate({ workspace }: { workspace: WorkspaceHandle }): ReactElement {
     );
   }
 
-  return <Product session={session} workspace={workspace} onSignOut={() => signOut(session)} />;
+  return (
+    <Product
+      /*
+       * A fresh `Product` per member, and the key is the point rather than a React formality.
+       *
+       * `keyAnswered` is seeded once, at mount, from whether a folder already existed — which is the
+       * right question to ask about *a member who has been here before* and the wrong one to inherit
+       * from somebody else. Keying on the member id makes «this run» mean the run of this person:
+       * the second member on a shared machine gets their own first run, and its greeting says their
+       * name, because the component that holds that state is a different component.
+       *
+       * The sign-out path already unmounts `Product` (no session, no product), so on that route
+       * this is belt to braces. It is here for every route that does not pass through `null` —
+       * a stored session replaced, a token swapped underneath — where the unmount would not happen.
+       */
+      key={session.member.id}
+      session={session}
+      workspace={workspace}
+      onSignOut={() => signOut(session)}
+    />
+  );
 }
 
 /* ------------------------------------------------------------------ *
@@ -490,7 +618,11 @@ function Harness({
   workspace: WorkspaceHandle;
   onSignOut: () => void;
 }): ReactElement {
+  /** What is on screen. Lags `target` by exactly as long as a lazy chunk takes to arrive. */
   const [view, setView] = useState<View>('shell');
+  /** What was last clicked. Set synchronously, so the rail answers the press immediately. */
+  const [target, setTarget] = useState<View>('shell');
+  const [loading, startTransition] = useTransition();
   const [navOpen, setNavOpen] = useState(readNavOpen);
 
   useEffect(() => {
@@ -501,6 +633,33 @@ function Harness({
     }
   }, [navOpen]);
 
+  /**
+   * Switching screens is a transition, and that is what decides what the Suspense fallback shows.
+   *
+   * Inside a transition React keeps the screen that is already mounted on the glass until the next
+   * one is ready, instead of tearing it down to show a fallback. So the answer to "what goes in the
+   * fallback" is *nothing*, and not as a shrug: on the path a person actually takes the fallback is
+   * never reached at all. The old screen stays, then the new one replaces it — one paint, no gap.
+   *
+   * `fallback={null}` is what remains for the paths that could still reach it, and it matches the
+   * choice `App` already made for its own single wait: paint nothing rather than a spinner. These
+   * chunks come off local disk in a frame or two, and a spinner that appears and vanishes inside one
+   * frame does not read as loading — it reads as a fault, and it invites the click that causes one.
+   *
+   * What is *not* silent is a wait long enough to notice: `loading` puts `aria-busy` on the main
+   * region and marks the pressed rail item as current straight away, so a slow disk looks like a
+   * slow disk rather than like a button that did nothing.
+   */
+  const go = (next: View): void => {
+    setTarget(next);
+    startTransition(() => setView(next));
+  };
+
+  /*
+   * The chrome question follows `view`, not `target`: while a chunk is in flight the previous screen
+   * is still the one being drawn, and taking its theme controls away mid-wait — or handing a second
+   * pair to a screen that already has its own — would be the doubling `ownChrome` exists to prevent.
+   */
   const ownChrome = VIEWS.find((v) => v.id === view)?.ownChrome ?? false;
 
   return (
@@ -519,9 +678,11 @@ function Harness({
               <button
                 key={v.id}
                 type="button"
-                className={v.id === view ? `${styles.railItem} ${styles.railItemActive}` : styles.railItem}
-                onClick={() => setView(v.id)}
-                aria-current={v.id === view ? 'page' : undefined}
+                className={
+                  v.id === target ? `${styles.railItem} ${styles.railItemActive}` : styles.railItem
+                }
+                onClick={() => go(v.id)}
+                aria-current={v.id === target ? 'page' : undefined}
               >
                 <Icon name={v.icon} />
                 <span>{v.label}</span>
@@ -529,24 +690,75 @@ function Harness({
             ))}
           </nav>
         ) : null}
-        <main className={styles.main}>
-          {view === 'shell' ? (
-            <ShellPage session={session} workspace={workspace} onSignOut={onSignOut} />
-          ) : view === 'workspace' ? (
-            <WorkspacePage />
-          ) : view === 'leases' ? (
-            <LeasesPage />
-          ) : view === 'merge-queue' ? (
-            <MergeQueuePage />
-          ) : view === 'design-system' ? (
-            <DesignSystemPage />
-          ) : (
-            <CoreStatusPage />
-          )}
+        <main className={styles.main} aria-busy={loading}>
+          {/*
+            The `Suspense` sits outside the switch and is never unmounted, which is the whole reason
+            the fallback stays unreached: React only keeps the current screen on the glass during a
+            transition for a boundary that is *already* mounted. A boundary that appeared together
+            with the screen it wraps would be suspended on its first render, and a first-render
+            suspension shows its fallback — transition or not.
+          */}
+          <Suspense fallback={null}>
+            {view === 'shell' ? (
+              <ShellPage session={session} workspace={workspace} onSignOut={onSignOut} />
+            ) : view === 'core' ? (
+              <CoreStatusPage />
+            ) : (
+              /*
+                Only the split screens are wrapped. `ScreenBoundary` says a specific thing — the
+                screen's code never arrived — and stretching it over `ShellPage` would make it
+                explain an ordinary render crash with a sentence about a file that loaded fine.
+                Keyed by view so one dead chunk costs one screen: the boundary latches on failure,
+                `React.lazy` caches the rejected import, and without a fresh key per screen the
+                first failure would freeze the whole switcher on its apology.
+              */
+              <ScreenBoundary key={view}>
+                {view === 'workspace' ? (
+                  <WorkspacePage />
+                ) : view === 'leases' ? (
+                  <LeasesPage />
+                ) : view === 'merge-queue' ? (
+                  <MergeQueuePage />
+                ) : (
+                  <DesignSystemPage />
+                )}
+              </ScreenBoundary>
+            )}
+          </Suspense>
         </main>
       </div>
     </div>
   );
+}
+
+/**
+ * The catch under the split screens.
+ *
+ * A static import that cannot be resolved is a build error; a dynamic one is a runtime rejection,
+ * and an uncaught rejection during render unmounts the whole tree — in a desktop app that is a white
+ * window with no menu, no rail and no way back. The cost of not having this is therefore not "a
+ * screen fails to open" but "the application disappears", and the cost of having it is this class.
+ *
+ * It says what happened and does not offer a retry, because there is nothing behind one:
+ * `React.lazy` keeps the rejected promise and will hand back the same failure to every subsequent
+ * render. Another screen from the rail still works — see the `key` on the usage.
+ */
+class ScreenBoundary extends Component<{ children: ReactNode }, { failed: boolean }> {
+  override state = { failed: false };
+
+  static getDerivedStateFromError(): { failed: boolean } {
+    return { failed: true };
+  }
+
+  override render(): ReactNode {
+    if (!this.state.failed) return this.props.children;
+    return (
+      <p className={styles.screenFailed}>
+        Этот экран не загрузился — приложению не удалось прочитать его часть. Открой другой раздел;
+        если не открывается ни один, переустанови PartyCo.
+      </p>
+    );
+  }
 }
 
 /**

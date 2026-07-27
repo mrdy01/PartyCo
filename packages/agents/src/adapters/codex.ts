@@ -397,11 +397,11 @@ function parseLine(line: string): AgentEvent[] {
  * - `--output-last-message` — would make the adapter touch the filesystem. The final message already
  *   arrives on the stream.
  *
- * The prompt is passed after `--`. It is untrusted text from a person and may legitimately begin
- * with a hyphen; the separator stops clap reading it as flags. (`exec`'s prompt is a plain
- * positional `Option<String>` with no `allow_hyphen_values`/`trailing_var_arg`, so `--` is consumed
- * as the separator rather than delivered as the prompt.) `engine.ts` spawns with `shell: false`, so
- * this argv element reaches Codex verbatim and never meets a command interpreter.
+ * The prompt is not here. It goes to stdin, which the vendor documents: "If you omit the prompt
+ * argument, Codex reads the prompt from stdin. Use `codex exec -` when you want to force that
+ * behavior explicitly." We use the explicit form — `-` after the `--` separator, so it is a
+ * positional value and cannot be mistaken for an option — and then write the question and close the
+ * stream. See `promptDelivery` at the bottom of this file.
  */
 function buildArgs(request: AgentRequest): string[] {
   const args = [
@@ -422,23 +422,37 @@ function buildArgs(request: AgentRequest): string[] {
   ];
 
   if (request.model !== undefined && request.model.length > 0) {
-    // The prompt is protected by `--`; a model id is not, because it has to precede the separator.
     // A token whose first character is `-` is an option to clap, so a model of
     // `--dangerously-bypass-approvals-and-sandbox` would be read as a flag rather than as a value.
     // One leading space makes it a value again, and a model id that needed the space was never
     // going to resolve anyway — Codex answers with "unknown model", which is the honest outcome.
+    // The prompt no longer needs this treatment; a model id, which must sit on the command line,
+    // still does.
     args.push('--model', request.model.startsWith('-') ? ` ${request.model}` : request.model);
   }
 
-  args.push('--', request.prompt);
+  // `--` ends option parsing, `-` is the documented sentinel for "the prompt is on stdin". Keeping
+  // the separator costs nothing and means a future release cannot reinterpret a lone `-` as a flag.
+  args.push('--', '-');
   return args;
 }
 
-/** `codex --version` prints a version string; take the first semver-shaped token in it. */
-function parseVersion(stdout: string): string | null {
-  const match = /\b(\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?)\b/.exec(stdout);
-  return match?.[1] ?? null;
-}
+/**
+ * Every flag this file can emit, for the Windows interpreter check in `planSpawn`.
+ *
+ * `--` and `-` are in the list because they begin with a hyphen and are therefore checked like any
+ * other option token. Written out rather than derived from `buildArgs`, because a list derived from
+ * the thing it guards would agree with any change made to it — including a mistaken one.
+ */
+export const OWN_FLAGS: readonly string[] = [
+  '--json',
+  '--color',
+  '--cd',
+  '--sandbox',
+  '--model',
+  '--',
+  '-',
+];
 
 /**
  * Explain a non-zero exit.
@@ -500,8 +514,17 @@ function explainExit(code: number | null, stderr: string): ErrorEvent {
 export const codexAdapter: AgentAdapter = {
   providerId: 'openai',
   binary: 'codex',
-  versionArgs: ['--version'],
-  parseVersion,
+  /**
+   * Documented in the vendor's own words on the non-interactive-mode page: "If you omit the prompt
+   * argument, Codex reads the prompt from stdin. Use `codex exec -` when you want to force that
+   * behavior explicitly." The same page describes the other half of the contract we deliberately do
+   * not use — "If stdin is piped and you also provide a prompt argument, Codex treats the prompt as
+   * the instruction and the piped content as additional context" — which is why `buildArgs` passes
+   * no prompt argument at all: with one, the member's question would arrive as *context* to an
+   * instruction we invented.
+   */
+  promptDelivery: 'stdin',
+  ownFlags: OWN_FLAGS,
   buildArgs,
   parseLine,
   explainExit,

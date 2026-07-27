@@ -34,27 +34,29 @@ import type { AgentAdapter, AgentEvent, AgentRequest, ErrorEvent } from '../engi
 /**
  * Make a piece of untrusted text safe to place in argv as a value rather than a flag.
  *
- * `shell: false` stops a prompt from becoming *shell* syntax. It does not stop it from becoming
- * *option* syntax: argv is still parsed by the CLI's own argument parser, and a token whose first
- * character is `-` is an option to every parser there is. Checked against the real `buildArgs`
- * output: a prompt of `--dangerously-skip-permissions` produced
+ * `shell: false` stops text from becoming *shell* syntax. It does not stop it from becoming *option*
+ * syntax: argv is still parsed by the CLI's own argument parser, and a token whose first character is
+ * `-` is an option to every parser there is. Checked against the real `buildArgs` output back when
+ * the prompt was still an argument: a prompt of `--dangerously-skip-permissions` produced
  * `['-p', '--dangerously-skip-permissions', '--output-format', …]`, i.e. the question vanished and a
  * flag that disables every permission prompt got switched on by whoever typed the question. A single
- * token can also carry a value — `--settings=C:\evil.json`, `--mcp-config={…}` — so the attack is not
- * limited to valueless flags.
+ * token can also carry a value — `--settings=C:\evil.json`, `--mcp-config={…}` — so the attack was
+ * never limited to valueless flags.
+ *
+ * The prompt has since moved to stdin and is out of reach of this problem entirely. `--model` has
+ * not: its value has to sit on the command line, and it arrives from configuration rather than from
+ * this file. So the guard stays, for the one argument that still needs it.
  *
  * The repair is one leading space. A token starting with a space is not an option to any parser, so
- * it lands where it was meant to land — as the prompt, or as the value of `--model`. A model reading
- * a question with one extra space in front of it behaves identically; a CLI handed an injected flag
- * does not. Claude Code does not document `--` as an end-of-options separator, so this file does not
- * invent one: the space needs no promise from the vendor to work.
+ * it lands where it was meant to land — as the value of `--model`. A model id that needed the space
+ * was never going to resolve anyway, and Claude Code answers "unknown model", which is honest.
  */
 function asValue(text: string): string {
   return text.startsWith('-') ? ` ${text}` : text;
 }
 
 /**
- * One non-interactive run.
+ * One non-interactive run. The prompt is **not** here — it goes to stdin; see `promptDelivery`.
  *
  * `-p` is the documented non-interactive flag ("Print response without interactive mode").
  * `--output-format stream-json` is the documented "newline-delimited JSON for real-time streaming",
@@ -67,7 +69,7 @@ function asValue(text: string): string {
  * shell renders whole blocks anyway.
  */
 export function buildArgs(request: AgentRequest): string[] {
-  const args = ['-p', asValue(request.prompt), '--output-format', 'stream-json', '--verbose'];
+  const args = ['-p', '--output-format', 'stream-json', '--verbose'];
 
   // `--model`: "Sets the model for the current session with an alias for the latest model
   // (`sonnet`, `opus`, `haiku`, or `fable`) or a model's full name." Documented on the CLI
@@ -78,22 +80,13 @@ export function buildArgs(request: AgentRequest): string[] {
   return args;
 }
 
-/* ------------------------------------------------------------------ *
- * Version
- * ------------------------------------------------------------------ */
-
-const SEMVER = /\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?(?:\+[0-9A-Za-z.-]+)?/;
-
 /**
- * `claude --version` prints a line such as `2.1.220 (Claude Code)`.
+ * Every flag this file can emit, for the Windows interpreter check in `planSpawn`.
  *
- * Presence of a version is the *entire* definition of "installed" in PartyCo — we never look inside
- * the vendor's config directory to find out more. Returns `null` rather than guessing when the CLI
- * prints something we do not recognise; a wrong version is worse than an unknown one.
+ * Written out rather than derived from `buildArgs`, because a list derived from the thing it guards
+ * would agree with any change made to it — including a mistaken one.
  */
-export function parseVersion(stdout: string): string | null {
-  return stdout.match(SEMVER)?.[0] ?? null;
-}
+export const OWN_FLAGS: readonly string[] = ['-p', '--output-format', '--verbose', '--model'];
 
 /* ------------------------------------------------------------------ *
  * Stream parsing
@@ -463,8 +456,27 @@ export function explainExit(code: number | null, stderr: string): ErrorEvent {
 export const claudeAdapter: AgentAdapter = {
   providerId: 'anthropic',
   binary: 'claude',
-  versionArgs: ['--version'],
-  parseVersion,
+  /**
+   * Documented, and checked against the vendor's own pages rather than remembered.
+   *
+   * The headless guide: "Non-interactive mode reads stdin, so you can pipe data in and redirect the
+   * response out like any other command-line tool", and its `--append-system-prompt` example runs
+   * `gh pr diff "$1" | claude -p --append-system-prompt "…" --output-format json` — `-p` with no
+   * prompt argument at all, the whole input arriving on the pipe. The same page notes that when
+   * stdin cannot be read Claude Code "prints a warning to stderr and continues with the prompt from
+   * the command line", i.e. the argument is the fallback, not the required channel.
+   *
+   * `--input-format` defaults to `text`, which is what we send: the member's question, verbatim,
+   * followed by EOF. Its other value, `stream-json`, would also carry the prompt on stdin, but the
+   * JSON envelope it expects is documented nowhere except the flag table — building on a shape we
+   * would have to reverse-engineer is exactly the habit this package exists to avoid.
+   *
+   * Two things this buys beyond Windows: a question can no longer be read as a flag no matter what
+   * it contains, and it is no longer capped by the 32767-character Windows command line, which used
+   * to make a long prompt simply fail to send.
+   */
+  promptDelivery: 'stdin',
+  ownFlags: OWN_FLAGS,
   buildArgs,
   parseLine,
   explainExit,

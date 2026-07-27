@@ -10,6 +10,7 @@ import type {
   IpcResult,
 } from '../main/agents.ts';
 import type {
+  Page,
   TranscriptBridge,
   TranscriptEntry,
   WorkspaceBridge,
@@ -102,7 +103,15 @@ export interface AgentsBridge {
    * that would put it back in web content, which is the one place it must not be.
    */
   setKey(providerId: string, key: string): Promise<IpcResult<AgentKeyReport>>;
-  /** Per-provider `hasKey`, plus `persisted: false` — the UI must say keys do not survive a restart. */
+  /**
+   * Per-provider `hasKey`, plus `persisted` — whether a saved key survives quitting the app.
+   *
+   * `persisted` is a real boolean and both values happen: the main process encrypts keys with the
+   * OS keychain, and on a machine where the OS refuses to encrypt it writes nothing at all rather
+   * than storing plaintext. The UI must say which of the two it is, because the member's next
+   * launch differs — and a promise of persistence that the OS quietly declined is the kind of lie
+   * this bridge exists to make impossible.
+   */
   keyStatus(): Promise<IpcResult<AgentKeyReport>>;
 }
 
@@ -216,14 +225,13 @@ const workspace: WorkspaceBridge = {
     ipcRenderer.invoke('workspace:current') as Promise<IpcResult<WorkspaceInfo | null>>,
   clear: () => ipcRenderer.invoke('workspace:clear') as Promise<IpcResult<null>>,
   tree: (dir) =>
-    ipcRenderer.invoke('workspace:tree', dir) as Promise<IpcResult<readonly WorkspaceEntry[]>>,
+    ipcRenderer.invoke('workspace:tree', dir) as Promise<IpcResult<Page<WorkspaceEntry>>>,
   readFile: (path) =>
     ipcRenderer.invoke('workspace:readFile', path) as Promise<IpcResult<WorkspaceFile>>,
 };
 
 const transcript: TranscriptBridge = {
-  load: () =>
-    ipcRenderer.invoke('transcript:load') as Promise<IpcResult<readonly TranscriptEntry[]>>,
+  load: () => ipcRenderer.invoke('transcript:load') as Promise<IpcResult<Page<TranscriptEntry>>>,
   append: (entry) =>
     ipcRenderer.invoke('transcript:append', entry) as Promise<IpcResult<TranscriptEntry>>,
   clear: () => ipcRenderer.invoke('transcript:clear') as Promise<IpcResult<null>>,

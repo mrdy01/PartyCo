@@ -104,6 +104,18 @@ export interface ConversationProps {
    * it here rather than in the caller is what guarantees it lands on the same 640px column.
    */
   footer?: ReactNode;
+  /**
+   * Rendered above the first item and **inside** the scroll, on the same column.
+   *
+   * It exists for one kind of sentence: what is missing from the top of the ribbon. A very long
+   * transcript is read from its end, and the turns before the ones on screen are not gone — they are
+   * simply not in this answer. Saying so belongs where they would have been, and it has to scroll
+   * away with them, which is why this is not another footer.
+   *
+   * Drawn only in `ready`: there is nothing above an empty stream, and a note over an error would
+   * compete with the thing that actually needs reading.
+   */
+  header?: ReactNode;
   copy?: ConversationCopyInput | undefined;
   className?: string | undefined;
 }
@@ -131,6 +143,7 @@ export function Conversation({
   onRetry,
   identitySet,
   footer,
+  header,
   copy,
   className,
 }: ConversationProps): ReactElement {
@@ -240,6 +253,7 @@ export function Conversation({
           className={styles.column}
           {...(mode === 'ready' ? { role: 'log', 'aria-label': text.streamLabel } : {})}
         >
+          {mode === 'ready' && header ? <div className={styles.header}>{header}</div> : null}
           {body}
         </div>
       </div>

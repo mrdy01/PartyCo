@@ -1,7 +1,8 @@
 import { createHash, randomUUID } from 'node:crypto';
-import { appendFile, mkdir, open, readFile, rm } from 'node:fs/promises';
+import { createReadStream } from 'node:fs';
+import { appendFile, mkdir, open, rm } from 'node:fs/promises';
 import { dirname, isAbsolute, join, resolve as resolvePath } from 'node:path';
-import type { IpcResult, TranscriptEntry } from '../preload/contracts.ts';
+import type { IpcResult, Page, TranscriptEntry } from '../preload/contracts.ts';
 
 /**
  * Durable conversation history: what the member and the agent actually said, on this machine, in a
@@ -18,6 +19,14 @@ import type { IpcResult, TranscriptEntry } from '../preload/contracts.ts';
  * with a partial tail is unparseable in its entirety — one interrupted write and the member's whole
  * history is gone. JSONL loses exactly the interrupted line: `load` skips what it cannot parse and
  * keeps everything before it. That rule is what makes this format worth its slightly clumsier reads.
+ *
+ * **Read from the end, one line at a time.** The file only grows, so the only thing that can be said
+ * about its size is that a long-lived project will make it big. `readFile(file, 'utf8')` on a
+ * half-gigabyte transcript does not return a large answer — it throws `ERR_STRING_TOO_LONG`, and the
+ * member's entire history becomes unreadable with `clear()` as the only way out, which is to say the
+ * cure is deleting the thing they came back for. So a read streams the file, parses line by line and
+ * keeps the last {@link MAX_PAGE_ENTRIES} entries in a ring buffer; what came before them is counted
+ * and reported as `omitted`, never deleted and never invented as a row.
  *
  * **One file per workspace, named by hash.** The file name is `sha256(normalised absolute path)`,
  * because the path itself is not a file name: `C:\code\PartyCo` carries a colon and separators, and
@@ -53,6 +62,35 @@ import type { IpcResult, TranscriptEntry } from '../preload/contracts.ts';
  * reads in one bubble and still leaves the file readable.
  */
 export const MAX_ENTRY_BYTES = 256 * 1024;
+
+/**
+ * Turns handed to the renderer by one `load()`.
+ *
+ * The end of the conversation is what a person came back for: the last thing said is the thing they
+ * were reading when they closed the window, and no one scrolls to turn 1 of 9000 to resume work. So
+ * the page is the tail, and the count of everything before it travels with it.
+ *
+ * 500 is chosen against the two failure modes at once. Below it a returning member notices the app
+ * forgot a conversation they can still remember having; far above it the page stops being something
+ * a window can render at all. The theoretical worst case is 500 × {@link MAX_ENTRY_BYTES}, but that
+ * is the ceiling of the *format*, not of a conversation — five hundred maximum-length turns in a row
+ * has never been what a transcript looks like.
+ */
+export const MAX_PAGE_ENTRIES = 500;
+
+/**
+ * The longest line a read will assemble before giving up on it.
+ *
+ * {@link fitEntry} guarantees every line this module writes fits in {@link MAX_ENTRY_BYTES}, so a
+ * longer line was not written by us: it is a hand-edit, a foreign file, or garbage that happens to
+ * live under this name. Buffering it anyway would hand an attacker — or a stray `cat` — the exact
+ * unbounded allocation that streaming exists to prevent, so it is dropped like any other line that
+ * is not an entry, and the lines around it are unaffected.
+ */
+const MAX_LINE_BYTES = MAX_ENTRY_BYTES;
+
+/** `\n`. The only line separator this format has; a `\r` before it is trimmed off with whitespace. */
+const NEWLINE = 0x0a;
 
 /** `tools` is documented as «short human strings»; these caps are that documentation, enforced. */
 const MAX_TOOLS = 64;
@@ -338,31 +376,122 @@ function serialized<T>(file: string, task: () => Promise<T>): Promise<T> {
  * temporary folder by `node --test`, with no Electron and no user profile involved.
  * ------------------------------------------------------------------ */
 
-/** Everything stored for this workspace, oldest first. Broken lines are skipped, not fatal. */
+/**
+ * Read the file line by line, keeping either all of it (`limit === null`) or the last `limit`
+ * entries, and count what was left behind.
+ *
+ * Three properties are worth stating because each of them is a bug that was available here:
+ *
+ * **Nothing whole is ever held in memory.** The stream arrives in chunks the size the OS chose, one
+ * line is assembled at a time, and the retained set never exceeds `limit` entries. That is what
+ * makes a 500 MB transcript readable at all — and it is why the file is read forwards even though
+ * the answer is its tail. Reading backwards in blocks would touch fewer bytes, but `omitted` has to
+ * be a count of *entries*, and whether a line is an entry is only knowable by parsing it. Any honest
+ * count therefore visits the whole file, at which point going backwards buys nothing and costs the
+ * one thing that matters here — a reader anybody can check.
+ *
+ * **A broken line is not an entry, so it is not omitted either.** It is not counted, not returned
+ * and not represented by anything. Counting damage as history would make `omitted` a number the
+ * interface states in words and cannot back up.
+ *
+ * **Nothing synthetic is spliced in.** No «здесь обрезано» row: a transcript is a record of what was
+ * said, and a line nobody said has no business in it. The count travels beside the entries instead.
+ */
+async function readEntries(file: string, limit: number | null): Promise<Page<TranscriptEntry>> {
+  /** The kept entries. Once it is full, `next` is both the write position and the oldest one. */
+  const ring: TranscriptEntry[] = [];
+  let next = 0;
+  let total = 0;
+
+  const take = (line: Buffer): void => {
+    // `trim` handles CRLF files and stray whitespace; a blank line is not a broken one.
+    const text = line.toString('utf8').trim();
+    if (text.length === 0) return;
+    const entry = parseStoredLine(text);
+    if (entry === null) return;
+
+    total += 1;
+    if (limit === null || ring.length < limit) {
+      ring.push(entry);
+      return;
+    }
+    ring[next] = entry;
+    next = (next + 1) % limit;
+  };
+
+  /** Bytes of the line being assembled, or `null` between lines. */
+  let carry: Buffer | null = null;
+  /** Set when the current line passed {@link MAX_LINE_BYTES}: drop bytes until the next newline. */
+  let skipping = false;
+
+  const stream: AsyncIterable<Buffer> = createReadStream(file);
+  try {
+    for await (const chunk of stream) {
+      let offset = 0;
+      while (offset < chunk.length) {
+        const at = chunk.indexOf(NEWLINE, offset);
+        const end = at === -1 ? chunk.length : at;
+
+        if (!skipping) {
+          const piece = chunk.subarray(offset, end);
+          if ((carry === null ? 0 : carry.length) + piece.length > MAX_LINE_BYTES) {
+            carry = null;
+            skipping = true;
+          } else {
+            // The copy matters: `createReadStream` slices its chunks out of a shared pool, and a
+            // subarray kept across iterations pins — or in a future Node, could outlive — that pool.
+            carry = carry === null ? Buffer.from(piece) : Buffer.concat([carry, piece]);
+          }
+        }
+
+        if (at === -1) break; // the line continues in the next chunk
+        if (carry !== null) take(carry);
+        carry = null;
+        skipping = false;
+        offset = at + 1;
+      }
+    }
+  } catch (cause) {
+    if (isMissing(cause)) return { items: [], omitted: 0 };
+    throw cause;
+  }
+  // A file that ends without a newline: the last append was interrupted, or an editor saved it that
+  // way. Whatever it is, it gets the same chance to be an entry as any other line.
+  if (carry !== null) take(carry);
+
+  // `next` is non-zero only while the ring is mid-lap, so this is the only unrolling needed.
+  const items = next === 0 ? ring : [...ring.slice(next), ...ring.slice(0, next)];
+  return { items, omitted: total - items.length };
+}
+
+/**
+ * Everything stored for this workspace, oldest first. Broken lines are skipped, not fatal.
+ *
+ * Deliberately *not* a page — see {@link loadTranscript} for who asks for all of it and why.
+ */
 export async function loadTranscriptFrom(
   dataDir: string,
   root: string,
 ): Promise<readonly TranscriptEntry[]> {
   const file = transcriptFilePath(dataDir, root);
-  return serialized(file, async () => {
-    let raw: string;
-    try {
-      raw = await readFile(file, 'utf8');
-    } catch (cause) {
-      if (isMissing(cause)) return [];
-      throw cause;
-    }
+  return serialized(file, async () => (await readEntries(file, null)).items);
+}
 
-    const entries: TranscriptEntry[] = [];
-    for (const line of raw.split('\n')) {
-      // `trim` handles CRLF files and stray whitespace; a blank line is not a broken one.
-      const trimmed = line.trim();
-      if (trimmed.length === 0) continue;
-      const entry = parseStoredLine(trimmed);
-      if (entry !== null) entries.push(entry);
-    }
-    return entries;
-  });
+/**
+ * The last `limit` entries and the number of older ones, for a screen.
+ *
+ * `limit` is a parameter so that tests can ask for a small page without writing a large history;
+ * callers in the app take the default. A non-finite or non-positive value falls back to the default
+ * rather than being obeyed — a page of zero entries would be an empty history that is not empty.
+ */
+export async function loadTranscriptPageFrom(
+  dataDir: string,
+  root: string,
+  limit: number = MAX_PAGE_ENTRIES,
+): Promise<Page<TranscriptEntry>> {
+  const file = transcriptFilePath(dataDir, root);
+  const bounded = Number.isFinite(limit) && limit >= 1 ? Math.floor(limit) : MAX_PAGE_ENTRIES;
+  return serialized(file, () => readEntries(file, bounded));
 }
 
 /**
@@ -448,8 +577,32 @@ async function transcriptDataDir(): Promise<string> {
  * have to echo the agent's answer back across the bridge for it to be stored. The dependency runs
  * one way: this module knows nothing about `agents.ts`, and `agents.ts` may import these.
  */
+/**
+ * Everything, not a page — and that is the decision, not an oversight.
+ *
+ * `Page` exists to answer a question a *screen* has: «is this all of it, and if not, how much am I
+ * not looking at». The main process has no screen and nobody to tell. What it has is a different
+ * job: assembling the context of a run, where the unit of «too much» is tokens and the right thing
+ * to drop is decided by whoever builds the prompt — a ceiling of 500 rows chosen for a scroll view
+ * would silently amputate that decision, and `omitted: 4212` would be a number with no reader.
+ *
+ * So this returns the entries and lets the caller bound them by its own measure. It is safe to do
+ * now in a way it was not before: the read streams, so a huge file is slow rather than fatal, and
+ * nothing here materialises the file as one string.
+ *
+ * A caller that genuinely wants the screen's answer — a future «continue where we left off» — asks
+ * {@link loadTranscriptPage}.
+ */
 export async function loadTranscript(root: string): Promise<readonly TranscriptEntry[]> {
   return loadTranscriptFrom(await transcriptDataDir(), root);
+}
+
+/** The page `transcript:load` answers with. Same storage, bounded from the start. */
+export async function loadTranscriptPage(
+  root: string,
+  limit?: number,
+): Promise<Page<TranscriptEntry>> {
+  return loadTranscriptPageFrom(await transcriptDataDir(), root, limit);
 }
 
 export async function appendTranscript(
@@ -526,11 +679,17 @@ export function registerTranscriptIpc(source?: WorkspaceRootSource): void {
   // file logic — unloadable outside the Electron runtime.
   void import('electron')
     .then(({ ipcMain }) => {
-      ipcMain.handle('transcript:load', async (): Promise<IpcResult<readonly TranscriptEntry[]>> => {
+      /**
+       * The tail of the conversation and the size of what precedes it.
+       *
+       * A long history is no longer a reason to answer with an error: `ok: false` here means the
+       * file could not be read at all, not that there was too much of it.
+       */
+      ipcMain.handle('transcript:load', async (): Promise<IpcResult<Page<TranscriptEntry>>> => {
         const root = await requireRoot();
         if (!root.ok) return root;
         try {
-          return succeed(await loadTranscript(root.value));
+          return succeed(await loadTranscriptPage(root.value));
         } catch (cause) {
           return fail(`Не удалось прочитать историю разговора: ${describe(cause)}`);
         }

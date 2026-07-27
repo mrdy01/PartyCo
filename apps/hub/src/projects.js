@@ -26,6 +26,10 @@
  * `auth.js`) this module imports what it needs instead of declaring twins of it —
  * `publicMember` in particular, because it is the single place that builds member JSON and
  * therefore the single place that keeps `password_hash` out of every response at once.
+ * The traffic in the other direction — an invitation needs to know which project it may
+ * lead into — travels as `resolveInviteProject`, handed to `createInvite` by index.js the
+ * same way `auth.normalizeEmail` is. Rule 1 holds there too: a project you are not in is
+ * not a project you can write an invitation into.
  *
  * The hub stays a coordination plane: a project row is a name and a roster. It grants
  * nobody access to anyone's machine, files or provider keys.
@@ -273,6 +277,47 @@ export function createProject(db, actor, input, now = Date.now()) {
 export function listProjects(db, actor) {
   const rows = db.prepare(`${SELECT_PROJECT} ORDER BY p.created_at, p.id`).all(actor.id);
   return rows.map((row) => publicProject(/** @type {any} */ (row)));
+}
+
+// ---------------------------------------------------------------------------
+// Which project an invitation leads into
+// ---------------------------------------------------------------------------
+
+/**
+ * Decide the project an invitation is written for. Lent to `createInvite` rather than
+ * imported by it — `invites.js` sits below this module and a cycle would be a trap — and
+ * called only after that function has established the caller may invite anyone at all.
+ *
+ * Two cases, and the second is deliberately not clever:
+ *
+ *  - **An id was given.** It has to be a project the caller may add people to, or the
+ *    invitation would be a way around `POST /v1/projects/members`: somebody who is a mere
+ *    observer in a project could otherwise hand out a code that walks a stranger into it.
+ *    Not-yours is the same 404 as never-existed, exactly as everywhere else in this file.
+ *  - **Nothing was given.** No project. Not "their only project", not "the newest one":
+ *    an invitation is a seat on the hub unless somebody says otherwise, and picking a
+ *    project for them would let one click in the team panel hand out access to work the
+ *    inviter never mentioned. A role on the hub is not a role in a project — that is what
+ *    the roles above are about — and an invitation that quietly granted both would erase
+ *    the distinction. The response carries `projectId: null`, so nothing here is silent.
+ *
+ * Nothing here creates a project either. Somebody who has none invites onto the hub, and
+ * that is the truth about their hub, not a gap to paper over.
+ *
+ * @param {DatabaseSync} db
+ * @param {MemberRow} actor
+ * @param {unknown} rawProjectId
+ * @returns {string|null}
+ * @throws {HttpError} 404 project_not_found · 403 forbidden · 400 invalid_project
+ */
+export function resolveInviteProject(db, actor, rawProjectId) {
+  if (rawProjectId == null || rawProjectId === '') return null;
+
+  const project = requireProject(db, normalizeProjectId(rawProjectId), actor.id);
+  if (!PROJECT_MANAGER_ROLES.includes(project.viewer_role)) {
+    throw new HttpError(403, 'forbidden', 'Звать в проект может владелец проекта или мейнтейнер.');
+  }
+  return project.id;
 }
 
 // ---------------------------------------------------------------------------

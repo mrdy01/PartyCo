@@ -40,6 +40,20 @@
   padding-top: 0;
 }
 
+/*
+ * The note about what is missing above the ribbon.
+ *
+ * Quiet on purpose: it is context for the first turn on screen, not an event. It scrolls away with
+ * the turns it describes, because a person who has scrolled past the beginning no longer needs to be
+ * told where the beginning was.
+ */
+.header {
+  font: var(--pc-type-note);
+  color: var(--pc-text-3);
+  padding-bottom: var(--pc-space-4);
+  border-bottom: var(--pc-border-width) solid var(--pc-border-subtle);
+}
+
 .stream[data-mode='empty'] .column,
 .stream[data-mode='loading'] .column,
 .stream[data-mode='error'] .column {

@@ -53,11 +53,41 @@ function pollutedEnv(extra = {}) {
 }
 
 /**
+ * A stand-in for the child's stdin.
+ *
+ * Records what was written and whether the stream was closed, because both matter: an unclosed stdin
+ * leaves a CLI waiting for more of a question that already ended, and a prompt written anywhere but
+ * here is a prompt back on the command line.
+ */
+function fakeStdin() {
+  return {
+    written: '',
+    ended: false,
+    events: [],
+    on(event) {
+      this.events.push(event);
+      return this;
+    },
+    write(chunk) {
+      this.written += chunk;
+      return true;
+    },
+    end(chunk) {
+      if (typeof chunk === 'string') this.written += chunk;
+      this.ended = true;
+      return this;
+    },
+  };
+}
+
+/**
  * A stand-in for a spawned CLI. `hang: true` never closes, which is how the version probe's timeout
  * gets exercised without waiting five real seconds.
  */
 function fakeChild({ stdout = '', stderr = '', code = 0, hang = false } = {}) {
   const child = new EventEmitter();
+  child.pid = 4242;
+  child.stdin = fakeStdin();
   child.stdout = new EventEmitter();
   child.stdout.setEncoding = () => {};
   child.stderr = new EventEmitter();
@@ -286,10 +316,13 @@ async function drain(generator) {
   return events;
 }
 
-test('a delegated run: no shell, a built environment, and the prompt as one verbatim argv element', async () => {
-  // Every shell metacharacter that matters, in one string, so a `shell: true` regression is loud.
-  const prompt = 'почини `rm -rf /` && echo "$HOME" | tee /tmp/x; % ^ & <> "quoted"';
-  const spawnFn = recordingSpawn(() => fakeChild({ stdout: '', code: 0 }));
+/** Every shell and interpreter metacharacter that matters, in one string. */
+const HOSTILE_PROMPT = 'почини `rm -rf /` && echo "$HOME" | tee /tmp/x; % ^ & <> "quoted" !x! (y)';
+
+test('a delegated run: no shell, a built environment, and the prompt on stdin rather than in argv', async () => {
+  const prompt = HOSTILE_PROMPT;
+  const child = fakeChild({ stdout: '', code: 0 });
+  const spawnFn = recordingSpawn(() => child);
 
   await drain(
     runAgent({
@@ -298,6 +331,7 @@ test('a delegated run: no shell, a built environment, and the prompt as one verb
       mode: 'subscription',
       spawnFn,
       env: pollutedEnv(),
+      platform: 'linux',
     }),
   );
 
@@ -306,11 +340,17 @@ test('a delegated run: no shell, a built environment, and the prompt as one verb
   assert.equal(call.command, 'claude');
   assert.equal(call.options.shell, false, 'a shell would turn the prompt into syntax');
   assert.equal(call.options.windowsHide, true);
-  assert.deepEqual(call.options.stdio, ['ignore', 'pipe', 'pipe']);
+  assert.deepEqual(call.options.stdio, ['pipe', 'pipe', 'pipe'], 'stdin has to be writable');
 
+  assert.equal(child.stdin.written, prompt, 'the prompt arrives byte for byte, with nothing added');
+  assert.equal(child.stdin.ended, true, 'and the stream is closed, or the CLI waits forever');
   assert.ok(
-    call.args.includes(prompt),
-    'the prompt is one argv element, delivered byte for byte and never re-quoted',
+    child.stdin.events.includes('error'),
+    'a child that dies before reading raises EPIPE here; unhandled that takes down the daemon',
+  );
+  assert.ok(
+    !call.args.some((arg) => arg.includes(prompt)),
+    'nothing the member typed is on the command line at all',
   );
 
   const env = call.options.env;
@@ -417,21 +457,77 @@ test('no prompt and no model can turn into a CLI flag', () => {
         }
       }
 
-      // Neutralised, not dropped: the member's question still arrives, it just arrives as a value.
-      const args = adapter.buildArgs({ prompt: hostileText, cwd: 'C:\\work' });
-      assert.ok(
-        args.some((token) => token.trim() === hostileText),
-        `${adapter.providerId}: «${hostileText}» must still be asked, just not as a flag`,
+      // Stronger than "the hostile text is absent": the command line does not depend on the prompt
+      // at all any more. `-p` and `--` are in the hostile list and are also flags we legitimately
+      // emit, so comparing argv against a benign run is the assertion that cannot be fooled by a
+      // coincidence.
+      assert.deepEqual(
+        adapter.buildArgs({ prompt: hostileText, cwd: 'C:\\work' }),
+        adapter.buildArgs({ prompt: 'обычный вопрос', cwd: 'C:\\work' }),
+        `${adapter.providerId}: «${hostileText}» changed the command line`,
       );
     }
   }
 });
 
-test('an ordinary prompt is passed through untouched', () => {
-  const prompt = 'объясни разницу между --verbose и -v в claude';
+test('no adapter puts the prompt in argv, however ordinary the prompt is', () => {
+  const prompts = [
+    'объясни разницу между --verbose и -v в claude',
+    HOSTILE_PROMPT,
+    'x'.repeat(40_000), // longer than a Windows command line can hold; used to fail to send at all
+  ];
   for (const adapter of FLAG_ALLOWLIST.keys()) {
-    const args = adapter.buildArgs({ prompt, cwd: 'C:\\work' });
-    assert.ok(args.includes(prompt), `${adapter.providerId}: no rewriting of a harmless prompt`);
+    assert.equal(adapter.promptDelivery, 'stdin', `${adapter.providerId} must deliver on stdin`);
+    for (const prompt of prompts) {
+      const args = adapter.buildArgs({ prompt, cwd: 'C:\\work', model: 'sonnet' });
+      for (const token of args) {
+        assert.ok(
+          !token.includes(prompt.slice(0, 24)),
+          `${adapter.providerId}: a fragment of the prompt reached argv as «${token.slice(0, 40)}»`,
+        );
+      }
+    }
+  }
+});
+
+test('every flag an adapter emits is one it declared, so the interpreter check cannot be fooled', () => {
+  for (const adapter of FLAG_ALLOWLIST.keys()) {
+    for (const request of [
+      { prompt: 'привет', cwd: 'C:\\work' },
+      { prompt: 'привет', cwd: 'C:\\work', model: 'claude-sonnet-4-6' },
+      { prompt: 'привет', cwd: 'C:\\work', model: '--yolo' },
+    ]) {
+      for (const token of adapter.buildArgs(request)) {
+        if (!token.startsWith('-')) continue;
+        assert.ok(
+          adapter.ownFlags.includes(token),
+          `${adapter.providerId} emitted «${token}», which is not in its own flag list`,
+        );
+      }
+    }
+    // The list is written by hand, so it must not quietly grow flags nobody emits either.
+    for (const flag of adapter.ownFlags) {
+      assert.ok(flag.startsWith('-'), `${adapter.providerId}: «${flag}» is not an option token`);
+    }
+  }
+});
+
+test('the prompt reaches stdin for every adapter, and the stream is closed after it', async () => {
+  for (const adapter of FLAG_ALLOWLIST.keys()) {
+    const prompt = `${HOSTILE_PROMPT} — ${adapter.providerId}`;
+    const child = fakeChild({ stdout: '', code: 0 });
+    await drain(
+      runAgent({
+        adapter,
+        request: { prompt, cwd: process.cwd() },
+        mode: 'subscription',
+        spawnFn: recordingSpawn(() => child),
+        env: pollutedEnv(),
+        platform: 'linux',
+      }),
+    );
+    assert.equal(child.stdin.written, prompt, `${adapter.providerId}: verbatim, nothing appended`);
+    assert.equal(child.stdin.ended, true, `${adapter.providerId}: EOF ends the question`);
   }
 });
 
@@ -476,6 +572,348 @@ test('a vendor error that quotes a credential does not carry it into the transcr
       );
     }
   }
+});
+
+// ---------------------------------------------------------------------------
+// Starting an npm wrapper on Windows
+//
+// The platform PartyCo targets first installs every CLI as a `.cmd`, and Node refuses to execute one
+// directly (EINVAL — the CVE-2024-27980 fix). Until the prompt moved to stdin the only honest answer
+// was a refusal, because routing argv through a command interpreter is how a question becomes a
+// command. The premise changed, so the answer changed with it — but only exactly as far as the new
+// premise reaches. These cases are the boundary of that exception, and each one is a way it could be
+// widened by accident later.
+// ---------------------------------------------------------------------------
+
+const NPM_SHIM = 'C:\\Users\\ann\\AppData\\Roaming\\npm\\claude.cmd';
+
+/** Run once and hand back what was spawned, plus the events that came out. */
+async function runWith(options) {
+  const child = fakeChild({ stdout: '', code: 0 });
+  const spawnFn = recordingSpawn(() => child);
+  const events = await drain(
+    runAgent({
+      adapter: claudeAdapter,
+      request: { prompt: 'привет', cwd: 'C:\\work' },
+      mode: 'subscription',
+      env: pollutedEnv(),
+      spawnFn,
+      ...options,
+    }),
+  );
+  return { calls: spawnFn.calls, events, child };
+}
+
+test('on Windows a .cmd wrapper is started through cmd.exe with an argv we assembled ourselves', async () => {
+  const { calls, child } = await runWith({ platform: 'win32', binaryPath: NPM_SHIM });
+
+  assert.equal(calls.length, 1);
+  const [call] = calls;
+  assert.equal(call.command, 'C:\\Windows\\System32\\cmd.exe');
+  assert.equal(call.args[0], '/d', 'no AutoRun command from the registry joins the run');
+  assert.equal(call.args[1], '/s', 'the outer quotes are the delimiters, nothing is re-parsed');
+  assert.equal(call.args[2], '/c');
+  assert.equal(
+    call.args[3],
+    `""${NPM_SHIM}" "-p" "--output-format" "stream-json" "--verbose""`,
+    'every token is quoted individually, so none of them can merge or split',
+  );
+  assert.equal(call.args.length, 4);
+  assert.equal(call.options.shell, false, 'still no shell: this is one named program and our argv');
+  assert.equal(call.options.windowsVerbatimArguments, true);
+
+  // And the reason any of this is allowed: the question is not on that command line.
+  assert.equal(child.stdin.written, 'привет');
+  assert.equal(child.stdin.ended, true);
+});
+
+test('a prompt made entirely of interpreter syntax runs anyway, because it is not on the command line', async () => {
+  const prompt = '%PATH% & del /q C:\\* | echo "^!oops!" > out.txt (yes)';
+  const child = fakeChild({ stdout: '', code: 0 });
+  const spawnFn = recordingSpawn(() => child);
+
+  const events = await drain(
+    runAgent({
+      adapter: claudeAdapter,
+      request: { prompt, cwd: 'C:\\work' },
+      mode: 'subscription',
+      env: pollutedEnv(),
+      spawnFn,
+      platform: 'win32',
+      binaryPath: NPM_SHIM,
+    }),
+  );
+
+  assert.equal(spawnFn.calls.length, 1, 'nothing about the prompt can stop the run');
+  assert.equal(events.filter((e) => e.kind === 'error').length, 0);
+  assert.equal(child.stdin.written, prompt, 'delivered verbatim, through a channel with no syntax');
+  assert.ok(
+    !spawnFn.calls[0].args.some((arg) => arg.includes('%PATH%')),
+    'and not one character of it reached cmd.exe',
+  );
+});
+
+test('on Windows a real executable is still started directly, with no interpreter in the way', async () => {
+  const exe = 'C:\\Program Files\\Claude\\claude.exe';
+  const { calls } = await runWith({ platform: 'win32', binaryPath: exe });
+
+  assert.equal(calls[0].command, exe, 'the .exe is the process, not an argument to something else');
+  assert.deepEqual(calls[0].args, ['-p', '--output-format', 'stream-json', '--verbose']);
+  assert.equal(calls[0].options.windowsVerbatimArguments, false, 'Node quotes for the C runtime');
+});
+
+test('the interpreter exception is Windows-only — elsewhere a file named .cmd is just a file', async () => {
+  const { calls } = await runWith({ platform: 'linux', binaryPath: '/usr/local/bin/claude.cmd' });
+  assert.equal(calls[0].command, '/usr/local/bin/claude.cmd');
+  assert.equal(calls[0].options.windowsVerbatimArguments, false);
+});
+
+test('a PowerShell script is refused with a reason, not routed through a second interpreter', async () => {
+  const { calls, events } = await runWith({
+    platform: 'win32',
+    binaryPath: 'C:\\tools\\claude.ps1',
+  });
+
+  assert.equal(calls.length, 0, 'nothing is started');
+  assert.equal(events.length, 1);
+  assert.equal(events[0].kind, 'error');
+  assert.match(events[0].message, /PowerShell/);
+});
+
+test('an argument carrying interpreter syntax refuses the run instead of being escaped', async () => {
+  // `--cd <cwd>` is the one argument whose value comes from the member's own filesystem, so this is
+  // reachable in practice: a worktree in a folder called «Rock & Roll».
+  const hostileCwd = 'C:\\work\\Rock & Roll';
+  const spawnFn = recordingSpawn(() => fakeChild({ stdout: '', code: 0 }));
+  const events = await drain(
+    runAgent({
+      adapter: codexAdapter,
+      request: { prompt: 'привет', cwd: hostileCwd },
+      mode: 'subscription',
+      env: pollutedEnv(),
+      spawnFn,
+      platform: 'win32',
+      binaryPath: 'C:\\Users\\ann\\AppData\\Roaming\\npm\\codex.cmd',
+    }),
+  );
+
+  assert.equal(spawnFn.calls.length, 0, 'a token we cannot quote safely stops the run');
+  assert.equal(events[0].kind, 'error');
+  assert.match(events[0].message, /Rock & Roll/, 'the member is told which argument, not just that');
+
+  // The same folder is fine when nothing has to parse the command line.
+  const direct = recordingSpawn(() => fakeChild({ stdout: '', code: 0 }));
+  await drain(
+    runAgent({
+      adapter: codexAdapter,
+      request: { prompt: 'привет', cwd: hostileCwd },
+      mode: 'subscription',
+      env: pollutedEnv(),
+      spawnFn: direct,
+      platform: 'win32',
+      binaryPath: 'C:\\tools\\codex.exe',
+    }),
+  );
+  assert.equal(direct.calls.length, 1, 'the refusal belongs to the interpreter path alone');
+  assert.ok(direct.calls[0].args.includes(hostileCwd));
+});
+
+test('a flag the adapter did not declare never reaches the interpreter', async () => {
+  // Stands in for a future edit that adds a flag to `buildArgs` and forgets `ownFlags`, and for an
+  // argument arriving from anywhere the adapter does not control.
+  const smuggled = {
+    ...claudeAdapter,
+    buildArgs: () => ['-p', '--dangerously-skip-permissions', '--verbose'],
+  };
+  const { calls, events } = await runWith({
+    adapter: smuggled,
+    platform: 'win32',
+    binaryPath: NPM_SHIM,
+  });
+
+  assert.equal(calls.length, 0);
+  assert.equal(events[0].kind, 'error');
+  assert.match(events[0].message, /--dangerously-skip-permissions/);
+
+  // Unchanged on the direct path: there is no interpreter to protect, and refusing there would be a
+  // new failure invented by this check rather than prevented by it.
+  const direct = await runWith({ adapter: smuggled, platform: 'win32', binaryPath: 'C:\\c.exe' });
+  assert.equal(direct.calls.length, 1);
+});
+
+test('an adapter that still needs argv for the prompt gets the refusal, not the exception', async () => {
+  const inArgv = {
+    ...claudeAdapter,
+    promptDelivery: 'argv',
+    buildArgs: (request) => ['-p', request.prompt, '--verbose'],
+    ownFlags: ['-p', '--verbose'],
+  };
+
+  const refused = await runWith({ adapter: inArgv, platform: 'win32', binaryPath: NPM_SHIM });
+  assert.equal(refused.calls.length, 0, 'half a safety property is worse than an honest refusal');
+  assert.equal(refused.events[0].kind, 'error');
+  assert.match(refused.events[0].message, /stdin/);
+
+  // It still runs where nothing parses a command line, and it gets no stdin pipe it would not use.
+  const direct = await runWith({ adapter: inArgv, platform: 'win32', binaryPath: 'C:\\c.exe' });
+  assert.equal(direct.calls.length, 1);
+  assert.deepEqual(direct.calls[0].options.stdio, ['ignore', 'pipe', 'pipe']);
+  assert.equal(direct.child.stdin.ended, false, 'nothing is written to a stream nobody reads');
+});
+
+test('a trailing backslash in a path cannot escape the quote that closes it', async () => {
+  const { calls } = await runWith({
+    platform: 'win32',
+    binaryPath: 'C:\\tools\\odd\\\\claude.cmd',
+  });
+  // The wrapper path itself is ordinary here; the model id is the token carrying the backslashes.
+  const line = calls[0].args[3];
+  assert.ok(line.startsWith('""C:\\tools\\odd\\\\claude.cmd"'), 'the wrapper is quoted as one token');
+
+  const withDir = await runWith({
+    adapter: { ...claudeAdapter, buildArgs: () => ['--model', 'C:\\models\\'] },
+    platform: 'win32',
+    binaryPath: NPM_SHIM,
+  });
+  // `C:\models\` is quoted as `"C:\models\\"` — the single trailing backslash is doubled, so the
+  // closing quote is a closing quote and not an escaped one that swallows the rest of the line.
+  assert.ok(
+    withDir.calls[0].args[3].endsWith('"--model" "C:\\models\\\\""'),
+    `a trailing backslash was not doubled: ${withDir.calls[0].args[3]}`,
+  );
+});
+
+test('cmd.exe is located from SystemRoot, and a missing SystemRoot does not send us to PATH', async () => {
+  const moved = pollutedEnv({ SystemRoot: 'D:\\Windows' });
+  const withRoot = await runWith({ platform: 'win32', binaryPath: NPM_SHIM, env: moved });
+  assert.equal(withRoot.calls[0].command, 'D:\\Windows\\System32\\cmd.exe');
+
+  const bare = pollutedEnv();
+  delete bare.SystemRoot;
+  const withoutRoot = await runWith({ platform: 'win32', binaryPath: NPM_SHIM, env: bare });
+  assert.equal(
+    withoutRoot.calls[0].command,
+    'C:\\Windows\\System32\\cmd.exe',
+    'a fixed fallback, never a bare name a PATH entry could answer for',
+  );
+});
+
+test('stopping a turn started through the interpreter kills the tree, not just the interpreter', async () => {
+  // Terminating cmd.exe on Windows does not walk its children: the CLI it launched would keep
+  // editing the member's worktree after they pressed stop. That is worse than not offering stop.
+  const key = 'sk-ant-api03-TESTKEY-not-a-real-credential';
+  const controller = new AbortController();
+  const spawnFn = recordingSpawn(fakeSpawn({ exitCode: null }));
+  const events = collect(
+    runAgent({
+      adapter: claudeAdapter,
+      request: { prompt: 'привет', cwd: 'C:\\work' },
+      mode: 'api-key',
+      apiKey: key,
+      env: pollutedEnv(),
+      spawnFn,
+      platform: 'win32',
+      binaryPath: NPM_SHIM,
+      signal: controller.signal,
+    }),
+  );
+  setTimeout(() => controller.abort(), 20);
+  const seen = await events;
+
+  assert.ok(seen.some((e) => e.kind === 'cancelled'), 'a stop is still a stop, not a failure');
+  assert.equal(seen.filter((e) => e.kind === 'error').length, 0);
+
+  const killer = spawnFn.calls[1];
+  assert.ok(killer, 'the tree is killed as well as the interpreter');
+  assert.equal(killer.command, 'C:\\Windows\\System32\\taskkill.exe');
+  assert.deepEqual(killer.args, ['/pid', '4242', '/t', '/f']);
+  assert.equal(killer.options.shell, false);
+  // The killer is a child process too, and a program whose whole job is to end another one has no
+  // business holding the member's key. The run itself legitimately does.
+  assert.equal(spawnFn.calls[0].options.env.ANTHROPIC_API_KEY, key);
+  assert.deepEqual(Object.keys(killer.options.env), ['SystemRoot']);
+  for (const name of CREDENTIAL_ENV_DENYLIST) assert.ok(!(name in killer.options.env));
+});
+
+test('a run that was given no path finds the npm wrapper itself, because a bare name cannot', async () => {
+  // Measured on Windows, not assumed: spawning the bare name of a CLI installed only as `x.cmd`
+  // answers ENOENT — libuv's PATH search does not reach the wrapper, and CreateProcessW would only
+  // ever append `.exe`. A caller that forgets to pass `binaryPath` would therefore report "not
+  // installed" for something the providers screen just listed as installed.
+  const dir = 'C:\\Users\\ann\\AppData\\Roaming\\npm';
+  const accessFn = fakeAccess([`${dir}\\claude.cmd`]);
+  const { calls } = await runWith({
+    platform: 'win32',
+    env: pollutedEnv({ PATH: dir, PATHEXT: '.COM;.EXE;.BAT;.CMD' }),
+    accessFn,
+  });
+
+  assert.equal(calls[0].command, 'C:\\Windows\\System32\\cmd.exe');
+  assert.ok(calls[0].args[3].includes(`${dir}\\claude.cmd`), 'the wrapper it found is what it ran');
+});
+
+test('a run finds nothing and still says the useful thing, rather than inventing a path', async () => {
+  const accessFn = fakeAccess([]);
+  const { calls } = await runWith({
+    platform: 'win32',
+    env: pollutedEnv({ PATH: 'C:\\nowhere' }),
+    accessFn,
+  });
+  assert.equal(calls[0].command, 'claude', 'the bare name, so the ENOENT message stays accurate');
+});
+
+test('outside Windows nothing is resolved — PATH lookup stays the operating system’s job', async () => {
+  const accessFn = fakeAccess(['/usr/local/bin/claude']);
+  const { calls } = await runWith({ platform: 'linux', accessFn });
+  assert.equal(calls[0].command, 'claude');
+  assert.equal(accessFn.asked.length, 0, 'the change is exactly as wide as the problem it solves');
+});
+
+test('a stop that arrives before the process exists still stops, instead of starting one', async () => {
+  // Resolving a path is the first thing in a run that takes real time, so this window is real. An
+  // abort landing in it used to be lost: `addEventListener` on an already-fired signal never calls
+  // back, so the child would run to completion with the stop button doing nothing.
+  const controller = new AbortController();
+  controller.abort();
+  const spawnFn = recordingSpawn(() => fakeChild({ stdout: '', code: 0 }));
+
+  const events = await drain(
+    runAgent({
+      adapter: claudeAdapter,
+      request: { prompt: 'привет', cwd: 'C:\\work' },
+      mode: 'subscription',
+      env: pollutedEnv(),
+      spawnFn,
+      accessFn: fakeAccess([]),
+      platform: 'win32',
+      signal: controller.signal,
+    }),
+  );
+
+  assert.deepEqual(events, [{ kind: 'cancelled' }]);
+  assert.equal(spawnFn.calls.length, 0, 'nothing is started for a turn that was already stopped');
+});
+
+test('stopping a turn started directly kills only that process — no second program is needed', async () => {
+  const controller = new AbortController();
+  const spawnFn = recordingSpawn(fakeSpawn({ exitCode: null }));
+  const events = collect(
+    runAgent({
+      adapter: claudeAdapter,
+      request: { prompt: 'привет', cwd: 'C:\\work' },
+      mode: 'subscription',
+      env: pollutedEnv(),
+      spawnFn,
+      platform: 'win32',
+      binaryPath: 'C:\\tools\\claude.exe',
+      signal: controller.signal,
+    }),
+  );
+  setTimeout(() => controller.abort(), 20);
+  const seen = await events;
+
+  assert.ok(seen.some((e) => e.kind === 'cancelled'));
+  assert.equal(spawnFn.calls.length, 1, 'the exception stays exactly as narrow as it needs to be');
 });
 
 // ---------------------------------------------------------------------------
@@ -906,9 +1344,13 @@ test('a Windows machine with no PATHEXT still gets the standard extensions', asy
   assert.equal(found.path, 'C:\\tools\\claude.exe');
 });
 
-test('a Windows script shim counts as installed but is never started', async () => {
+test('an npm .cmd wrapper is started through the interpreter, and its version is read', async () => {
+  // This is the case the whole change exists for: `npm i -g` on Windows installs a .cmd, Node
+  // refuses to execute one directly (EINVAL, the CVE-2024-27980 fix), and the member could not run
+  // their agent at all. Now the wrapper is startable, so detection reads a version from it too —
+  // through the same `planSpawn` the run uses, which is why the two cannot disagree.
   const dir = 'C:\\Users\\ann\\AppData\\Roaming\\npm';
-  const spawnFn = recordingSpawn();
+  const spawnFn = recordingSpawn(() => fakeChild({ stdout: '2.1.220 (Claude Code)\n' }));
 
   const found = await detectCli('anthropic', {
     env: pollutedEnv({ PATH: dir, PATHEXT: '.COM;.EXE;.BAT;.CMD;.PS1' }),
@@ -917,14 +1359,17 @@ test('a Windows script shim counts as installed but is never started', async () 
     spawnFn,
   });
 
-  // It is on the machine — saying otherwise would send the member to reinstall something they have.
   assert.equal(found.installed, true);
   assert.equal(found.path, `${dir}\\claude.cmd`);
-  assert.equal(found.version, undefined);
-  // But no process may be started from it: Node refuses a .cmd unless a shell is opted into, and
-  // this package never opts in. The member is told why instead of watching a run fail.
-  assert.equal(spawnFn.calls.length, 0, 'a shim is reported, never executed');
-  assert.ok(found.hint && found.hint.length > 20);
+  assert.equal(found.version, '2.1.220 (Claude Code)');
+  assert.equal(found.hint, undefined, 'nothing is wrong, so there is nothing to warn about');
+
+  assert.equal(spawnFn.calls.length, 1);
+  const [call] = spawnFn.calls;
+  assert.equal(call.command, 'C:\\Windows\\System32\\cmd.exe', 'located from SystemRoot, not PATH');
+  assert.deepEqual(call.args, ['/d', '/s', '/c', `""${dir}\\claude.cmd" "--version""`]);
+  assert.equal(call.options.shell, false, 'a named interpreter with our argv, not a shell');
+  assert.equal(call.options.windowsVerbatimArguments, true, 'Node must not re-quote what we built');
 });
 
 test('a PowerShell shim is found but never run', async () => {
@@ -1061,6 +1506,8 @@ function fakeSpawn({ stdout = [], exitCode = 0, throwCode = null } = {}) {
       throw err;
     }
     const child = new EventEmitter();
+    child.pid = 4242;
+    child.stdin = fakeStdin();
     child.exitCode = null;
     child.signalCode = null;
     child.stdout = new EventEmitter();
@@ -1097,6 +1544,7 @@ test('a turn the member stopped reports cancelled, not an error', async () => {
       mode: 'subscription',
       signal: controller.signal,
       spawnFn: fakeSpawn({ exitCode: null }),
+      accessFn: fakeAccess([]),
       env: { PATH: process.env.PATH ?? '' },
     }),
   );
@@ -1124,6 +1572,7 @@ test('a failure the adapter already explained is not restated from the exit code
       request: RUN,
       mode: 'subscription',
       spawnFn: fakeSpawn({ stdout: [line], exitCode: 1 }),
+      accessFn: fakeAccess([]),
       env: { PATH: process.env.PATH ?? '' },
     }),
   );
@@ -1134,15 +1583,19 @@ test('a failure the adapter already explained is not restated from the exit code
   );
 });
 
-test('a Windows npm shim is reported as a shim, not as a missing binary', async () => {
-  // Node throws EINVAL synchronously for a .cmd rather than emitting 'error' (the CVE-2024-27980
-  // fix), so this also proves the synchronous throw is caught instead of hanging the run.
+test('a synchronous EINVAL is caught and explained, not left to hang the run', async () => {
+  // Windows throws EINVAL out of `spawn` rather than emitting 'error' (the CVE-2024-27980 fix), so a
+  // listener alone would never see it. Reachable now only for a file whose extension told us
+  // nothing — `planSpawn` recognises the wrappers by extension and handles them — and the message
+  // still has to point at the wrapper rather than at a PATH the member has already set correctly.
   const seen = await collect(
     runAgent({
       adapter: claudeAdapter,
       request: RUN,
       mode: 'subscription',
       spawnFn: fakeSpawn({ throwCode: 'EINVAL' }),
+      accessFn: fakeAccess([]),
+      platform: 'win32',
       env: { PATH: process.env.PATH ?? '' },
     }),
   );

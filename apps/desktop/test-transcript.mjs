@@ -7,6 +7,10 @@
  * old history behind. None of those surface as an error at the moment they happen — they surface
  * as a member reopening a project and finding the conversation gone or wrong.
  *
+ * The reading half has the same shape. A history longer than one page must come back as its tail
+ * plus an honest count, never as a refusal, never as a truncated list that looks complete, and never
+ * by pulling half a gigabyte into one string — so the size of the file is itself a case under test.
+ *
  * Nothing here needs Electron: the storage layer takes its directory as a parameter, so the same
  * assertions run against a temp folder on a laptop and on a bare CI runner.
  *
@@ -21,6 +25,7 @@ import path from 'node:path';
 
 import {
   MAX_ENTRY_BYTES,
+  MAX_PAGE_ENTRIES,
   appendTranscript,
   appendTranscriptTo,
   clearTranscript,
@@ -28,6 +33,7 @@ import {
   fitEntry,
   loadTranscript,
   loadTranscriptFrom,
+  loadTranscriptPageFrom,
   normalizeRoot,
   sanitizeEntry,
   setTranscriptDataDir,
@@ -53,6 +59,33 @@ function dataDir() {
  */
 function workspaceRoot(name) {
   return path.join(os.tmpdir(), 'partyco-workspaces', name);
+}
+
+/**
+ * One stored line, written by hand.
+ *
+ * The reading tests need histories of hundreds of turns, and going through `appendTranscriptTo` for
+ * each of them would be a test of the writer that takes a minute. The format is the contract between
+ * the two halves, so writing it directly is also the stricter check: the reader is given exactly
+ * what the file says, not what the writer happened to produce.
+ */
+function storedLine(index, text) {
+  return JSON.stringify({
+    id: `entry-${index}`,
+    at: 1_000 + index,
+    role: index % 2 === 0 ? 'member' : 'agent',
+    text,
+  });
+}
+
+/** `count` stored lines, numbered so that «which turn is this» is readable in a failure. */
+function lines(count) {
+  return Array.from({ length: count }, (_unused, index) => storedLine(index, `ход ${index}`));
+}
+
+function writeRawTranscript(file, contents) {
+  fs.mkdirSync(path.dirname(file), { recursive: true });
+  fs.writeFileSync(file, `${contents.join('\n')}\n`, 'utf8');
 }
 
 after(() => {
@@ -415,6 +448,22 @@ test('a malformed entry is refused with a sentence', () => {
  * The main-process API, on the same storage
  * ------------------------------------------------------------------ */
 
+test('the main-process read is everything, not a page', async () => {
+  const dir = dataDir();
+  const root = workspaceRoot('page-vs-all');
+  writeRawTranscript(transcriptFilePath(dir, root), lines(12));
+
+  // The decision behind `loadTranscript`: a caller with no screen has nobody to tell «показаны не
+  // все», and the unit it has to bound history by (a prompt's tokens) is not rows on a page.
+  const all = await loadTranscriptFrom(dir, root);
+  assert.ok(Array.isArray(all), 'entries, not an envelope with a count in it');
+  assert.equal(all.length, 12);
+
+  const page = await loadTranscriptPageFrom(dir, root, 4);
+  assert.equal(page.items.length, 4);
+  assert.equal(page.omitted, 8);
+});
+
 test('the direct API writes where the IPC handlers read', async () => {
   const dir = dataDir();
   const root = workspaceRoot('direct');
@@ -433,4 +482,199 @@ test('the direct API writes where the IPC handlers read', async () => {
   } finally {
     setTranscriptDataDir(null);
   }
+});
+
+/* ------------------------------------------------------------------ *
+ * Pages — a ceiling that is not a refusal
+ *
+ * The failure these replace: a history the app would not open at all, whose only cure was `clear()`,
+ * which is to say deleting the thing the member came back for. A page has to be the *end* of the
+ * conversation, has to state how much came before it, and must not invent a row saying so.
+ * ------------------------------------------------------------------ */
+
+test('a page is the tail of the history and says how much came before it', async () => {
+  const dir = dataDir();
+  const root = workspaceRoot('page-tail');
+  const file = transcriptFilePath(dir, root);
+  writeRawTranscript(file, lines(10));
+
+  const page = await loadTranscriptPageFrom(dir, root, 3);
+  assert.deepEqual(
+    page.items.map((entry) => entry.text),
+    ['ход 7', 'ход 8', 'ход 9'],
+    'the last three, still oldest first',
+  );
+  assert.equal(page.omitted, 7);
+
+  // A page whose size divides the history exactly is where an off-by-one in the ring buffer lives:
+  // the write position laps back to zero and a naive unroll returns the turns in the wrong order.
+  const exactLaps = await loadTranscriptPageFrom(dir, root, 5);
+  assert.deepEqual(
+    exactLaps.items.map((entry) => entry.text),
+    ['ход 5', 'ход 6', 'ход 7', 'ход 8', 'ход 9'],
+  );
+  assert.equal(exactLaps.omitted, 5);
+
+  const single = await loadTranscriptPageFrom(dir, root, 1);
+  assert.deepEqual(
+    single.items.map((entry) => entry.text),
+    ['ход 9'],
+  );
+  assert.equal(single.omitted, 9);
+
+  // Reading is not deleting: `omitted` is about this answer, not about the file.
+  assert.equal((await loadTranscriptFrom(dir, root)).length, 10);
+});
+
+test('a history shorter than the ceiling comes back whole, with omitted 0', async () => {
+  const dir = dataDir();
+  const root = workspaceRoot('page-short');
+
+  await appendTranscriptTo(dir, root, { role: 'member', text: 'вопрос' });
+  await appendTranscriptTo(dir, root, { role: 'agent', text: 'ответ' });
+
+  const page = await loadTranscriptPageFrom(dir, root);
+  assert.deepEqual(
+    page.items.map((entry) => entry.text),
+    ['вопрос', 'ответ'],
+  );
+  assert.equal(page.omitted, 0, 'nothing was left out, and the count says exactly that');
+
+  const exact = await loadTranscriptPageFrom(dir, root, 2);
+  assert.equal(exact.omitted, 0, 'a history that is exactly one page is still a whole history');
+
+  const missing = await loadTranscriptPageFrom(dir, workspaceRoot('page-never-used'));
+  assert.deepEqual(missing, { items: [], omitted: 0 }, 'a workspace with no file is an empty page');
+});
+
+test('the default ceiling is the exported one, and the overflow is counted exactly', async () => {
+  const dir = dataDir();
+  const root = workspaceRoot('page-default');
+  const extra = 3;
+  writeRawTranscript(transcriptFilePath(dir, root), lines(MAX_PAGE_ENTRIES + extra));
+
+  const page = await loadTranscriptPageFrom(dir, root);
+  assert.equal(page.items.length, MAX_PAGE_ENTRIES);
+  assert.equal(page.omitted, extra);
+  assert.equal(page.items[0].text, `ход ${extra}`, 'the page starts right after what was left out');
+  assert.equal(page.items[page.items.length - 1].text, `ход ${MAX_PAGE_ENTRIES + extra - 1}`);
+
+  // A page of zero turns would be an empty history that is not empty — the one answer worse than
+  // «слишком много», because it looks like nothing was ever said.
+  const nonsense = await loadTranscriptPageFrom(dir, root, 0);
+  assert.equal(nonsense.items.length, MAX_PAGE_ENTRIES, 'a meaningless ceiling falls back');
+});
+
+test('broken lines are neither shown nor counted as omitted', async () => {
+  const dir = dataDir();
+  const root = workspaceRoot('page-damaged');
+  writeRawTranscript(transcriptFilePath(dir, root), [
+    storedLine(0, 'первая'),
+    'это вообще не JSON',
+    storedLine(1, 'вторая'),
+    JSON.stringify({ id: 'x', at: 5 }), // no role — not an entry
+    '',
+    '   ',
+    JSON.stringify({ id: 'y', at: 'вчера', role: 'agent', text: 'плохая метка времени' }),
+    storedLine(2, 'третья'),
+    storedLine(3, 'четвёртая'),
+  ]);
+
+  const page = await loadTranscriptPageFrom(dir, root, 2);
+  assert.deepEqual(
+    page.items.map((entry) => entry.text),
+    ['третья', 'четвёртая'],
+  );
+  // Four real entries, two of them shown. Counting the damage would make `omitted` a number the
+  // interface states in words and cannot back up.
+  assert.equal(page.omitted, 2);
+});
+
+test('a line longer than an entry may ever be is dropped, and its neighbours survive', async () => {
+  const dir = dataDir();
+  const root = workspaceRoot('page-monster');
+
+  // Valid JSON and still not an entry: `fitEntry` bounds every line this module writes, so a longer
+  // one is a hand-edit or a foreign file. Assembling it would be the unbounded allocation the
+  // streaming read exists to prevent.
+  const monster = JSON.stringify({
+    id: 'monster',
+    at: 9,
+    role: 'agent',
+    text: 'ю'.repeat(MAX_ENTRY_BYTES),
+  });
+  assert.ok(Buffer.byteLength(monster, 'utf8') > MAX_ENTRY_BYTES);
+
+  writeRawTranscript(transcriptFilePath(dir, root), [
+    storedLine(0, 'до'),
+    monster,
+    'q'.repeat(MAX_ENTRY_BYTES * 2), // and the same again as plain garbage, spanning many chunks
+    storedLine(1, 'после'),
+  ]);
+
+  const page = await loadTranscriptPageFrom(dir, root, 5);
+  assert.deepEqual(
+    page.items.map((entry) => entry.text),
+    ['до', 'после'],
+    'a line the reader refuses to assemble does not swallow the one after it',
+  );
+  assert.equal(page.omitted, 0);
+  assert.deepEqual(
+    (await loadTranscriptFrom(dir, root)).map((entry) => entry.text),
+    ['до', 'после'],
+    'the unbounded read applies the same rule',
+  );
+});
+
+test('a file far past the ceiling is read without ever holding it whole', async () => {
+  const dir = dataDir();
+  const root = workspaceRoot('page-huge');
+  const file = transcriptFilePath(dir, root);
+
+  // ~65 MB over 16 000 turns. The real ceiling this guards is V8's: `readFile(file, 'utf8')` on a
+  // transcript of a few hundred megabytes does not return a big string, it throws
+  // ERR_STRING_TOO_LONG and the whole history becomes unopenable. Writing that much here would make
+  // the suite unbearable, so the file is big enough to be unmistakable on the heap instead.
+  const lineCount = 16_000;
+  const filler = 'a'.repeat(4_000);
+  fs.mkdirSync(path.dirname(file), { recursive: true });
+  const handle = fs.openSync(file, 'w');
+  try {
+    let batch = '';
+    for (let index = 0; index < lineCount; index += 1) {
+      batch += `${storedLine(index, `${index}:${filler}`)}\n`;
+      if (batch.length >= 4_000_000) {
+        fs.writeSync(handle, batch);
+        batch = '';
+      }
+    }
+    if (batch.length > 0) fs.writeSync(handle, batch);
+  } finally {
+    fs.closeSync(handle);
+  }
+
+  const size = fs.statSync(file).size;
+  assert.ok(size > 60 * 1024 * 1024, `this test needs a big file; it built ${size} bytes`);
+
+  const heapBefore = process.memoryUsage().heapUsed;
+  const startedAt = process.hrtime.bigint();
+  const page = await loadTranscriptPageFrom(dir, root, 5);
+  const elapsedMs = Number(process.hrtime.bigint() - startedAt) / 1e6;
+  const heapGrowth = process.memoryUsage().heapUsed - heapBefore;
+
+  assert.equal(page.items.length, 5);
+  assert.equal(page.omitted, lineCount - 5);
+  assert.equal(page.items[0].text, `${lineCount - 5}:${filler}`);
+  assert.equal(page.items[4].text, `${lineCount - 1}:${filler}`, 'the tail is the newest turn');
+
+  // This is the assertion that tells a streaming read from a whole-file one: the file as a single
+  // string would be ~65 MB of heap and nothing else in this call comes close. The bound is loose
+  // because it has to survive GC timing, and still leaves no room for the file itself.
+  assert.ok(
+    heapGrowth < 24 * 1024 * 1024,
+    `reading a ${Math.round(size / 1024 / 1024)} MB file grew the heap by ` +
+      `${Math.round(heapGrowth / 1024 / 1024)} MB — that looks like the whole file in memory`,
+  );
+  // Not a benchmark: a bound loose enough that only a quadratic read or a stall can fail it.
+  assert.ok(elapsedMs < 30_000, `reading the tail took ${Math.round(elapsedMs)} ms`);
 });

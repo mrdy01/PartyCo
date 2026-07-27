@@ -27,6 +27,14 @@ type Detection = { found: boolean; version?: string; installHint?: string };
 export interface ProviderLayer {
   providers: readonly ProviderSetupItem[];
   state: ProviderSetupState;
+  /**
+   * Whether a saved key survives quitting the app.
+   *
+   * `undefined` until the main process has answered, because the two real answers lead to opposite
+   * sentences and neither may be guessed: on a machine whose OS refuses to encrypt, a key is *not*
+   * stored, and a person who was told otherwise finds an empty field next launch with no idea why.
+   */
+  keysPersisted: boolean | undefined;
   busyProviderId: string | null;
   setMode: (providerId: string, mode: ProviderMode) => void;
   submitKey: (providerId: string, key: string) => void;
@@ -35,6 +43,7 @@ export interface ProviderLayer {
 
 export function useProviderLayer(): ProviderLayer {
   const [providers, setProviders] = useState<readonly ProviderSetupItem[]>([]);
+  const [keysPersisted, setKeysPersisted] = useState<boolean | undefined>(undefined);
   const [state, setState] = useState<ProviderSetupState>('loading');
   const [busyProviderId, setBusyProviderId] = useState<string | null>(null);
   const [modes, setModes] = useState<Record<string, ProviderMode>>({});
@@ -47,6 +56,9 @@ export function useProviderLayer(): ProviderLayer {
     // the truth here, not a failure.
     if (!bridge) {
       setProviders([]);
+      // Not `false`: nothing was asked, so nothing is known. `false` here would print «сохранить не
+      // получится» in a browser where no key can be entered in the first place.
+      setKeysPersisted(undefined);
       setState('ready');
       return;
     }
@@ -76,7 +88,10 @@ export function useProviderLayer(): ProviderLayer {
         }
 
         const hasKeyById = new Map<string, boolean>();
-        if (keys.ok) for (const k of keys.value.keys) hasKeyById.set(k.providerId, k.hasKey);
+        if (keys.ok) {
+          for (const k of keys.value.keys) hasKeyById.set(k.providerId, k.hasKey);
+          setKeysPersisted(keys.value.persisted);
+        }
 
         setProviders(
           policy.value.providers.map((provider) => {
@@ -142,6 +157,9 @@ export function useProviderLayer(): ProviderLayer {
       .setKey(providerId, key)
       .then((result) => {
         if (!result.ok) return;
+        // Saving is the moment the answer can change — a store that was writable at startup may not
+        // be now, and the panel has to stop promising what just failed.
+        setKeysPersisted(result.value.persisted);
         const hasKeyById = new Map(result.value.keys.map((k) => [k.providerId, k.hasKey]));
         setProviders((current) =>
           current.map((p) => ({ ...p, hasKey: hasKeyById.get(p.id) ?? p.hasKey })),
@@ -152,5 +170,5 @@ export function useProviderLayer(): ProviderLayer {
 
   const redetect = useCallback(() => setNonce((n) => n + 1), []);
 
-  return { providers, state, busyProviderId, setMode, submitKey, redetect };
+  return { providers, state, keysPersisted, busyProviderId, setMode, submitKey, redetect };
 }
