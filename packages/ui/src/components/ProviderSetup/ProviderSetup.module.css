@@ -1,0 +1,541 @@
+/*
+ * Provider setup — «Как PartyCo обращается к модели».
+ *
+ * Same family as the first-run key step: a reading-sized paragraph over a provider chip, a radio
+ * group built the way `InvitePanel` builds its role list, and the keychain guarantee closing the
+ * card. Nothing here is a new pattern; the screen is new, the vocabulary is not.
+ *
+ * Colour discipline (CONVENTIONS §5): status colour appears as a pill (the policy badge), a dot
+ * (binary found / missing), text (short facts) and a low-alpha tint on the expiry note — never as a
+ * filled area, never as a left edge. Identity colour appears nowhere at all: none of this is owned
+ * by a teammate.
+ *
+ * Every size is a token or arithmetic on the token scale, so compact density moves the whole panel
+ * without a second rule (CONVENTIONS §1, §4).
+ */
+
+.panel {
+  /* 20px — the same circle the invite panel's role list uses. */
+  --pc-provider-radio: calc(var(--pc-avatar-size) - var(--pc-space-2));
+  /* Two lines of label plus breathing room; grows and shrinks with density. */
+  --pc-provider-mode-h: calc(var(--pc-row-height) + var(--pc-space-20));
+  /*
+   * The comfortable field height, computed here rather than inside `.keyField`: a custom property
+   * that reads the token it is overriding is a cycle, and a cycle makes the whole declaration
+   * invalid at computed-value time. `FirstRun` hoists it for the same reason.
+   */
+  --pc-provider-field-h: calc(var(--pc-row-height) + var(--pc-space-8));
+
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  gap: var(--pc-space-16);
+  min-width: 0;
+  min-height: 0;
+  padding: var(--pc-space-16);
+  background: var(--pc-bg-window);
+  color: var(--pc-text-1);
+}
+
+/* ---------- what this screen is for ---------- */
+
+.header {
+  display: flex;
+  flex-direction: column;
+  gap: var(--pc-space-6);
+  min-width: 0;
+}
+
+.heading {
+  margin: 0;
+  font: var(--pc-type-title);
+  letter-spacing: var(--pc-tracking-title);
+  color: var(--pc-text-heading);
+}
+
+/* The product's reading size — this paragraph is an argument, not a caption. */
+.intro {
+  margin: 0;
+  max-width: var(--pc-column-read);
+  min-width: 0;
+  font: var(--pc-type-read);
+  color: var(--pc-text-read);
+}
+
+.body {
+  min-width: 0;
+}
+
+.stateBlock {
+  padding: var(--pc-space-12) 0;
+}
+
+/* ---------- one provider ---------- */
+
+.list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--pc-space-12);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  min-width: 0;
+}
+
+.item {
+  min-width: 0;
+}
+
+.card {
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  gap: var(--pc-space-12);
+  min-width: 0;
+  padding: var(--pc-space-16);
+  background: var(--pc-bg-panel);
+  border: var(--pc-border-width) solid var(--pc-border);
+  border-radius: var(--pc-radius-md);
+}
+
+/* The heading is the chip: one accessible name, one thing on screen saying it. */
+.cardTitle {
+  display: flex;
+  margin: 0;
+  min-width: 0;
+  font: var(--pc-type-card);
+  color: var(--pc-text-heading);
+}
+
+/* Same one-step-up chip the first-run step draws. */
+.chip[data-labelled='true'] {
+  min-height: calc(var(--pc-row-height) + var(--pc-space-2));
+  padding-inline-end: calc(var(--pc-space-8) + var(--pc-space-2));
+  font: var(--pc-type-label);
+}
+
+/* ---------- the mode group ---------- */
+
+.fieldset {
+  margin: 0;
+  padding: 0;
+  border: 0;
+  min-width: 0;
+}
+
+.legend {
+  padding: 0;
+  margin-bottom: var(--pc-space-8);
+  font: var(--pc-type-label);
+  color: var(--pc-text-2);
+}
+
+.modeList {
+  display: flex;
+  flex-direction: column;
+  gap: var(--pc-space-6);
+  min-width: 0;
+}
+
+.modeCell {
+  display: flex;
+  flex-direction: column;
+  gap: var(--pc-space-6);
+  min-width: 0;
+}
+
+.modeRow {
+  position: relative;
+  box-sizing: border-box;
+  display: flex;
+  align-items: center;
+  gap: var(--pc-space-8);
+  min-height: var(--pc-provider-mode-h);
+  min-width: 0;
+  padding: var(--pc-space-8) calc(var(--pc-space-8) + var(--pc-space-2));
+  background: var(--pc-bg-panel);
+  border: var(--pc-border-width) solid var(--pc-border-subtle);
+  border-radius: var(--pc-radius-md);
+  cursor: pointer;
+  transition:
+    background-color var(--pc-duration-fast) var(--pc-ease),
+    border-color var(--pc-duration-fast) var(--pc-ease);
+}
+
+.modeRow:hover {
+  border-color: var(--pc-border);
+}
+
+/*
+ * A refused transport is still readable — dimmed, not erased. The reason sits under the row and has
+ * to stay legible, so only the control itself loses contrast.
+ */
+.modeRow[data-disabled] {
+  cursor: default;
+  background: var(--pc-bg-window);
+}
+
+.modeRow[data-disabled]:hover {
+  border-color: var(--pc-border-subtle);
+}
+
+/* The real control: native semantics, native arrow keys, no visual of its own. */
+.modeInput {
+  position: absolute;
+  left: calc(var(--pc-space-8) + var(--pc-space-2));
+  width: var(--pc-provider-radio);
+  height: var(--pc-provider-radio);
+  margin: 0;
+  padding: 0;
+  opacity: 0;
+  appearance: none;
+  -webkit-appearance: none;
+  pointer-events: none;
+}
+
+.modeRow:has(.modeInput:checked) {
+  background: var(--pc-bg-raised);
+  border-color: var(--pc-border-strong);
+}
+
+/* CONVENTIONS §7 — the ring lands on the row, because the input itself has no visible box. */
+.modeRow:has(.modeInput:focus-visible) {
+  box-shadow: var(--pc-focus-ring);
+}
+
+.radio {
+  box-sizing: border-box;
+  flex: none;
+  width: var(--pc-provider-radio);
+  height: var(--pc-provider-radio);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: var(--pc-border-width) solid var(--pc-border-strong);
+  border-radius: 50%;
+}
+
+.modeRow:has(.modeInput:checked) .radio {
+  border-color: var(--pc-accent);
+}
+
+.modeRow[data-disabled] .radio {
+  border-color: var(--pc-border);
+}
+
+.radioDot {
+  width: var(--pc-space-6);
+  height: var(--pc-space-6);
+  border-radius: 50%;
+  background: transparent;
+}
+
+.modeRow:has(.modeInput:checked) .radioDot {
+  background: var(--pc-accent);
+}
+
+.modeText {
+  display: flex;
+  flex-direction: column;
+  gap: var(--pc-space-2);
+  min-width: 0;
+}
+
+.modeTitle {
+  font: var(--pc-type-body);
+  font-weight: 500;
+  color: var(--pc-text-2);
+}
+
+.modeRow:has(.modeInput:checked) .modeTitle {
+  color: var(--pc-text-1);
+}
+
+.modeRow[data-disabled] .modeTitle {
+  color: var(--pc-text-3);
+}
+
+.modeNote {
+  font: var(--pc-type-note);
+  color: var(--pc-text-3);
+  overflow-wrap: anywhere;
+}
+
+/* Status colour in its text role: a two-word fact, never a fill. */
+.modeFact {
+  margin-inline-start: auto;
+  flex: none;
+  font: var(--pc-type-status);
+  color: var(--pc-text-4);
+  text-align: end;
+}
+
+.modeFact[data-tone='success'] {
+  color: var(--pc-status-success);
+}
+
+.modeFact[data-tone='warning'] {
+  color: var(--pc-status-warning);
+}
+
+.modeBadge {
+  margin-inline-start: auto;
+  flex: none;
+}
+
+/* ---------- why a mode is refused ---------- */
+
+.refusal {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--pc-space-8);
+  margin: 0;
+  min-width: 0;
+  padding: calc(var(--pc-space-8) + var(--pc-space-2)) calc(var(--pc-space-8) + var(--pc-space-4));
+  border-radius: var(--pc-radius-md);
+  background: color-mix(in srgb, var(--pc-status-danger) 9%, transparent);
+}
+
+.refusalGlyph {
+  flex: none;
+  width: var(--pc-icon-size);
+  height: var(--pc-icon-size);
+  margin-block-start: var(--pc-space-2);
+  color: var(--pc-status-danger);
+}
+
+.refusalText {
+  min-width: 0;
+  font: var(--pc-type-note);
+  color: var(--pc-text-2);
+  overflow-wrap: anywhere;
+}
+
+/* ---------- the chosen mode, expanded ---------- */
+
+.detail {
+  display: flex;
+  flex-direction: column;
+  gap: var(--pc-space-12);
+  min-width: 0;
+  padding-top: var(--pc-space-12);
+  border-top: var(--pc-border-width) solid var(--pc-border-subtle);
+}
+
+.policy {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--pc-space-6);
+  min-width: 0;
+}
+
+.policyBadge {
+  flex: none;
+  max-width: 100%;
+}
+
+.policyText {
+  margin: 0;
+  min-width: 0;
+  font: var(--pc-type-body);
+  color: var(--pc-text-2);
+  overflow-wrap: anywhere;
+}
+
+.source {
+  margin: 0;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.sourceLabel {
+  font: var(--pc-type-status);
+  color: var(--pc-text-4);
+}
+
+.sourceValue {
+  font: var(--pc-type-path);
+  color: var(--pc-text-4);
+}
+
+/* ---------- the key ---------- */
+
+.fact {
+  display: flex;
+  align-items: center;
+  gap: var(--pc-space-6);
+  margin: 0;
+  min-width: 0;
+  font: var(--pc-type-label);
+  color: var(--pc-text-2);
+}
+
+.factGlyph {
+  flex: none;
+  width: var(--pc-icon-size);
+  height: var(--pc-icon-size);
+  color: var(--pc-text-3);
+}
+
+.fact[data-tone='success'] .factGlyph {
+  color: var(--pc-status-success);
+}
+
+.factText {
+  min-width: 0;
+}
+
+.keyForm {
+  display: flex;
+  align-items: flex-end;
+  gap: var(--pc-space-8);
+  min-width: 0;
+  flex-wrap: wrap;
+}
+
+/* One step taller than a list row, the same comfortable field the door uses. */
+.keyField {
+  --pc-row-height: var(--pc-provider-field-h);
+
+  flex: 1 1 calc(var(--pc-space-32) * 6);
+  min-width: 0;
+}
+
+/* `min-height` rather than `height`, so Button's own size rule is clamped whatever the order. */
+.keySave {
+  flex: none;
+  min-height: var(--pc-provider-field-h);
+}
+
+.note {
+  margin: 0;
+  min-width: 0;
+  font: var(--pc-type-note);
+  color: var(--pc-text-3);
+  overflow-wrap: anywhere;
+}
+
+/* ---------- the delegated CLI ---------- */
+
+/*
+ * The paragraph that makes the mode honest, at the product's reading size — it is the argument for
+ * the switch, so it is not allowed to look like a caption.
+ */
+.delegation {
+  margin: 0;
+  max-width: var(--pc-column-read);
+  min-width: 0;
+  font: var(--pc-type-read);
+  color: var(--pc-text-read);
+}
+
+.detect {
+  display: flex;
+  align-items: center;
+  gap: var(--pc-space-8);
+  min-width: 0;
+  min-height: var(--pc-row-height);
+  padding: 0 calc(var(--pc-space-8) + var(--pc-space-2));
+  background: var(--pc-bg-raised);
+  border: var(--pc-border-width) solid var(--pc-border-subtle);
+  border-radius: var(--pc-radius-sm);
+}
+
+/* Status colour as a dot — the sentence beside it carries the same fact in words. */
+.dot {
+  flex: none;
+  width: var(--pc-space-6);
+  height: var(--pc-space-6);
+  border-radius: 50%;
+  background: var(--pc-text-4);
+}
+
+.dot[data-tone='found'] {
+  background: var(--pc-status-success);
+}
+
+.dot[data-tone='missing'] {
+  background: var(--pc-status-warning);
+}
+
+.detectText {
+  min-width: 0;
+  font: var(--pc-type-status);
+  color: var(--pc-text-2);
+  overflow-wrap: anywhere;
+}
+
+.redetect {
+  margin-inline-start: auto;
+  flex: none;
+}
+
+.honest {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--pc-space-8);
+  margin: 0;
+  min-width: 0;
+}
+
+.honestGlyph {
+  flex: none;
+  width: calc(var(--pc-icon-size) - var(--pc-space-2));
+  height: calc(var(--pc-icon-size) - var(--pc-space-2));
+  margin-block-start: var(--pc-space-2);
+  color: var(--pc-text-3);
+}
+
+.honestText {
+  min-width: 0;
+  font: var(--pc-type-note);
+  color: var(--pc-text-2);
+  overflow-wrap: anywhere;
+}
+
+/*
+ * The vendor announced an end date for this path, so the note is amber and permanent — a tint plus
+ * text, the same recipe the first-run failure uses, never a filled block.
+ */
+.expiry {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--pc-space-8);
+  min-width: 0;
+  padding: calc(var(--pc-space-8) + var(--pc-space-2)) calc(var(--pc-space-8) + var(--pc-space-4));
+  border-radius: var(--pc-radius-md);
+  background: color-mix(in srgb, var(--pc-status-warning) 9%, transparent);
+}
+
+.expiryGlyph {
+  flex: none;
+  width: var(--pc-icon-size);
+  height: var(--pc-icon-size);
+  margin-block-start: var(--pc-space-2);
+  color: var(--pc-status-warning);
+}
+
+.expiryText {
+  display: flex;
+  flex-direction: column;
+  gap: var(--pc-space-2);
+  min-width: 0;
+}
+
+.expiryTitle {
+  font: var(--pc-type-label);
+  color: var(--pc-status-warning);
+}
+
+.expiryBody {
+  font: var(--pc-type-note);
+  color: var(--pc-text-2);
+  overflow-wrap: anywhere;
+}
+
+/* ---------- where the keys actually live ---------- */
+
+.guarantee {
+  flex: none;
+}

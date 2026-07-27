@@ -3,6 +3,7 @@ import { readFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { platformPaths } from './platform.ts';
 import { readCoreEndpoint, type CoreEndpoint } from './core-endpoint.ts';
+import { abortAllAgentRuns, registerAgentIpc } from './agents.ts';
 
 const isDev = !app.isPackaged;
 
@@ -16,6 +17,31 @@ const isDev = !app.isPackaged;
  */
 
 let mainWindow: BrowserWindow | null = null;
+
+/**
+ * Hand a URL to the OS — but only a web one.
+ *
+ * `shell.openExternal` is the widest hole an Electron shell has: it runs whatever the OS has
+ * registered for the scheme. `file:///C:/…/anything.exe` starts a program, `\\host\share` makes
+ * Windows authenticate to a stranger and hand over an NTLM hash, and `ms-msdt:` and friends have
+ * been shipped exploits. The renderer here draws repository content and model output, so the URL in
+ * a link or a `window.open` is attacker-influenceable text by default.
+ *
+ * `http`/`https` only, then, and silence otherwise: a member clicking a link expects a browser tab,
+ * never a launched binary. The scheme is read by parsing rather than by matching the start of the
+ * string — case varies, and a hostile URL can carry `https` inside itself while its actual scheme is
+ * something else entirely.
+ */
+function openExternalIfWeb(url: string): void {
+  let scheme: string;
+  try {
+    scheme = new URL(url).protocol;
+  } catch {
+    return;
+  }
+  if (scheme !== 'https:' && scheme !== 'http:') return;
+  void shell.openExternal(url);
+}
 
 function createWindow(): BrowserWindow {
   const win = new BrowserWindow({
@@ -40,7 +66,9 @@ function createWindow(): BrowserWindow {
       : {}),
     trafficLightPosition: { x: 12, y: 11 },
     webPreferences: {
-      preload: join(import.meta.dirname, '../preload/index.mjs'),
+      // `.cjs`, because `sandbox: true` below runs the preload as CommonJS and an ESM preload does
+      // not load at all — see the note in `electron.vite.config.ts`.
+      preload: join(import.meta.dirname, '../preload/index.cjs'),
       // Security posture: the renderer is untrusted as far as the OS is concerned. It renders
       // repository content and model output, both of which can be attacker-influenced.
       contextIsolation: true,
@@ -57,14 +85,14 @@ function createWindow(): BrowserWindow {
 
   // Never let the renderer navigate itself somewhere else, and never open a window in-app.
   win.webContents.setWindowOpenHandler(({ url }) => {
-    void shell.openExternal(url);
+    openExternalIfWeb(url);
     return { action: 'deny' };
   });
   win.webContents.on('will-navigate', (event, url) => {
     const devServer = process.env['ELECTRON_RENDERER_URL'];
     if (devServer && url.startsWith(devServer)) return;
     event.preventDefault();
-    void shell.openExternal(url);
+    openExternalIfWeb(url);
   });
 
   const devServer = process.env['ELECTRON_RENDERER_URL'];
@@ -135,6 +163,11 @@ if (!app.requestSingleInstanceLock()) {
     });
   });
 
+  // A delegated CLI is the member's own process, started by their own action — but it is *our*
+  // child, and a child that outlives the window still consumes their subscription. Quitting stops
+  // every turn that is still running.
+  app.on('will-quit', abortAllAgentRuns);
+
   app.on('window-all-closed', () => {
     if (process.platform !== 'darwin') app.quit();
   });
@@ -170,6 +203,16 @@ ipcMain.handle('window:controls', (event, action: 'minimize' | 'maximize' | 'clo
   else if (win.isMaximized()) win.unmaximize();
   else win.maximize();
 });
+
+/**
+ * The provider layer: `agents:detect`, `agents:policy`, `agents:run`, `agents:cancel`,
+ * `agents:setKey`, `agents:keyStatus`.
+ *
+ * Grouped in `main/agents.ts` rather than inlined here because that file also owns the rule this
+ * shell exists to enforce: a member's API key is accepted across the bridge and never handed back,
+ * and the child process's environment is built by `@partyco/agents`, never inherited.
+ */
+registerAgentIpc();
 
 // Read-only helper the renderer uses to show the architecture docs in-app.
 ipcMain.handle('docs:read', async (_e, name: string): Promise<string | null> => {

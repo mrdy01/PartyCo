@@ -9,6 +9,7 @@ import {
   GateRejectionPanel,
   InvitePanel,
   MergeQueueTable,
+  ProviderSetup,
   ShellTitleBar,
   StatusLine,
   TeamPanel,
@@ -52,6 +53,7 @@ import {
   toInviteRecord,
   toProjectMember,
 } from '../present.ts';
+import { useProviderLayer } from '../providers.ts';
 import {
   createInvite as hubCreateInvite,
   invites as hubInvites,
@@ -505,6 +507,7 @@ function SettingsView({
   onSignOut: () => void;
 }): React.ReactElement {
   const { theme, density, toggleTheme, setDensity } = useTheme();
+  const providers = useProviderLayer();
 
   return (
     <div className={styles.settings}>
@@ -533,6 +536,24 @@ function SettingsView({
               {density === 'comfortable' ? 'Просторная' : 'Плотная'}
             </button>
           </div>
+        </section>
+
+        {/*
+          The first surface where the provider layer is real rather than described: what it lists
+          comes from the vendor-policy catalogue in `@partyco/agents` and from a PATH scan on this
+          machine. A refused transport is drawn refused, with the vendor's own sentence next to it.
+        */}
+        <section className={styles.block}>
+          <h2 className={styles.blockTitle}>Провайдеры</h2>
+          <ProviderSetup
+            providers={providers.providers}
+            state={providers.state}
+            busyProviderId={providers.busyProviderId}
+            onModeChange={providers.setMode}
+            onKeySubmit={providers.submitKey}
+            onRedetect={providers.redetect}
+            onRetry={providers.redetect}
+          />
         </section>
 
         <section className={styles.block}>

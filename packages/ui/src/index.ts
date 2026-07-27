@@ -524,6 +524,22 @@ export {
   type ProviderGlyphVariant,
 } from './components/ProviderGlyph/index.ts';
 export {
+  ProviderSetup,
+  PROVIDER_SETUP_COPY,
+  PROVIDER_POLICY_SELECTABLE,
+  PROVIDER_POLICY_LABEL,
+  PROVIDER_POLICY_TONE,
+  type ProviderSetupProps,
+  type ProviderSetupItem,
+  type ProviderSetupState,
+  type ProviderSetupCopy,
+  type ProviderSetupCopyInput,
+  type ProviderMode,
+  type ProviderPolicyStatus,
+  type ProviderTransportInfo,
+  type ProviderCliDetection,
+} from './components/ProviderSetup/index.ts';
+export {
   ResolutionPath,
   type ResolutionPathProps,
   type ResolutionStep,

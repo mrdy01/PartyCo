@@ -12,7 +12,9 @@
   },
   "scripts": {
     "build:tokens": "node packages/tokens/scripts/build-css.mjs",
-    "typecheck": "tsc -p packages/tokens && tsc -p packages/icons && tsc -p packages/ui && tsc -p apps/desktop/tsconfig.node.json && tsc -p apps/desktop/tsconfig.web.json",
+    "typecheck": "tsc -p packages/tokens && tsc -p packages/icons && tsc -p packages/agents && tsc -p packages/ui && tsc -p apps/desktop/tsconfig.node.json && tsc -p apps/desktop/tsconfig.web.json",
+    "test:agents": "node --test packages/agents/test.mjs",
+    "test:hub": "node --test apps/hub/test.mjs",
     "dev": "npm run build:tokens && npm run -w @partyco/desktop dev",
     "build": "npm run build:tokens && npm run -w @partyco/desktop build",
     "start": "npm run -w @partyco/desktop preview",

@@ -15,6 +15,9 @@
     "paths": {
       "@/*": [
         "./src/renderer/src/*"
+      ],
+      "@partyco/agents": [
+        "../../packages/agents/src/index.ts"
       ]
     }
   },

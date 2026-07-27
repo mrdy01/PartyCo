@@ -12,7 +12,12 @@
     "moduleResolution": "bundler",
     "allowImportingTsExtensions": true,
     "noEmit": true,
-    "composite": false
+    "composite": false,
+    "paths": {
+      "@partyco/agents": [
+        "../../packages/agents/src/index.ts"
+      ]
+    }
   },
   "include": [
     "src/main/**/*.ts",
