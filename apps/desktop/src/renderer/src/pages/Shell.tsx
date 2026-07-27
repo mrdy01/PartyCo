@@ -6,9 +6,7 @@ import {
   Conversation,
   EventCard,
   FileViewer,
-  GateRejectionPanel,
   InvitePanel,
-  MergeQueueTable,
   ProviderSetup,
   ShellTitleBar,
   StatusLine,
@@ -23,37 +21,15 @@ import {
   type OwnershipTab,
   type ProjectMember,
   type ProjectRole,
+  type ShellStatus,
   type ShellView,
   type ZoneTreeNode,
 } from '@partyco/ui';
-import {
-  shellComposer,
-  shellEmptyGreeting,
-  shellEventGateRejected,
-  shellFileWith,
-  shellOwnershipMeta,
-  shellStatusWith,
-  shellStreamWith,
-  shellTaskZone,
-  shellTeamFootnote,
-  shellTree,
-  shellTreeFootnote,
-  shellZoneCards,
-  shellZoneRows,
-  shellZoneTermNote,
-  useShellClock,
-} from '@partyco/ui/fixtures/shell';
-import {
-  mergeQueueInterveningRejection,
-  mergeQueueRowsAt,
-  useMergeQueueClock,
-} from '@partyco/ui/fixtures/mergequeue';
-import {
-  canManageInvites,
-  toInviteRecord,
-  toProjectMember,
-} from '../present.ts';
+import { canManageInvites, toInviteRecord, toProjectMember } from '../present.ts';
 import { useProviderLayer } from '../providers.ts';
+import { pathOfRow, useFileTree, useOpenFile } from '../files.ts';
+import { useConversation } from '../conversation.ts';
+import type { WorkspaceHandle } from '../workspace.ts';
 import {
   createInvite as hubCreateInvite,
   invites as hubInvites,
@@ -69,40 +45,35 @@ import styles from './Shell.module.css';
  *
  * The whole revision is in what this page does NOT render on open: no boundary tree, no agent
  * session panel, no ownership map, no merge queue, no nine-field status bar. One column of
- * conversation, three fields of state, three avatars in the corner. Everything else arrives because
- * somebody asked for it, and leaves again when they close it.
+ * conversation, the state fields that are actually known, three avatars in the corner. Everything
+ * else arrives because somebody asked for it, and leaves again when they close it.
  *
- * Two data sources, and the difference matters. **The team and its invitations are real** — they
- * come from `partycod` over HTTP, and inviting somebody actually creates a row that actually lets
- * them in. Everything else on this page is still fixtures from `@partyco/ui/fixtures/shell`,
- * because the core daemon does not exist yet. That boundary is the remaining roadmap, and it is
- * drawn here rather than hidden: `useTeam` below is the only hook that can fail, and it is the only
- * one with a loading and an error state.
+ * **Every value on this page is a real one.** The team and its invitations come from `partycod`;
+ * the files come from the folder the member picked; the conversation is on disk and the agent that
+ * wrote it was a real child process. Where a subsystem does not exist yet — zones, the merge gate,
+ * the trunk's health, what the day cost — the surface says so and shows nothing, because a
+ * plausible number is worse than a gap: a person who believes «Ствол здоров» when nothing checked
+ * the trunk has been misled by their own tool. The empty states are not placeholders waiting to be
+ * filled with fixtures; they are the correct answer until the roadmap reaches them.
  */
 
 /** What may occupy the slide-out panel on the right. Nothing, by default and after every close. */
-type Detail = 'gate' | 'team' | 'invite' | null;
+type Detail = 'team' | 'invite' | null;
 
 export function ShellPage({
   session,
+  workspace,
   onSignOut,
 }: {
   session: HubSession;
+  workspace: WorkspaceHandle;
   onSignOut: () => void;
 }): React.ReactElement {
-  const clock = useShellClock();
-  const queueClock = useMergeQueueClock();
-
   const [view, setView] = useState<ShellView>('conversation');
   const [detail, setDetail] = useState<Detail>(null);
   const [statusExpanded, setStatusExpanded] = useState(false);
   const [search, setSearch] = useState('');
   const [draft, setDraft] = useState('');
-  const [workExpanded, setWorkExpanded] = useState(false);
-  const [openFileId, setOpenFileId] = useState<string | null>(null);
-  const [selectedNodeId, setSelectedNodeId] = useState<string | undefined>(
-    shellTree.find((n) => n.selected)?.id,
-  );
   const [ownershipTab, setOwnershipTab] = useState<OwnershipTab>('zones');
 
   const team = useTeam(session);
@@ -111,38 +82,50 @@ export function ShellPage({
     [session.member],
   );
 
-  /* ---------- the stream ---------- */
-
-  const stream = useMemo(() => {
-    const items = shellStreamWith(clock).map((item) =>
-      item.kind === 'work' ? { ...item, expanded: workExpanded } : item,
-    );
-    return items;
-  }, [clock, workExpanded]);
-
-  const status = useMemo(() => shellStatusWith(clock), [clock]);
-  const file = useMemo(() => shellFileWith(clock), [clock]);
+  const folder = workspace.workspace;
+  const providers = useProviderLayer();
+  const files = useFileTree(folder);
+  const open = useOpenFile(folder);
+  const talk = useConversation(folder, self, providers.providers, providers.state === 'ready');
+  const status = useShellStatus(team.state);
 
   /* ---------- the files panel ---------- */
 
-  const nodes = useMemo<readonly ZoneTreeNode[]>(
-    () => shellTree.map((n) => ({ ...n, selected: n.id === selectedNodeId })),
-    [selectedNodeId],
-  );
+  // Filtering happens over the rows already read, and the footnote says so. Searching a repository
+  // properly means walking it, which is the main process's job and not written yet — pretending
+  // otherwise would leave a person concluding a file does not exist because its folder is shut.
+  const filtered = useMemo<readonly ZoneTreeNode[]>(() => {
+    const needle = search.trim().toLowerCase();
+    if (!needle) return files.nodes;
+    return files.nodes.filter(
+      (node) => node.kind === 'file' && node.label.toLowerCase().includes(needle),
+    );
+  }, [files.nodes, search]);
 
-  const openFile = useCallback((node: ZoneTreeNode) => {
-    setSelectedNodeId(node.id);
-    if (node.kind === 'file') setOpenFileId(node.id);
-  }, []);
+  const activate = useCallback(
+    (node: ZoneTreeNode) => {
+      files.select(node.id);
+      if (node.kind === 'file') open.open(pathOfRow(node.id));
+      else files.toggle(pathOfRow(node.id));
+    },
+    [files, open],
+  );
 
   /* ---------- chrome ---------- */
 
   const titleBar = (
     <ShellTitleBar
-      projectName={PROJECT_NAME}
+      projectName={folder?.name ?? session.member.displayName}
       searchValue={search}
-      onSearchChange={setSearch}
+      onSearchChange={(value) => {
+        setSearch(value);
+        // Typing in the title bar is asking to look at files. Leaving the person on the
+        // conversation while their query filters a panel they cannot see is a control that
+        // appears broken.
+        if (value.trim()) setView('files');
+      }}
       searchShortcut={['Ctrl', 'K']}
+      onProjectSwitch={() => void workspace.clear()}
     />
   );
 
@@ -155,9 +138,16 @@ export function ShellPage({
         // whatever was slid out over the previous one.
         setDetail(null);
       }}
-      projectInitial={PROJECT_NAME.slice(0, 1)}
-      onNewTask={() => setDraft('')}
+      projectInitial={(folder?.name ?? 'P').slice(0, 1).toUpperCase()}
+      onNewTask={() => {
+        setView('conversation');
+        setDetail(null);
+        setDraft('');
+      }}
       self={self}
+      // A dot is a claim that something is happening. The one thing this shell genuinely knows is
+      // whether a child process of its own is running right now.
+      presenceTone={talk.running ? 'running' : null}
     />
   );
 
@@ -165,25 +155,19 @@ export function ShellPage({
     <StatusLine
       status={status}
       expanded={statusExpanded}
-      onToggleDetails={() => setStatusExpanded((open) => !open)}
+      onToggleDetails={() => setStatusExpanded((expandedNow) => !expandedNow)}
     />
   );
 
   /* ---------- the slide-out panel ---------- */
 
   const detailPanel =
-    detail === 'gate' ? (
-      <GateRejectionPanel
-        rejection={mergeQueueInterveningRejection}
-        claimId="c-2288"
-        onClose={() => setDetail(null)}
-      />
-    ) : detail === 'team' ? (
+    detail === 'team' ? (
       <TeamPanel
         members={team.members}
         invites={team.invites}
         state={team.state}
-        footnote={shellTeamFootnote}
+        footnote={TEAM_FOOTNOTE}
         onClose={() => setDetail(null)}
         {...(canManageInvites(session.member) ? { onInvite: () => setDetail('invite') } : {})}
         onRetry={team.reload}
@@ -217,31 +201,44 @@ export function ShellPage({
 
   const composer = (
     <Composer
-      context={{ ...shellComposer, zonePath: shellTaskZone }}
+      context={{
+        ...(folder ? { zonePath: folder.branch ? `${folder.name} · ${folder.branch}` : folder.name } : {}),
+        // «Сначала план», and it is not a setting — it is what this build actually does. PartyCo
+        // passes no permission flags to the vendor CLI, and a non-interactive run has nobody to
+        // answer a write prompt, so the agent reads the project and answers without editing it.
+        // The three modes become a real choice when the engine starts passing the flag.
+        mode: 'plan',
+        providerId: talk.target?.providerId ?? '',
+        modelLabel: talk.target?.label ?? 'нет провайдера',
+      }}
       self={self}
       value={draft}
       onValueChange={setDraft}
-      onSubmit={() => setDraft('')}
+      onSubmit={(value) => {
+        talk.send(value);
+        setDraft('');
+      }}
+      disabled={talk.blocked !== null || talk.running}
       variant={view === 'files' ? 'narrow' : 'wide'}
-      {...(view === 'files' ? { copy: { placeholder: 'Спросить про этот файл…' } } : {})}
+      copy={{
+        ...(talk.blocked ? { placeholder: talk.blocked } : {}),
+        ...(view === 'files' && !talk.blocked ? { placeholder: 'Спросить про этот файл…' } : {}),
+      }}
+      // The chips are facts, not menus, until there is something to choose between: mode selection
+      // and model selection are both roadmap items, and a chip that opens nothing is a dead control.
+      modeTone="success"
     />
   );
 
   const conversation = (
     <Conversation
-      items={stream}
+      items={talk.items}
+      state={talk.state}
       variant={view === 'files' ? 'narrow' : 'wide'}
-      renderEvent={(event) => (
-        <EventCard
-          event={event}
-          onAction={(actionId) => {
-            if (actionId === 'diff') setDetail('gate');
-          }}
-        />
-      )}
-      onToggleWork={() => setWorkExpanded((open) => !open)}
-      onOpenDiff={() => setDetail('gate')}
-      copy={{ empty: { title: shellEmptyGreeting.title, body: shellEmptyGreeting.body } }}
+      renderEvent={(event) => <EventCard event={event} />}
+      onToggleWork={talk.toggleWork}
+      onRetry={talk.reload}
+      copy={{ empty: greeting(session.member.displayName, talk.blocked) }}
       footer={composer}
     />
   );
@@ -251,24 +248,35 @@ export function ShellPage({
       <ZoneBoard
         tab={ownershipTab}
         onTabChange={setOwnershipTab}
-        cards={shellZoneCards}
-        rows={shellZoneRows}
-        queueCount={2}
-        meta={shellOwnershipMeta}
-        footnote={shellZoneTermNote}
-        renderQueue={() => <MergeQueueTable rows={mergeQueueRowsAt(queueClock)} />}
+        // Nothing hands out zones yet and nothing queues a patch, so both tabs are honestly empty.
+        // `emptyActions` is left out on purpose: the button under an empty state has to do
+        // something, and «Разметить зоны» has nothing to call.
+        state="empty"
+        meta={OWNERSHIP_META}
+        renderQueue={() => null}
       />
     ) : view === 'settings' ? (
       <SettingsView
         self={self}
         memberCount={team.members.length}
+        workspace={workspace}
+        providers={providers}
         onOpenTeam={() => setDetail('team')}
         onSignOut={onSignOut}
       />
-    ) : view === 'files' && openFileId ? (
+    ) : view === 'files' && open.state !== 'empty' ? (
       <div className={styles.split}>
         <div className={styles.narrowColumn}>{conversation}</div>
-        <FileViewer file={file} onClose={() => setOpenFileId(null)} />
+        <FileViewer
+          {...(open.file ? { file: open.file } : {})}
+          state={open.state}
+          diff={false}
+          onClose={open.close}
+          onRetry={open.retry}
+          {...(open.error
+            ? { labels: { errorTitle: 'Файл не показан', errorBody: open.error } }
+            : {})}
+        />
       </div>
     ) : (
       conversation
@@ -282,11 +290,19 @@ export function ShellPage({
         ? {
             filesPanel: (
               <ZoneTree
-                nodes={nodes}
-                {...(selectedNodeId ? { selectedId: selectedNodeId } : {})}
-                footnote={shellTreeFootnote}
-                onSelect={openFile}
-                onOpen={openFile}
+                nodes={filtered}
+                state={search.trim() && filtered.length === 0 ? 'empty' : files.state}
+                {...(files.selectedId ? { selectedId: files.selectedId } : {})}
+                footnote={search.trim() ? SEARCH_FOOTNOTE : TREE_FOOTNOTE}
+                onSelect={activate}
+                onOpen={activate}
+                onToggle={(node) => files.toggle(pathOfRow(node.id))}
+                onRetry={files.reload}
+                labels={{
+                  emptyBody: search.trim()
+                    ? 'Среди открытых папок такого файла нет. Открой папку в дереве — поиск смотрит только то, что уже прочитано.'
+                    : 'Зон ещё нет — проект не поделён. Здесь просто файлы папки, которую ты выбрал.',
+                }}
               />
             ),
           }
@@ -299,8 +315,59 @@ export function ShellPage({
   );
 }
 
-/** Demo project. Comes from `project` on the hub as soon as that table exists — see HANDOFF §9.2. */
-const PROJECT_NAME = 'Хайтейл';
+/* ------------------------------------------------------------------ *
+ * Copy that states what is and is not known
+ * ------------------------------------------------------------------ */
+
+const TREE_FOOTNOTE =
+  'Цветной кромки пока нет: проект не поделён на зоны, поэтому ничья территория здесь не отмечена.';
+
+const SEARCH_FOOTNOTE = 'Поиск идёт по уже открытым папкам — закрытые он не смотрит.';
+
+const OWNERSHIP_META = 'Границ ещё нет — их раздаёт ядро, а его в этой сборке нет.';
+
+const TEAM_FOOTNOTE =
+  'Люди и приглашения — настоящие: они лежат на хабе команды. Зоны и очередь появятся вместе с ядром.';
+
+/**
+ * The first thing a person sees in an empty conversation.
+ *
+ * It uses their real name and, when nothing can run, says what to do instead of greeting them into
+ * a composer that will not accept anything.
+ */
+function greeting(name: string, blocked: string | null): { title: string; body: string } {
+  const firstName = name.trim().split(/\s+/)[0] ?? name;
+  if (blocked) return { title: `${firstName}, ещё один шаг`, body: blocked };
+  return {
+    title: `${firstName}, покажи, где лежит код`,
+    body: 'Напиши, что нужно сделать. Агент запустится здесь, на этой машине, в папке проекта — и всё, что он сделает, останется в этой ленте.',
+  };
+}
+
+/**
+ * The status line, built only out of what is actually known.
+ *
+ * Connection is real: the team panel's own read either reached `partycod` or did not, and that is
+ * exactly the fact the field reports. Everything else — the trunk, the day's spend, `state_version`,
+ * held zones, queue depth — belongs to subsystems that do not exist in this build, so the fields are
+ * absent and `StatusLine` omits them along with the «Подробности» disclosure.
+ *
+ * `latencyLabel` stays empty even though a round-trip to the hub could be timed, because nothing
+ * here times it. The branch is not put in that slot either: a field that means «сколько миллисекунд
+ * до команды» must not quietly start meaning something else — the branch already has an honest home
+ * on the composer's chip.
+ */
+function useShellStatus(teamState: 'ready' | 'loading' | 'error'): ShellStatus {
+  return useMemo(() => {
+    if (teamState === 'error') {
+      return {
+        connection: 'offline',
+        offlineNote: 'Хаб команды не отвечает. Работать можно — просто в одиночку.',
+      };
+    }
+    return { connection: 'direct' };
+  }, [teamState]);
+}
 
 /**
  * Copy without asserting success.
@@ -314,7 +381,7 @@ function copyToClipboard(text: string): void {
 }
 
 /* ------------------------------------------------------------------ *
- * The team — the one part of this page that is not a fixture
+ * The team
  * ------------------------------------------------------------------ */
 
 interface TeamState {
@@ -393,9 +460,8 @@ function useTeam(session: HubSession): TeamState {
 
   const reload = useCallback(() => setNonce((n) => n + 1), []);
 
-  // Recomputed on every clock tick the page already has, so «ещё 21 час» does not go stale while
-  // the panel is open. `Date.now()` is read here rather than stored: an invitation's remaining time
-  // is a function of now, not a value that was true when the response arrived.
+  // `Date.now()` is read here rather than stored: an invitation's remaining time is a function of
+  // now, not a value that was true when the response arrived.
   const invites = useMemo(() => {
     const now = Date.now();
     return raw.map((invite) => toInviteRecord(invite, now));
@@ -434,9 +500,7 @@ function useTeam(session: HubSession): TeamState {
     setError(null);
     const previous = liveCode?.code;
     void (previous ? hubRevokeInvite(session.hubUrl, session.token, previous) : Promise.resolve())
-      .then(() =>
-        hubCreateInvite(session.hubUrl, session.token, { role, lifetime, seats }),
-      )
+      .then(() => hubCreateInvite(session.hubUrl, session.token, { role, lifetime, seats }))
       .then(() => reload())
       .catch((cause: unknown) => {
         setError(cause instanceof Error ? cause.message : 'Не удалось сменить код.');
@@ -491,32 +555,53 @@ function useTeam(session: HubSession): TeamState {
  * The designer moved theme and density out of the title bar («это настройка, а не инструмент») and
  * pointed the empty conversation at «Позвать команду — в настройках», which makes settings a place
  * the product now depends on — but the settings screen itself is the next thing to be drawn, not
- * something this revision shipped. So this is the smallest surface that keeps those two promises
- * and invents nothing: the two switches that lost their old home, the door to the team, and the
- * sign-out. When the design arrives it replaces this file, not the components.
+ * something this revision shipped. So this is the smallest surface that keeps those promises and
+ * invents nothing. When the design arrives it replaces this file, not the components.
  */
 function SettingsView({
   self,
   memberCount,
+  workspace,
+  providers,
   onOpenTeam,
   onSignOut,
 }: {
   self: ProjectMember;
   memberCount: number;
+  workspace: WorkspaceHandle;
+  providers: ReturnType<typeof useProviderLayer>;
   onOpenTeam: () => void;
   onSignOut: () => void;
 }): React.ReactElement {
   const { theme, density, toggleTheme, setDensity } = useTheme();
-  const providers = useProviderLayer();
 
   return (
     <div className={styles.settings}>
       <div className={styles.settingsColumn}>
         <h1 className={styles.settingsTitle}>Настройки</h1>
         <p className={styles.settingsLead}>
-          Эта страница ещё не нарисована — здесь только то, что переехало из титлбара, и дверь в
-          команду. Провайдеры и остальное появятся следующим заходом дизайна.
+          Эта страница ещё не нарисована — здесь только то, что переехало из титлбара, папка проекта
+          и провайдеры.
         </p>
+
+        <section className={styles.block}>
+          <h2 className={styles.blockTitle}>Проект</h2>
+          <div className={styles.row}>
+            <span className={styles.rowLabel}>
+              {workspace.workspace
+                ? `${workspace.workspace.name} · ${workspace.workspace.root}`
+                : 'Папка не выбрана'}
+            </span>
+            <button
+              type="button"
+              className={styles.rowAction}
+              onClick={() => void workspace.choose()}
+              disabled={workspace.busy}
+            >
+              Сменить
+            </button>
+          </div>
+        </section>
 
         <section className={styles.block}>
           <h2 className={styles.blockTitle}>Вид</h2>

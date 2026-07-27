@@ -4,6 +4,8 @@ import { join } from 'node:path';
 import { platformPaths } from './platform.ts';
 import { readCoreEndpoint, type CoreEndpoint } from './core-endpoint.ts';
 import { abortAllAgentRuns, registerAgentIpc } from './agents.ts';
+import { currentWorkspaceRoot, registerWorkspaceIpc } from './workspace.ts';
+import { registerTranscriptIpc } from './transcript.ts';
 
 const isDev = !app.isPackaged;
 
@@ -213,6 +215,29 @@ ipcMain.handle('window:controls', (event, action: 'minimize' | 'maximize' | 'clo
  * and the child process's environment is built by `@partyco/agents`, never inherited.
  */
 registerAgentIpc();
+
+/**
+ * The working folder: `workspace:choose`, `workspace:current`, `workspace:clear`, `workspace:tree`,
+ * `workspace:readFile` — the five members of `WorkspaceBridge` in `preload/contracts.ts`.
+ *
+ * In `main/workspace.ts` for the same reason as the block above: that file owns the rule this one
+ * cannot enforce from here — every path the renderer names is resolved through `realpath` and
+ * checked against the chosen root before anything is opened, so a `..`, a symlink out of the
+ * repository or a neighbouring folder whose name merely starts the same way is refused rather than
+ * read. The renderer draws repository text and model output, so the paths it sends back are
+ * attacker-influenceable by construction.
+ */
+registerWorkspaceIpc();
+
+/**
+ * The conversation on disk: `transcript:load`, `transcript:append`, `transcript:clear`.
+ *
+ * The resolver is the whole seam. `TranscriptBridge` takes no folder argument on purpose — the
+ * renderer does not get to name the project whose history it reads — so the transcript layer asks
+ * the workspace layer which folder is open, every call. One source of truth, and a member who
+ * switches projects cannot end up appending to the previous project's history.
+ */
+registerTranscriptIpc(() => currentWorkspaceRoot());
 
 // Read-only helper the renderer uses to show the architecture docs in-app.
 ipcMain.handle('docs:read', async (_e, name: string): Promise<string | null> => {

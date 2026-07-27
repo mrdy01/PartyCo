@@ -522,7 +522,7 @@ test('the database survives a restart with its members intact', async (t) => {
   const versions = second.db.prepare('SELECT version FROM schema_version ORDER BY version').all();
   assert.deepEqual(
     versions.map((r) => Number(r.version)),
-    [1, 2],
+    [1, 2, 3],
     'every migration ran exactly once',
   );
 });
@@ -1109,4 +1109,390 @@ test('the member list hides other people addresses from a plain member', async (
 
   assert.ok(!(await call('GET', '/v1/members', { token: owner.token })).text.includes('password'));
   assert.equal((await call('GET', '/v1/members')).status, 401);
+});
+
+// ---------------------------------------------------------------------------
+// Projects
+// ---------------------------------------------------------------------------
+
+/**
+ * @param {Function} call
+ * @param {string} token
+ * @param {string} name
+ */
+async function makeProject(call, token, name) {
+  const res = await call('POST', '/v1/projects', { token, body: { name } });
+  assert.equal(res.status, 201, `project ${name}: ${res.text}`);
+  return res.json.project;
+}
+
+/**
+ * @param {Function} call
+ * @param {string} token
+ * @param {string} projectId
+ */
+function rosterOf(call, token, projectId) {
+  return call('GET', `/v1/projects/members?projectId=${encodeURIComponent(projectId)}`, { token });
+}
+
+test('a project is created only when somebody asks, and its creator owns it', async (t) => {
+  const { hub, call } = await bootHub();
+  t.after(() => hub.close());
+
+  const owner = await bootOwner(call);
+
+  // Registering did not quietly create anything. A hub with one member and no projects is
+  // the truthful state, and the empty list is what the UI must be able to say.
+  const before = await call('GET', '/v1/projects', { token: owner.token });
+  assert.equal(before.status, 200);
+  assert.deepEqual(before.json.projects, [], 'the first member does not get a project handed to them');
+  assert.equal(hub.db.prepare('SELECT count(*) AS n FROM project').get().n, 0);
+
+  const created = await call('POST', '/v1/projects', { token: owner.token, body: { name: '  Atlas  ' } });
+  assert.equal(created.status, 201);
+  const project = created.json.project;
+  assert.deepEqual(Object.keys(project).sort(), [
+    'archivedAt',
+    'createdAt',
+    'createdBy',
+    'id',
+    'joinedAt',
+    'memberCount',
+    'name',
+    'role',
+    'slug',
+  ]);
+  assert.equal(project.name, 'Atlas', 'the name is trimmed, not otherwise touched');
+  assert.equal(project.slug, 'atlas');
+  assert.equal(project.createdBy, owner.member.id);
+  assert.equal(project.role, 'owner', 'the creator owns the project they created');
+  assert.equal(project.memberCount, 1);
+  assert.equal(project.archivedAt, null, 'nothing archives a project yet, and the API says null');
+  assert.ok(project.createdAt > 0 && project.joinedAt > 0);
+
+  // The owner row is real, in the same transaction as the project.
+  const rows = hub.db.prepare('SELECT * FROM project_member WHERE project_id = ?').all(project.id);
+  assert.equal(rows.length, 1);
+  assert.equal(rows[0].member_id, owner.member.id);
+  assert.equal(rows[0].role, 'owner');
+
+  const after = await call('GET', '/v1/projects', { token: owner.token });
+  assert.equal(after.json.projects.length, 1);
+  assert.deepEqual(after.json.projects[0], project);
+
+  const roster = await rosterOf(call, owner.token, project.id);
+  assert.equal(roster.status, 200);
+  assert.equal(roster.json.members.length, 1);
+  assert.equal(roster.json.members[0].id, owner.member.id);
+  assert.equal(roster.json.members[0].projectRole, 'owner');
+  assert.equal(roster.json.members[0].role, 'owner', 'the hub role is still reported, separately');
+
+  assert.equal((await call('GET', '/v1/projects')).status, 401, 'a session is required');
+  assert.equal((await call('POST', '/v1/projects', { body: { name: 'Ghost' } })).status, 401);
+  assert.equal(hub.db.prepare('SELECT count(*) AS n FROM project').get().n, 1);
+});
+
+test('a project name is validated and the slug derived from it, collisions included', async (t) => {
+  const { hub, call } = await bootHub();
+  t.after(() => hub.close());
+
+  const owner = await bootOwner(call);
+
+  assert.equal((await makeProject(call, owner.token, 'Atlas')).slug, 'atlas');
+  assert.equal((await makeProject(call, owner.token, 'Atlas')).slug, 'atlas-2', 'collisions get a suffix');
+  assert.equal((await makeProject(call, owner.token, 'ATLAS!!!')).slug, 'atlas-3');
+  assert.equal((await makeProject(call, owner.token, 'Web   App')).slug, 'web-app');
+  assert.equal((await makeProject(call, owner.token, '-- v2 --')).slug, 'v2');
+
+  // An entirely non-latin name has nothing left after the filter. The fallback is the same
+  // one handles use, and the display name keeps the original — inventing a romanisation
+  // would be guessing at somebody's name.
+  const cyrillic = await makeProject(call, owner.token, 'Хайтейл');
+  assert.equal(cyrillic.name, 'Хайтейл');
+  assert.equal(cyrillic.slug, 'project');
+  assert.equal((await makeProject(call, owner.token, 'Атлас')).slug, 'project-2');
+
+  const slugs = hub.db.prepare('SELECT slug FROM project').all().map((r) => r.slug);
+  assert.equal(new Set(slugs).size, slugs.length, 'slugs are unique across the hub');
+
+  /** @type {Array<[string, unknown]>} */
+  const bad = [
+    ['missing', undefined],
+    ['empty', ''],
+    ['blank', '   '],
+    ['not a string', 42],
+    ['too long', 'x'.repeat(65)],
+  ];
+  for (const [label, name] of bad) {
+    const res = await call('POST', '/v1/projects', { token: owner.token, body: { name } });
+    assert.equal(res.status, 400, label);
+    assert.equal(res.json.error.code, 'invalid_name', label);
+    assert.ok(!/sql|constraint|slug/i.test(res.json.error.message), 'no internals leak into the message');
+  }
+  assert.equal((await makeProject(call, owner.token, 'x'.repeat(64))).name.length, 64, '64 is still fine');
+});
+
+test('the project list is your projects, and somebody else’s project is a 404', async (t) => {
+  const { hub, call } = await bootHub();
+  t.after(() => hub.close());
+
+  const owner = await bootOwner(call);
+  // A hub maintainer: high standing on the hub, none at all in a project he is not in.
+  const outsider = await joinAs(call, owner.token, 'maintainer', 'timur@example.com');
+
+  const atlas = await makeProject(call, owner.token, 'Atlas');
+  const bench = await makeProject(call, outsider.token, 'Bench');
+
+  const mine = await call('GET', '/v1/projects', { token: owner.token });
+  assert.deepEqual(mine.json.projects.map((p) => p.name), ['Atlas'], 'not every project on the hub');
+  const theirs = await call('GET', '/v1/projects', { token: outsider.token });
+  assert.deepEqual(theirs.json.projects.map((p) => p.name), ['Bench']);
+  assert.ok(!mine.text.includes('Bench'), 'a project you are not in is not even named to you');
+
+  // 404, not 403: whether that id is a project is not a fact an outsider gets to learn.
+  const foreign = await rosterOf(call, outsider.token, atlas.id);
+  assert.equal(foreign.status, 404);
+  assert.equal(foreign.json.error.code, 'project_not_found');
+  const invented = await rosterOf(call, outsider.token, crypto.randomUUID());
+  assert.deepEqual(invented.json, foreign.json, 'a real project and an imaginary one answer identically');
+  assert.equal(invented.status, 404);
+
+  const write = await call('POST', '/v1/projects/members', {
+    token: outsider.token,
+    body: { projectId: atlas.id, memberId: outsider.member.id, role: 'owner' },
+  });
+  assert.equal(write.status, 404, 'and writing to it is the same non-answer, not a 403');
+  assert.equal(write.json.error.code, 'project_not_found');
+  assert.equal(hub.db.prepare('SELECT count(*) AS n FROM project_member WHERE project_id = ?').get(atlas.id).n, 1);
+
+  for (const missing of [undefined, '', '   ']) {
+    const res = await call('GET', `/v1/projects/members?projectId=${encodeURIComponent(missing ?? '')}`, {
+      token: owner.token,
+    });
+    assert.equal(res.status, 400, String(missing));
+    assert.equal(res.json.error.code, 'invalid_project');
+  }
+  assert.equal((await rosterOf(call, null, bench.id)).status, 401);
+});
+
+test('only an owner or a maintainer of that project may add people to it', async (t) => {
+  const { hub, call } = await bootHub();
+  t.after(() => hub.close());
+
+  const owner = await bootOwner(call);
+  const timur = await joinAs(call, owner.token, 'maintainer', 'timur@example.com');
+  const marina = await joinAs(call, owner.token, 'member', 'marina@example.com');
+  const petya = await joinAs(call, owner.token, 'observer', 'petya@example.com');
+  const dima = await joinAs(call, owner.token, 'member', 'dima@example.com');
+
+  const atlas = await makeProject(call, owner.token, 'Atlas');
+
+  /**
+   * @param {string} token
+   * @param {string} memberId
+   * @param {string} role
+   */
+  const add = (token, memberId, role) =>
+    call('POST', '/v1/projects/members', { token, body: { projectId: atlas.id, memberId, role } });
+
+  const asMaintainer = await add(owner.token, timur.member.id, 'maintainer');
+  assert.equal(asMaintainer.status, 201);
+  assert.equal(asMaintainer.json.alreadyMember, false);
+  assert.equal(asMaintainer.json.member.projectRole, 'maintainer');
+  assert.equal(asMaintainer.json.project.memberCount, 2);
+
+  assert.equal((await add(owner.token, marina.member.id, 'member')).status, 201);
+  assert.equal((await add(owner.token, petya.member.id, 'observer')).status, 201);
+
+  // A project maintainer may bring somebody in; a project member and an observer may not.
+  const byMaintainer = await add(timur.token, dima.member.id, 'member');
+  assert.equal(byMaintainer.status, 201, 'a maintainer of the project may add people');
+
+  for (const [label, actor] of [['member', marina], ['observer', petya]]) {
+    const res = await add(actor.token, dima.member.id, 'maintainer');
+    assert.equal(res.status, 403, label);
+    assert.equal(res.json.error.code, 'forbidden');
+  }
+
+  // Standing on the hub is not standing in a project: this hub maintainer was never added.
+  const stranger = await joinAs(call, owner.token, 'maintainer', 'sveta@example.com');
+  const outside = await add(stranger.token, dima.member.id, 'member');
+  assert.equal(outside.status, 404, 'a hub maintainer outside the project sees no project at all');
+  assert.equal(outside.json.error.code, 'project_not_found');
+
+  const unknownPerson = await add(owner.token, crypto.randomUUID(), 'member');
+  assert.equal(unknownPerson.status, 404);
+  assert.equal(unknownPerson.json.error.code, 'member_not_found');
+
+  for (const role of ['boss', '', 42, undefined]) {
+    const res = await call('POST', '/v1/projects/members', {
+      token: owner.token,
+      body: { projectId: atlas.id, memberId: dima.member.id, role },
+    });
+    assert.equal(res.status, 400, String(role));
+    assert.equal(res.json.error.code, 'invalid_role');
+  }
+  const noBody = await call('POST', '/v1/projects/members', { token: owner.token, body: { projectId: atlas.id } });
+  assert.equal(noBody.status, 400);
+  assert.equal(noBody.json.error.code, 'invalid_role', 'the role is judged before the person');
+
+  assert.equal((await rosterOf(call, owner.token, atlas.id)).json.members.length, 5);
+});
+
+test('only a project owner hands out the owner role', async (t) => {
+  const { hub, call } = await bootHub();
+  t.after(() => hub.close());
+
+  const owner = await bootOwner(call);
+  const timur = await joinAs(call, owner.token, 'maintainer', 'timur@example.com');
+  const dima = await joinAs(call, owner.token, 'member', 'dima@example.com');
+
+  const atlas = await makeProject(call, owner.token, 'Atlas');
+  await call('POST', '/v1/projects/members', {
+    token: owner.token,
+    body: { projectId: atlas.id, memberId: timur.member.id, role: 'maintainer' },
+  });
+
+  // A maintainer cannot promote themselves — their own row is in the way — and must not be
+  // able to route around that by minting an owner who is not them.
+  const byMaintainer = await call('POST', '/v1/projects/members', {
+    token: timur.token,
+    body: { projectId: atlas.id, memberId: dima.member.id, role: 'owner' },
+  });
+  assert.equal(byMaintainer.status, 403);
+  assert.equal(byMaintainer.json.error.code, 'forbidden');
+
+  const selfPromotion = await call('POST', '/v1/projects/members', {
+    token: timur.token,
+    body: { projectId: atlas.id, memberId: timur.member.id, role: 'owner' },
+  });
+  assert.equal(selfPromotion.status, 403);
+
+  const byOwner = await call('POST', '/v1/projects/members', {
+    token: owner.token,
+    body: { projectId: atlas.id, memberId: dima.member.id, role: 'owner' },
+  });
+  assert.equal(byOwner.status, 201, 'the project owner may share ownership');
+  assert.equal(byOwner.json.member.projectRole, 'owner');
+
+  const roles = hub.db
+    .prepare('SELECT role FROM project_member WHERE project_id = ? ORDER BY joined_at')
+    .all(atlas.id)
+    .map((r) => r.role);
+  assert.deepEqual(roles, ['owner', 'maintainer', 'owner']);
+});
+
+test('adding the same person again changes nothing; a different role is refused outright', async (t) => {
+  const { hub, call } = await bootHub();
+  t.after(() => hub.close());
+
+  const owner = await bootOwner(call);
+  const marina = await joinAs(call, owner.token, 'member', 'marina@example.com');
+  const atlas = await makeProject(call, owner.token, 'Atlas');
+
+  /** @param {string} role */
+  const add = (role) =>
+    call('POST', '/v1/projects/members', {
+      token: owner.token,
+      body: { projectId: atlas.id, memberId: marina.member.id, role },
+    });
+
+  const first = await add('member');
+  assert.equal(first.status, 201);
+  assert.equal(first.json.alreadyMember, false);
+
+  // The identical call again: a client that lost the response can simply repeat itself.
+  const again = await add('member');
+  assert.equal(again.status, 200);
+  assert.equal(again.json.alreadyMember, true);
+  assert.equal(again.json.member.joinedAt, first.json.member.joinedAt, 'and the timestamp does not move');
+  assert.equal(again.json.project.memberCount, 2, 'nor does the roster grow');
+
+  // A different role is a different request. Answering it with a cheerful 200 would tell
+  // the caller their change went through when nothing happened.
+  const conflict = await add('maintainer');
+  assert.equal(conflict.status, 409);
+  assert.equal(conflict.json.error.code, 'role_conflict');
+  assert.ok(!/sql|constraint|project_member/i.test(conflict.json.error.message));
+
+  const roster = await rosterOf(call, owner.token, atlas.id);
+  assert.equal(roster.json.members.length, 2);
+  assert.equal(roster.json.members.find((m) => m.id === marina.member.id).projectRole, 'member');
+  assert.equal(
+    hub.db.prepare('SELECT count(*) AS n FROM project_member WHERE project_id = ?').get(atlas.id).n,
+    2,
+  );
+
+  // And the pair is unique in the database, not merely in the handler.
+  assert.throws(() =>
+    hub.db
+      .prepare('INSERT INTO project_member(project_id, member_id, role, joined_at) VALUES(?,?,?,?)')
+      .run(atlas.id, marina.member.id, 'observer', Date.now()),
+  );
+  assert.throws(
+    () =>
+      hub.db
+        .prepare('INSERT INTO project_member(project_id, member_id, role, joined_at) VALUES(?,?,?,?)')
+        .run(atlas.id, owner.member.id, 'boss', Date.now()),
+    'the role CHECK is in the schema too',
+  );
+});
+
+test('the project roster hides other people addresses from a plain member', async (t) => {
+  const { hub, call } = await bootHub();
+  t.after(() => hub.close());
+
+  const owner = await bootOwner(call);
+  const timur = await joinAs(call, owner.token, 'maintainer', 'timur@example.com');
+  const marina = await joinAs(call, owner.token, 'member', 'marina@example.com');
+  const petya = await joinAs(call, owner.token, 'observer', 'petya@example.com');
+
+  const atlas = await makeProject(call, owner.token, 'Atlas');
+  for (const [person, role] of [[timur, 'maintainer'], [marina, 'member'], [petya, 'observer']]) {
+    const res = await call('POST', '/v1/projects/members', {
+      token: owner.token,
+      body: { projectId: atlas.id, memberId: person.member.id, role },
+    });
+    assert.equal(res.status, 201);
+  }
+
+  for (const [label, actor] of [['owner', owner], ['maintainer', timur]]) {
+    const res = await rosterOf(call, actor.token, atlas.id);
+    assert.equal(res.status, 200, label);
+    assert.ok(res.json.members.every((m) => typeof m.email === 'string'), `${label} sees every address`);
+  }
+
+  // The rule is the hub role, not the project role: otherwise anyone could create a project,
+  // add the team to it and read the addresses `GET /v1/members` refuses to show them.
+  for (const [label, actor] of [['member', marina], ['observer', petya]]) {
+    const res = await rosterOf(call, actor.token, atlas.id);
+    assert.equal(res.status, 200, label);
+    assert.equal(res.json.members.find((m) => m.id === actor.member.id).email, actor.member.email);
+    assert.ok(
+      res.json.members.filter((m) => m.id !== actor.member.id).every((m) => m.email === null),
+      `${label} must not be able to export the team's addresses through a project`,
+    );
+    assert.ok(!res.text.includes('ann@example.com'), 'and the redaction survives serialisation');
+    assert.ok(!/password|scrypt/i.test(res.text));
+    assert.deepEqual(Object.keys(res.json.members[0]).sort(), [
+      'colorSlug',
+      'createdAt',
+      'displayName',
+      'email',
+      'handle',
+      'id',
+      'joinedAt',
+      'projectRole',
+      'role',
+    ]);
+  }
+
+  // Their own project, made by themselves, is no different — the roster is not a loophole.
+  const own = await makeProject(call, marina.token, 'Bench');
+  const bench = await call('POST', '/v1/projects/members', {
+    token: marina.token,
+    body: { projectId: own.id, memberId: owner.member.id, role: 'member' },
+  });
+  assert.equal(bench.status, 201, 'anyone may run their own project');
+  assert.equal(bench.json.member.email, null, 'and still does not get to read an address');
 });

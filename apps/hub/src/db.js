@@ -4,12 +4,13 @@
  * SQLite via the built-in `node:sqlite` (Node >= 24, no flag, no native dependency).
  * Single writer, WAL journal — matches architecture.md §9.1 ("SQLite WAL, single writer").
  *
- * Scope note: this file owns ONLY the identity slice of hub.db — member, session, and the
- * invitations that let a second person into a hub (invite, invite_use). The rest of the
- * §9.1 schema (device, project, boundary, lane, claim, lease, ...) is not created here; it
- * will arrive as further migration steps. `member` below is the §9.1 table EXTENDED with the
- * three columns authentication needs — `email`, `password_hash`, `color_slug` — and with
- * NOT NULL constraints §9.1 leaves implicit.
+ * Scope note: this file owns the identity slice of hub.db — member, session, the invitations
+ * that let a second person into a hub (invite, invite_use) — and the project roster
+ * (project, project_member). The rest of the §9.1 schema (device, boundary, lane, claim,
+ * lease, ...) is not created here; it will arrive as further migration steps. `member` below
+ * is the §9.1 table EXTENDED with the three columns authentication needs — `email`,
+ * `password_hash`, `color_slug` — and with NOT NULL constraints §9.1 leaves implicit;
+ * `project` is the §9.1 table REDUCED to the columns something actually writes today.
  *
  * What is deliberately NOT here: model-provider credentials. The hub is a coordination plane.
  * Anthropic/OpenAI/Google keys never reach this database and must never be added to it.
@@ -59,6 +60,25 @@ import { DatabaseSync } from 'node:sqlite';
  * @property {string} code
  * @property {string} member_id
  * @property {number} used_at
+ */
+
+/**
+ * @typedef {object} ProjectRow
+ * @property {string} id
+ * @property {string} name as the person typed it
+ * @property {string} slug derived from the name, unique across the hub
+ * @property {string} created_by
+ * @property {number} created_at
+ * @property {number|null} archived_at nothing sets this yet — see the note on migration 3
+ */
+
+/**
+ * @typedef {object} ProjectMemberRow
+ * @property {string} project_id
+ * @property {string} member_id
+ * @property {'owner'|'maintainer'|'member'|'observer'} role role IN THIS PROJECT, which is
+ *   a different thing from `member.role` on the hub
+ * @property {number} joined_at
  */
 
 /**
@@ -153,6 +173,54 @@ const MIGRATIONS = [
       db.exec('CREATE INDEX IF NOT EXISTS ix_invite_email ON invite(email) WHERE email IS NOT NULL;');
       // "Which invitation let this person in" — the reverse of the ledger's primary key.
       db.exec('CREATE INDEX IF NOT EXISTS ix_invite_use_member ON invite_use(member_id);');
+    },
+  },
+  {
+    version: 3,
+    name: 'project-and-project-member',
+    up(db) {
+      // §9.1's `project` carries a dozen more columns — `bare_repo_path`, `trunk_ref`,
+      // `policy_bundle_id`, the gate's thresholds. Every one of them describes a subsystem
+      // that does not exist yet, and a column filled with a plausible default is a lie the
+      // UI would render as fact. They arrive with the subsystems that produce them.
+      //
+      // `slug` is not in §9.1 and is added on purpose: it is what a URL or a directory name
+      // can be built from without dragging a display name through them.
+      // `archived_at` is the one nullable slot kept ahead of its feature — no endpoint sets
+      // it, so it is always NULL, and the API says so rather than pretending otherwise.
+      db.exec(`
+        CREATE TABLE IF NOT EXISTS project(
+          id TEXT PRIMARY KEY,
+          name TEXT NOT NULL,
+          slug TEXT UNIQUE NOT NULL,
+          created_by TEXT NOT NULL REFERENCES member(id),
+          created_at INTEGER NOT NULL,
+          archived_at INTEGER);
+      `);
+
+      // §9.1 carries `caps` (json capability strings) here instead of a role. Capabilities
+      // are a policy engine nobody has built; four named roles are what this service can
+      // actually enforce today, and a CHECK is the right place for that rule. `caps` can be
+      // added beside `role` by a later step, when something exists that reads it.
+      //
+      // PRIMARY KEY(project_id, member_id) makes "one row per person per project" an
+      // invariant of the database rather than a check some future handler might skip — the
+      // same reason `invite_use` is keyed that way. It also gives SQLite an implicit index
+      // on (project_id, member_id), which is the one "who is in this project" needs.
+      db.exec(`
+        CREATE TABLE IF NOT EXISTS project_member(
+          project_id TEXT NOT NULL REFERENCES project(id),
+          member_id TEXT NOT NULL REFERENCES member(id),
+          role TEXT NOT NULL CHECK(role IN ('owner','maintainer','member','observer')),
+          joined_at INTEGER NOT NULL,
+          PRIMARY KEY(project_id, member_id));
+      `);
+
+      // "Which projects is this person in" — a (project_id, member_id) index cannot answer
+      // it, because member_id is not its leading column. Every list endpoint starts here.
+      db.exec('CREATE INDEX IF NOT EXISTS ix_project_member_member ON project_member(member_id);');
+      // The project list is ordered by creation.
+      db.exec('CREATE INDEX IF NOT EXISTS ix_project_created ON project(created_at);');
     },
   },
 ];

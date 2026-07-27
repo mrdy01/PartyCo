@@ -37,6 +37,7 @@ import {
   redeemInvite,
   canManageInvites,
 } from './invites.js';
+import { createProject, listProjects, listProjectMembers, addProjectMember } from './projects.js';
 import { createHttpServer, parseOrigins, createRateLimiter, HttpError } from './http.js';
 
 /** Wire protocol version. Bumped when the shape of these responses changes incompatibly. */
@@ -238,6 +239,44 @@ export async function startHub(options = {}) {
     'GET /v1/invites/peek': (ctx) => {
       enforceRateLimit(ctx);
       return { status: 200, body: peekInvite(db, ctx.url.searchParams.get('code'), { projectName }) };
+    },
+
+    'GET /v1/projects': (ctx) => ({
+      status: 200,
+      body: { projects: listProjects(db, requireMember(db, ctx)) },
+    }),
+
+    'POST /v1/projects': async (ctx) => {
+      const actor = requireMember(db, ctx);
+      const input = await ctx.body();
+      return { status: 201, body: { project: createProject(db, actor, input) } };
+    },
+
+    // The router matches `"METHOD /path"` exactly and has no path parameters, so the project
+    // travels in the query string rather than as `/v1/projects/:id/members`. Teaching the
+    // router about parameters would mean rewriting the lookup, the 405 table and the
+    // preflight's Allow header — three things every existing endpoint depends on — for a
+    // prettier URL. `?projectId=` is the honest shape of what this router can do.
+    'GET /v1/projects/members': (ctx) => {
+      const actor = requireMember(db, ctx);
+      return {
+        status: 200,
+        body: listProjectMembers(db, actor, ctx.url.searchParams.get('projectId'), {
+          // Addresses are hidden by HUB role, exactly as in `GET /v1/members` above.
+          // Deciding by project role instead would let anyone create a project, add the
+          // team to it and read every address the other endpoint refuses to show them.
+          showEmails: canManageInvites(actor),
+        }),
+      };
+    },
+
+    'POST /v1/projects/members': async (ctx) => {
+      const actor = requireMember(db, ctx);
+      const input = await ctx.body();
+      const result = addProjectMember(db, actor, input, { showEmails: canManageInvites(actor) });
+      // 201 when a row appeared, 200 when the same call had already succeeded — the flag in
+      // the body says which, so a client that retries never has to guess.
+      return { status: result.alreadyMember ? 200 : 201, body: result };
     },
   };
 

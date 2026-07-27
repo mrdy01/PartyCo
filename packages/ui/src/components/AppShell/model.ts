@@ -181,26 +181,38 @@ export const SHELL_TRUNK_LABEL: Record<ShellTrunkState, string> = {
  * monotonic counter the human occasionally needs and never needs to watch.
  */
 export interface ShellStatusDetail {
-  stateVersion: number;
+  stateVersion?: number;
   /** How many zones the project currently has held, across everyone. */
-  zoneCount: number;
-  queueDepth: number;
+  zoneCount?: number;
+  queueDepth?: number;
   /** One line about the local user's own zone, e.g. «зона держится непрерывно». */
-  zoneNote: string;
+  zoneNote?: string;
 }
 
+/**
+ * Every field but `connection` is optional, and that is a product decision rather than convenience.
+ *
+ * The subsystems behind these numbers arrive one at a time — the gate decides whether the trunk is
+ * healthy, the core daemon counts `state_version` and held zones, the run accounting knows what the
+ * day cost. Until each one exists there is no honest value to print, and a plausible one would be
+ * worse than a gap: a person who trusts «Ствол здоров» when nothing checked the trunk is being
+ * misled by their own tool. `StatusLine` therefore draws the fields it was given and leaves out the
+ * rest, including the «Подробности» disclosure when there is nothing behind it.
+ */
 export interface ShellStatus {
   connection: ShellConnectionKind;
   /** Rendered only for `direct` and `relay`; offline has no latency to report. */
   latencyLabel?: string;
-  trunk: ShellTrunkState;
+  /** Absent until something actually checks the trunk. */
+  trunk?: ShellTrunkState;
   /**
    * Today's spend, not the session's: a per-session number is a quantity a person cannot compare
-   * with anything. Two parts because the design shows tokens and money side by side.
+   * with anything. Two parts because the design shows tokens and money side by side. Both absent
+   * together — half a spend field says nothing.
    */
-  spendLabel: string;
-  costLabel: string;
-  detail: ShellStatusDetail;
+  spendLabel?: string;
+  costLabel?: string;
+  detail?: ShellStatusDetail;
   /** Replaces the spend field while the team is unreachable — zones are not handed out offline. */
   offlineNote?: string;
 }

@@ -38,6 +38,21 @@ export type {
   PartyCoBridge,
 } from '../../preload/index.ts';
 
+/**
+ * The cross-process vocabulary. Declared in `preload/contracts.ts` because that is the one directory
+ * both tsconfigs see; re-exported here so a screen never reaches across the process boundary in an
+ * import path. `IpcResult` is deliberately absent — the preload already re-exports one by that name,
+ * and two identical envelopes under one name in one file would only invite a wrong fix later.
+ */
+export type {
+  TranscriptBridge,
+  TranscriptEntry,
+  WorkspaceBridge,
+  WorkspaceEntry,
+  WorkspaceFile,
+  WorkspaceInfo,
+} from '../../preload/contracts.ts';
+
 export type {
   AgentEvent,
   CliDetection,

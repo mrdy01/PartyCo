@@ -82,9 +82,29 @@ export function StatusLine({
 
   const offline = status.connection === 'offline';
   const connectionTone = SHELL_CONNECTION_TONE[status.connection];
-  const trunkTone = status.trunk === 'healthy' ? 'success' : 'danger';
+  const trunk = status.trunk;
   const latency = offline ? undefined : status.latencyLabel;
   const detail = status.detail;
+
+  // Both halves or neither: «Сегодня 12.4k» without the money, or the money without the tokens, is
+  // a field that raises a question instead of answering one.
+  const spend =
+    status.spendLabel !== undefined && status.costLabel !== undefined
+      ? { tokens: status.spendLabel, cost: status.costLabel }
+      : undefined;
+
+  const details = [
+    detail?.stateVersion !== undefined
+      ? { key: 'stateVersion', text: `${text.stateVersion} ${detail.stateVersion}` }
+      : undefined,
+    detail?.zoneCount !== undefined
+      ? { key: 'zoneCount', text: `${detail.zoneCount} ${text.zoneUnit}` }
+      : undefined,
+    detail?.queueDepth !== undefined
+      ? { key: 'queueDepth', text: `${text.queue} ${detail.queueDepth}` }
+      : undefined,
+    detail?.zoneNote !== undefined ? { key: 'zoneNote', text: detail.zoneNote } : undefined,
+  ].filter((field): field is { key: string; text: string } => field !== undefined);
 
   return (
     <div
@@ -104,48 +124,56 @@ export function StatusLine({
         {latency ? <span className={s.figure}>{latency}</span> : null}
       </span>
 
-      <span className={s.field}>
-        <span className={s.dot} data-tone={trunkTone} aria-hidden="true" />
-        <span className={s.label}>{SHELL_TRUNK_LABEL[status.trunk]}</span>
-      </span>
+      {trunk ? (
+        <span className={s.field}>
+          <span
+            className={s.dot}
+            data-tone={trunk === 'healthy' ? 'success' : 'danger'}
+            aria-hidden="true"
+          />
+          <span className={s.label}>{SHELL_TRUNK_LABEL[trunk]}</span>
+        </span>
+      ) : null}
 
       {offline && status.offlineNote ? (
         <span className={s.note}>{status.offlineNote}</span>
-      ) : (
+      ) : spend ? (
         <span className={s.field}>
           <span className={s.label}>{text.spendToday}</span>
-          <span className={s.spend}>{status.spendLabel}</span>
-          <span className={s.figure}>{status.costLabel}</span>
+          <span className={s.spend}>{spend.tokens}</span>
+          <span className={s.figure}>{spend.cost}</span>
         </span>
-      )}
+      ) : null}
 
       {/*
        * Always in the tree, hidden when collapsed: `aria-controls` on the button below must point
        * at something that exists, and `hidden` is the honest way to say «есть, но не показано».
+       *
+       * With nothing behind it the disclosure disappears entirely rather than opening onto an empty
+       * row — the same rule the file tree applies to its header buttons.
        */}
-      <span className={s.detail} id={detailId} hidden={!expanded}>
-        <span className={s.figure}>
-          {text.stateVersion} {detail.stateVersion}
-        </span>
-        <span className={s.figure}>
-          {detail.zoneCount} {text.zoneUnit}
-        </span>
-        <span className={s.figure}>
-          {text.queue} {detail.queueDepth}
-        </span>
-        <span className={s.figure}>{detail.zoneNote}</span>
-      </span>
+      {details.length > 0 ? (
+        <>
+          <span className={s.detail} id={detailId} hidden={!expanded}>
+            {details.map((field) => (
+              <span key={field.key} className={s.figure}>
+                {field.text}
+              </span>
+            ))}
+          </span>
 
-      <button
-        type="button"
-        className={s.details}
-        aria-expanded={expanded}
-        aria-controls={detailId}
-        onClick={onToggleDetails}
-      >
-        <span className={s.detailsLabel}>{text.details}</span>
-        <Icon name="chevron-down" className={s.chevron} strokeWidth={1.6} />
-      </button>
+          <button
+            type="button"
+            className={s.details}
+            aria-expanded={expanded}
+            aria-controls={detailId}
+            onClick={onToggleDetails}
+          >
+            <span className={s.detailsLabel}>{text.details}</span>
+            <Icon name="chevron-down" className={s.chevron} strokeWidth={1.6} />
+          </button>
+        </>
+      ) : null}
     </div>
   );
 }

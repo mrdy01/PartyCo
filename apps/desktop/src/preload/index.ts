@@ -9,6 +9,14 @@ import type {
   AgentStreamMessage,
   IpcResult,
 } from '../main/agents.ts';
+import type {
+  TranscriptBridge,
+  TranscriptEntry,
+  WorkspaceBridge,
+  WorkspaceEntry,
+  WorkspaceFile,
+  WorkspaceInfo,
+} from './contracts.ts';
 
 /**
  * The entire surface the renderer gets. Deliberately tiny and fully enumerated — no generic
@@ -112,6 +120,17 @@ export interface PartyCoBridge {
   readDoc(name: string): Promise<string | null>;
   /** Model providers: detection, policy, one turn at a time. See `main/agents.ts`. */
   agents: AgentsBridge;
+  /**
+   * The folder this member actually works in, and its real contents.
+   *
+   * Every path crossing this boundary is resolved and checked against the workspace root on the
+   * other side. Nothing here takes an absolute path, and nothing here returns one except `root`
+   * itself — the renderer draws repository content, which is the least trustworthy input in the
+   * product, and a path it invents must not be able to reach outside the folder the member chose.
+   */
+  workspace: WorkspaceBridge;
+  /** Durable conversation history for the current workspace. See `main/transcript.ts`. */
+  transcript: TranscriptBridge;
 }
 
 /**
@@ -182,6 +201,34 @@ const agents: AgentsBridge = {
   keyStatus: () => ipcRenderer.invoke('agents:keyStatus') as Promise<IpcResult<AgentKeyReport>>,
 };
 
+/**
+ * Workspace and transcript are plain pass-throughs — no logic on this side on purpose.
+ *
+ * The temptation is to normalise a path here, or to cache the tree, because this file already knows
+ * the shape. Both would be wrong: the preload runs with `contextIsolation` but inside the renderer
+ * process, so anything it decides is a decision made on the untrusted side. Validation belongs where
+ * the filesystem is.
+ */
+const workspace: WorkspaceBridge = {
+  choose: () =>
+    ipcRenderer.invoke('workspace:choose') as Promise<IpcResult<WorkspaceInfo | null>>,
+  current: () =>
+    ipcRenderer.invoke('workspace:current') as Promise<IpcResult<WorkspaceInfo | null>>,
+  clear: () => ipcRenderer.invoke('workspace:clear') as Promise<IpcResult<null>>,
+  tree: (dir) =>
+    ipcRenderer.invoke('workspace:tree', dir) as Promise<IpcResult<readonly WorkspaceEntry[]>>,
+  readFile: (path) =>
+    ipcRenderer.invoke('workspace:readFile', path) as Promise<IpcResult<WorkspaceFile>>,
+};
+
+const transcript: TranscriptBridge = {
+  load: () =>
+    ipcRenderer.invoke('transcript:load') as Promise<IpcResult<readonly TranscriptEntry[]>>,
+  append: (entry) =>
+    ipcRenderer.invoke('transcript:append', entry) as Promise<IpcResult<TranscriptEntry>>,
+  clear: () => ipcRenderer.invoke('transcript:clear') as Promise<IpcResult<null>>,
+};
+
 const bridge: PartyCoBridge = {
   appInfo: () => ipcRenderer.invoke('app:info') as Promise<AppInfo>,
   nativeTheme: () => ipcRenderer.invoke('theme:native') as Promise<'dark' | 'light'>,
@@ -189,6 +236,8 @@ const bridge: PartyCoBridge = {
   windowControl: (action) => ipcRenderer.invoke('window:controls', action) as Promise<void>,
   readDoc: (name) => ipcRenderer.invoke('docs:read', name) as Promise<string | null>,
   agents,
+  workspace,
+  transcript,
 };
 
 contextBridge.exposeInMainWorld('partyco', bridge);

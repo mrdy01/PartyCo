@@ -191,18 +191,38 @@
   background: var(--pc-bg-window);
 }
 
-/* ── signed-in member ─────────────────────────────────────────────────────────────────────── */
+/* ── the door: sign-in and first run ──────────────────────────────────────────────────────── */
 
-.gate {
+/*
+ * The body under the window strip on the screens that have no title bar of their own.
+ *
+ * `SignInScreen` and `FirstRun` both size themselves with `min-height: 100%`, which resolves
+ * against this element — not against the window. Without a flex child of its own to resolve
+ * against, that 100% would mean "the whole window" and the 36px strip above would push the screen
+ * out of the bottom of a window that cannot scroll (`body { overflow: hidden }`).
+ */
+.doorBody {
   display: flex;
-  align-items: center;
-  justify-content: center;
-  height: 100%;
+  flex-direction: column;
+  flex: 1;
   min-height: 0;
-  padding: var(--pc-space-24);
-  background: var(--pc-bg-window);
+  /* First run's second step is the tallest thing here; a short window scrolls rather than clips. */
   overflow-y: auto;
+  background: var(--pc-bg-window);
 }
+
+/*
+ * The strip on the right of the window bar where Windows paints minimise/maximise/close over us.
+ * 140px matches `ShellTitleBar`'s reserve and the dashed `140px · системные кнопки` block the
+ * export draws in the same place.
+ */
+.controlsReserve {
+  margin-left: auto;
+  width: 140px;
+  flex: none;
+}
+
+/* ── signed-in member ─────────────────────────────────────────────────────────────────────── */
 
 .member {
   display: inline-flex;
