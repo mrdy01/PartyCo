@@ -120,6 +120,20 @@ export function useFileTree(workspace: WorkspaceInfo | null): FileTree {
         }
         const page = result.value;
         setListings(new Map([[ROOT, { entries: page.items, omitted: page.omitted }]]));
+        /*
+         * Every listing except the root's has just been thrown away, so the expansion set has to go
+         * with it — it describes data that no longer exists.
+         *
+         * Leaving it behind is this panel's worst lie, and «Попробовать снова» was the one button
+         * that told it: a subdirectory opened before the retry stayed marked `expanded`, its
+         * listing did not survive, and `buildRows` drew it open with no children under it — which
+         * is exactly how a genuinely empty folder is drawn. The reader pressed retry, the tree came
+         * back, and three folders now claimed to be empty. `unreadableDirs` goes for the same
+         * reason: a sentence about why a directory would not open belongs to a read that has been
+         * discarded, and printing it under a fresh tree accuses a folder nobody has tried yet.
+         */
+        setExpanded(new Set([ROOT]));
+        setUnreadableDirs(new Map());
         // `omitted > 0` with nothing shown is not «пусто»: the folder has entries, this answer just
         // has none of them, and the panel's own empty state would deny that.
         setState(page.items.length > 0 || page.omitted > 0 ? 'ready' : 'empty');
@@ -230,7 +244,19 @@ export function useFileTree(workspace: WorkspaceInfo | null): FileTree {
     unreadableDirs,
     toggle,
     select: setSelectedId,
-    reload: useCallback(() => setNonce((n) => n + 1), []),
+    /**
+     * Re-read the tree, and forget what was open.
+     *
+     * The listings are thrown away and only the root is fetched again, so a subdirectory that was
+     * expanded before the retry would come back expanded with nothing under it — and an open folder
+     * with no children is exactly how this panel draws a folder that is genuinely empty. Collapsing
+     * everything is the honest reset: the expansion state described data that no longer exists.
+     */
+    reload: useCallback(() => {
+      setExpanded(new Set([ROOT]));
+      setUnreadableDirs(new Map());
+      setNonce((n) => n + 1);
+    }, []),
   };
 }
 

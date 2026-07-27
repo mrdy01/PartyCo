@@ -34,6 +34,8 @@ export interface ComposerCopy {
   fieldLabel: string;
   /** Accessible name of the send button. */
   send: string;
+  /** Accessible name of the same button while a turn is running. */
+  stop: string;
   /** Mono hint left of the send button. */
   submitHint: string;
   zoneLabel: string;
@@ -45,6 +47,7 @@ export const COMPOSER_COPY: ComposerCopy = {
   placeholder: 'Что делаем дальше?',
   fieldLabel: 'Что делаем дальше?',
   send: 'Отправить',
+  stop: 'Остановить ход',
   submitHint: 'Ctrl+Enter',
   zoneLabel: 'Зона',
   modeLabel: 'Что агенту разрешено',
@@ -73,6 +76,23 @@ export interface ComposerProps {
   variant?: ComposerVariant | undefined;
   /** No typing, no sending — e.g. while the team is unreachable. */
   disabled?: boolean | undefined;
+  /**
+   * A turn is running right now.
+   *
+   * Distinct from `disabled` because the two mean opposite things to the reader: `disabled` says
+   * «сюда нельзя», `running` says «занято, и это ты его занял». The field stops accepting either
+   * way, but only this one has something to offer — see `onStop`.
+   */
+  running?: boolean | undefined;
+  /**
+   * Stop the running turn.
+   *
+   * Present ⇒ the send button becomes a stop button while `running`. Absent ⇒ it stays a greyed-out
+   * send button, which is the honest drawing for a caller that genuinely cannot interrupt anything.
+   * The engine behind this product can: killing the child process is a supported operation, and for
+   * a while it was the only working subsystem on the page with no control anywhere to reach it.
+   */
+  onStop?: (() => void) | undefined;
   onZoneClick?: (() => void) | undefined;
   /** Used when `renderModeMenu` is absent — then the chip is just a button. */
   onModeClick?: (() => void) | undefined;
@@ -110,6 +130,8 @@ export function Composer({
   onSubmit,
   variant = 'wide',
   disabled = false,
+  running = false,
+  onStop,
   onZoneClick,
   onModeClick,
   onModelClick,
@@ -162,6 +184,8 @@ export function Composer({
   }, [menuOpen]);
 
   const canSend = !disabled && draft.trim().length > 0;
+  // Stopping is offered only when there is both something to stop and somebody able to stop it.
+  const canStop = running && Boolean(onStop);
 
   const submit = useCallback(() => {
     const payload = draft.trim();
@@ -192,11 +216,21 @@ export function Composer({
     </>
   );
 
+  /**
+   * The caret is drawn only when the chip actually opens something.
+   *
+   * It used to be unconditional, and the chip degrades to a `<span>` when the caller passes no
+   * handler — so in the product it read as a menu, did nothing when clicked, and taught the person
+   * that this interface has dead controls in it. A downward chevron is a promise; the component may
+   * only make it when it can keep it.
+   */
+  const modeInteractive = Boolean(renderModeMenu) || Boolean(onModeClick);
+
   const modeChipBody = (
     <>
       <span className={styles.modeDot} data-tone={modeTone} aria-hidden="true" />
       <span className={styles.modeLabel}>{AGENT_MODE_PLAIN_LABEL[context.mode]}</span>
-      <Icon name="caret-down" className={styles.caret} />
+      {modeInteractive ? <Icon name="caret-down" className={styles.caret} /> : null}
     </>
   );
 
@@ -262,7 +296,7 @@ export function Composer({
         ) : null}
 
         <div className={styles.modeSlot} ref={modeSlotRef}>
-          {renderModeMenu || onModeClick ? (
+          {modeInteractive ? (
             <button
               type="button"
               className={cx(styles.chip, styles.chipButton)}
@@ -313,12 +347,13 @@ export function Composer({
           <button
             type="button"
             className={styles.send}
-            onClick={submit}
-            disabled={!canSend}
-            aria-label={text.send}
-            title={`${text.send} · ${text.submitHint}`}
+            data-stop={canStop ? 'true' : undefined}
+            onClick={canStop ? onStop : submit}
+            disabled={canStop ? false : !canSend}
+            aria-label={canStop ? text.stop : text.send}
+            title={canStop ? text.stop : `${text.send} · ${text.submitHint}`}
           >
-            <Icon name="send" className={styles.sendGlyph} />
+            <Icon name={canStop ? 'close' : 'send'} className={styles.sendGlyph} />
           </button>
         </div>
       </div>

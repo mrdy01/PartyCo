@@ -66,9 +66,15 @@
   border-radius: var(--pc-radius-sm);
 }
 
-.item:hover {
-  background: var(--pc-bg-raised);
-}
+/*
+ * No `:hover` here on purpose.
+ *
+ * The row is a <li>: it carries the sentence and, when the caller passes handlers, two buttons at
+ * its end. Nothing activates the row itself. Repainting the whole strip under the cursor promised a
+ * click on the strip, and the click went nowhere — the buttons are the only targets, and they have
+ * their own hover. If the row ever becomes openable it needs a real handler and real semantics, not
+ * a tint that hints at one.
+ */
 
 .text {
   display: inline-flex;

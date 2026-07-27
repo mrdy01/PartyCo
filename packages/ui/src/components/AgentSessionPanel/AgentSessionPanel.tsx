@@ -629,7 +629,8 @@ function ModelChip({
   model: SessionModel;
   onClick?: (() => void) | undefined;
 }): ReactElement {
-  const body = (
+  /* Which model is running — a fact, and true whether or not anything can change it. */
+  const identity = (
     <>
       <ProviderGlyph
         providerId={model.providerId}
@@ -637,12 +638,11 @@ function ModelChip({
         {...(model.providerLetter ? { letter: model.providerLetter } : {})}
       />
       <span className={styles.modelName}>{model.name}</span>
-      <Icon name="caret-down" className={styles.modelCaret} />
     </>
   );
 
   if (!onClick) {
-    return <span className={styles.modelChip}>{body}</span>;
+    return <span className={styles.modelChip}>{identity}</span>;
   }
 
   return (
@@ -652,7 +652,9 @@ function ModelChip({
       onClick={onClick}
       aria-label={`Модель сессии · ${model.name}`}
     >
-      {body}
+      {identity}
+      {/* The caret says a menu opens here. It is drawn only where one does. */}
+      <Icon name="caret-down" className={styles.modelCaret} />
     </button>
   );
 }

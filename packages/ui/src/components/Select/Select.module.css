@@ -49,6 +49,19 @@
   box-shadow: var(--pc-focus-ring);
 }
 
+/*
+ * …and the inner control must not draw a second one.
+ *
+ * `global.css` gives every `:focus-visible` element a ring, which is the right default — a focusable
+ * thing with no visible focus is unusable by keyboard. But this component deliberately moved the
+ * ring outward, and without this the two rules both fire: one ring hugs the control, another hugs
+ * the frame, and 3px of saturated blue drawn twice reads as a broken border rather than as focus.
+ * Measured, not guessed — both boxes computed a non-`none` box-shadow at the same time.
+ */
+.control:focus-visible {
+  box-shadow: none;
+}
+
 .field[data-invalid='true'] .frame {
   border-color: var(--pc-status-danger);
 }

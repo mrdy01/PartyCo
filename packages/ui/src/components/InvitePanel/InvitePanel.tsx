@@ -45,6 +45,8 @@ export interface InvitePanelLabels {
   roleSection: string;
   send: string;
   sending: string;
+  /** Why «Отправить приглашение» is refused. Shown under the button while the address is empty. */
+  sendBlocked: string;
   /** Why a link is shown next to the mail form. */
   linkNote: ReactNode;
   copy: string;
@@ -91,6 +93,7 @@ export const INVITE_PANEL_LABELS: InvitePanelLabels = {
   roleSection: 'Что ему можно',
   send: 'Отправить приглашение',
   sending: 'Отправляем',
+  sendBlocked: 'Пока поле почты пустое, отправлять некуда.',
   linkNote: 'Хаб отправит письмо, если у него настроена почта. Если нет — вот та же ссылка, отправь её как удобно.',
   copy: 'Скопировать',
   copyLink: 'Скопировать ссылку',
@@ -155,6 +158,12 @@ interface SegmentedProps<T extends string> {
  * A radio group rather than tabs: the two channels are one choice with one answer, and the
  * lifetime / seat switches below are the same shape. Roving tabindex and arrow keys are what the
  * radiogroup pattern requires — one stop in the tab order, arrows inside it.
+ *
+ * **Without `onChange` it stops being a switch.** The choice it shows is still worth showing — which
+ * channel is open, how long the code lives — but the buttons, the `radio` roles, the tab stop, the
+ * hover shift and the focus ring all promised that pressing a pill would move it, and nothing did.
+ * With no handler the same pills render as plain text with the current one marked: a statement,
+ * which is what it actually is.
  */
 function Segmented<T extends string>({
   options,
@@ -217,6 +226,26 @@ function Segmented<T extends string>({
     },
     [jump, move],
   );
+
+  if (!onChange) {
+    return (
+      <div className={s.segmented} data-size={size} data-static="true" role="group" aria-label={label}>
+        {options.map((option) => {
+          const active = option.id === value;
+          return (
+            <span
+              key={option.id}
+              className={s.segment}
+              data-active={active || undefined}
+              aria-current={active ? 'true' : undefined}
+            >
+              {option.label}
+            </span>
+          );
+        })}
+      </div>
+    );
+  }
 
   return (
     <div
@@ -285,6 +314,14 @@ export interface InvitePanelProps {
   sentInvites?: readonly InviteRecord[] | undefined;
   /** Runs an invitation's trailing action («Отменить», «Позвать снова»). */
   onInviteAction?: ((invite: InviteRecord) => void) | undefined;
+  /**
+   * Why the last `onInviteAction` did not go through, printed over the list it acted on.
+   *
+   * Separate from `emailError` because it is a different sentence about a different thing: a failed
+   * «Отменить» is not a verdict on the address in the field above, and putting it there — which is
+   * what a single shared error channel does — marks a valid address invalid.
+   */
+  sentError?: string | undefined;
 
   /* ---- by code ---- */
   /** `HTAK-4K7M-9ZQD`. Absent while the hub has not issued one yet. */
@@ -297,6 +334,12 @@ export interface InvitePanelProps {
   onSeatsChange?: ((seats: InviteSeats) => void) | undefined;
   onRotate?: (() => void) | undefined;
   onDisable?: (() => void) | undefined;
+  /**
+   * Why the last «Выдать код» / «Сменить код» did not produce one. Shown on this tab, next to the
+   * buttons that failed — a refusal about a code has no business under the e-mail field, and that
+   * is exactly where it used to land when a caller had one error variable for every write.
+   */
+  codeError?: string | undefined;
 
   /**
    * Puts `text` on the clipboard. The component never touches `navigator.clipboard` itself —
@@ -400,6 +443,7 @@ export function InvitePanel({
   sending = false,
   sentInvites,
   onInviteAction,
+  sentError,
   code,
   link,
   lifetime = 'day',
@@ -408,6 +452,7 @@ export function InvitePanel({
   onSeatsChange,
   onRotate,
   onDisable,
+  codeError,
   onCopy,
   state = 'ready',
   onClose,
@@ -418,6 +463,14 @@ export function InvitePanel({
   const copy = mergeLabels(labels);
   const groupName = useId();
   const sent = sentInvites ?? [];
+  /*
+   * An invitation needs somewhere to go. Trimmed, because a field holding one space is empty in
+   * every sense the reader cares about. Whether the address is *well formed* stays with the hub —
+   * it answers in its own Russian sentence («На эту почту уже есть аккаунт»), which arrives here as
+   * `emailError` and is worth more than a regexp's opinion. So `emailError` deliberately does not
+   * block the button: after a refusal the reader must be able to correct the address and try again.
+   */
+  const canSend = email.trim() !== '';
 
   const channelOptions: readonly SegmentedOption<InviteChannel>[] = [
     { id: 'email', label: copy.channel.email },
@@ -477,6 +530,11 @@ export function InvitePanel({
 
   const byEmail = (
     <>
+      {/*
+       * `readOnly` when the caller does not take the value back: a text box with a blinking caret
+       * that keeps whatever was typed out of `value` is the most convincing dead control there is.
+       * The address stays selectable and copyable — it is still a fact worth reading.
+       */}
       <Input
         label={copy.emailField}
         type="email"
@@ -484,6 +542,7 @@ export function InvitePanel({
         autoComplete="email"
         placeholder={copy.emailPlaceholder}
         value={email}
+        readOnly={!onEmailChange}
         {...(emailError !== undefined ? { error: emailError } : {})}
         onChange={(event) => onEmailChange?.(event.currentTarget.value)}
       />
@@ -491,38 +550,73 @@ export function InvitePanel({
       <fieldset className={s.fieldset}>
         <legend className={s.legend}>{copy.roleSection}</legend>
         <div className={s.roleList}>
-          {roles.map((option) => (
-            <label key={option} className={s.roleRow}>
-              <input
-                type="radio"
-                className={s.roleInput}
-                name={groupName}
-                value={option}
-                checked={option === role}
-                onChange={() => onRoleChange?.(option)}
-              />
-              <span className={s.radio} aria-hidden="true">
-                <span className={s.radioDot} />
-              </span>
-              <span className={s.roleTitle}>{PROJECT_ROLE_TITLE[option]}</span>
-              <span className={s.roleAbility}>{PROJECT_ROLE_ABILITY[option]}</span>
-            </label>
-          ))}
+          {roles.map((option) =>
+            onRoleChange ? (
+              <label key={option} className={s.roleRow}>
+                <input
+                  type="radio"
+                  className={s.roleInput}
+                  name={groupName}
+                  value={option}
+                  checked={option === role}
+                  onChange={() => onRoleChange(option)}
+                />
+                <span className={s.radio} aria-hidden="true">
+                  <span className={s.radioDot} />
+                </span>
+                <span className={s.roleTitle}>{PROJECT_ROLE_TITLE[option]}</span>
+                <span className={s.roleAbility}>{PROJECT_ROLE_ABILITY[option]}</span>
+              </label>
+            ) : (
+              /*
+               * No handler, no radios. This is the control that decides what another person may do
+               * to the repository, and a radio that cannot be moved is the worst possible place to
+               * be lying: the reader picks «Наблюдатель», sees nothing move, and cannot tell whether
+               * the choice failed or the panel simply looks like that. The rows stay — the ability
+               * column is why this block exists — with the granted role ticked instead of chosen.
+               */
+              <div
+                key={option}
+                className={s.roleRow}
+                data-static="true"
+                data-selected={option === role || undefined}
+                aria-current={option === role ? 'true' : undefined}
+              >
+                {option === role ? (
+                  <Icon name="check" className={s.roleMark} />
+                ) : (
+                  <span className={s.roleMarkBlank} aria-hidden="true" />
+                )}
+                <span className={s.roleTitle}>{PROJECT_ROLE_TITLE[option]}</span>
+                <span className={s.roleAbility}>{PROJECT_ROLE_ABILITY[option]}</span>
+              </div>
+            ),
+          )}
         </div>
       </fieldset>
 
+      {/*
+       * The one affirmative action, and it is refused while there is no address to send to. Refused
+       * *with the reason next to it*: a greyed-out primary button explains nothing on its own, and
+       * the empty field above is not an explanation — it is the thing the reader is looking at while
+       * wondering what is wrong.
+       */}
       {onSend ? (
-        <Button
-          variant="primary"
-          size="lg"
-          fullWidth
-          className={s.cta}
-          loading={sending}
-          loadingLabel={copy.sending}
-          onClick={onSend}
-        >
-          {copy.send}
-        </Button>
+        <div className={s.ctaBlock}>
+          <Button
+            variant="primary"
+            size="lg"
+            fullWidth
+            className={s.cta}
+            loading={sending}
+            loadingLabel={copy.sending}
+            disabled={!canSend}
+            onClick={onSend}
+          >
+            {copy.send}
+          </Button>
+          {canSend ? null : <p className={s.ctaBlocked}>{copy.sendBlocked}</p>}
+        </div>
       ) : null}
 
       <div className={s.block}>
@@ -543,6 +637,12 @@ export function InvitePanel({
         ) : (
           <EmptyState title={copy.sentEmpty} className={cx(s.inlineEmpty)} />
         )}
+        {/* Why «Отменить» left the invitation where it was. Over the list, not under the address. */}
+        {sentError ? (
+          <p className={s.writeError} role="status">
+            {sentError}
+          </p>
+        ) : null}
       </section>
     </>
   );
@@ -574,6 +674,16 @@ export function InvitePanel({
             {...(onRotate ? { actions: [{ label: copy.codeCreate, onClick: onRotate }] } : {})}
           />
         )}
+        {/*
+         * Why the code did not change — or never appeared. Both buttons that can fail («Выдать
+         * код» in the empty state above, «Сменить код» below) are on this tab, so the sentence
+         * belongs on this tab too.
+         */}
+        {codeError ? (
+          <p className={s.writeError} role="status">
+            {codeError}
+          </p>
+        ) : null}
         <p className={s.quietNote}>{copy.alphabetNote}</p>
       </section>
 
@@ -602,7 +712,14 @@ export function InvitePanel({
 
       {link ? <CopyRow text={link} actionLabel={copy.copyLink} onCopy={onCopy} /> : null}
 
-      {onRotate || onDisable ? (
+      {/*
+       * Both of these act on a code that exists. Without one they used to render anyway — «Сменить
+       * код» directly under «Кода пока нет», next to «Старый код перестанет пускать сразу», which
+       * names an old code there has never been, while the empty state two blocks up already offers
+       * «Выдать код» for the same handler. Two buttons for one action, one of them describing a
+       * state the panel just denied.
+       */}
+      {code && (onRotate || onDisable) ? (
         <div className={s.codeActions}>
           {onRotate ? (
             <Button variant="secondary" size="lg" onClick={onRotate}>

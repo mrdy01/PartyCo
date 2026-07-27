@@ -29,6 +29,19 @@
   box-shadow: var(--pc-focus-ring);
 }
 
+/*
+ * …and the inner control must not draw a second one.
+ *
+ * `global.css` gives every `:focus-visible` element a ring, which is the right default — a focusable
+ * thing with no visible focus is unusable by keyboard. But this component deliberately moved the
+ * ring outward, and without this the two rules both fire: one ring hugs the control, another hugs
+ * the frame, and 3px of saturated blue drawn twice reads as a broken border rather than as focus.
+ * Measured, not guessed — both boxes computed a non-`none` box-shadow at the same time.
+ */
+.field:focus-visible {
+  box-shadow: none;
+}
+
 .root[data-disabled='true'] {
   background: var(--pc-bg-window);
 }
@@ -258,6 +271,24 @@
   background: var(--pc-control-bg);
   color: var(--pc-text-3);
   cursor: default;
+}
+
+/*
+ * The same button, stopping a running turn.
+ *
+ * Deliberately not the accent: the accent means «сделай то, зачем ты сюда пришёл», and stopping is
+ * the opposite of that. It takes the running status colour as an outline and a glyph — status as
+ * outline and text is sanctioned by CONVENTIONS §5, status as a large fill is not — so the control
+ * reads as «идёт, можно прервать» rather than as a second primary action.
+ */
+.send[data-stop='true'] {
+  background: var(--pc-control-bg);
+  color: var(--pc-status-running);
+  box-shadow: inset 0 0 0 var(--pc-border-width) var(--pc-status-running);
+}
+
+.send[data-stop='true']:hover {
+  background: color-mix(in srgb, var(--pc-status-running) 14%, var(--pc-control-bg));
 }
 
 .sendGlyph {

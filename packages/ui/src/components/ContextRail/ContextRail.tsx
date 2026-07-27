@@ -87,21 +87,36 @@ export function ContextRail({
   const tone = presenceTone === undefined ? derivedTone : presenceTone;
   const selfName = activity ? `${self.name} · ${MEMBER_ACTIVITY_LABEL[activity]}` : self.name;
 
+  /**
+   * A destination is a button only when somebody is listening for the change.
+   *
+   * Without `onViewChange` the rail can still say where you are — that is a fact, and the accent
+   * edge that carries it is worth keeping — but it cannot take you anywhere, so it stops looking
+   * like it can: no tab stop, no pointer, no hover fill. The glyph keeps its name for assistive
+   * tech through `Icon`'s own `label`, which is where a static icon's name belongs.
+   */
   function renderItem(item: (typeof SHELL_VIEWS)[number]): ReactElement {
     const active = item.id === view;
+    const current = active ? ({ 'aria-current': 'page' } as const) : {};
     return (
       <li key={item.id} className={s.listItem}>
-        <button
-          type="button"
-          className={s.item}
-          data-active={active || undefined}
-          {...(active ? { 'aria-current': 'page' as const } : {})}
-          onClick={() => onViewChange?.(item.id)}
-          aria-label={item.label}
-          title={item.label}
-        >
-          <Icon name={item.icon} className={s.icon} />
-        </button>
+        {onViewChange ? (
+          <button
+            type="button"
+            className={s.item}
+            data-active={active || undefined}
+            {...current}
+            onClick={() => onViewChange(item.id)}
+            aria-label={item.label}
+            title={item.label}
+          >
+            <Icon name={item.icon} className={s.icon} />
+          </button>
+        ) : (
+          <span className={s.item} data-static="true" data-active={active || undefined} {...current}>
+            <Icon name={item.icon} className={s.icon} label={item.label} />
+          </span>
+        )}
       </li>
     );
   }
@@ -112,15 +127,18 @@ export function ContextRail({
         <span className={s.projectInitial}>{projectInitial}</span>
       </span>
 
-      <button
-        type="button"
-        className={s.newTask}
-        onClick={onNewTask}
-        aria-label={text.newTask}
-        title={text.newTask}
-      >
-        <Icon name="plus" className={s.newTaskIcon} strokeWidth={1.5} />
-      </button>
+      {/* No handler, no `+`. An empty slot is honest; a plus that starts nothing is not. */}
+      {onNewTask ? (
+        <button
+          type="button"
+          className={s.newTask}
+          onClick={onNewTask}
+          aria-label={text.newTask}
+          title={text.newTask}
+        >
+          <Icon name="plus" className={s.newTaskIcon} strokeWidth={1.5} />
+        </button>
+      ) : null}
 
       <nav className={s.nav} aria-label={text.nav}>
         <ul className={s.list}>{workViews.map(renderItem)}</ul>

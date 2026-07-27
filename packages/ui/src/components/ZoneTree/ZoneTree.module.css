@@ -93,8 +93,13 @@
  * The ownership wash is an inline background, so a hover rule cannot repaint it. The inset outline
  * is the hover signal that survives on washed, selected and bare rows alike.
  */
-.row:hover {
+.row:hover:not([data-static='true']) {
   box-shadow: inset 0 0 0 var(--pc-border-width) var(--pc-border-subtle);
+}
+
+/* A row nobody is listening to: still readable, still walkable, no longer pretending. */
+.row[data-static='true'] {
+  cursor: default;
 }
 
 .row:focus-visible {

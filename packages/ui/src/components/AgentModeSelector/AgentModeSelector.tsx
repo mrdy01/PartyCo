@@ -61,6 +61,13 @@ export type AgentModeSelectorVariant = 'segmented' | 'compact' | 'bars';
 export interface AgentModeSelectorProps {
   /** Currently active mode. Controlled — the session owns this value. */
   value: AgentMode;
+  /**
+   * Switches the mode. Omit it and the selector stops being one: the same three rows are drawn as a
+   * read-out of what the agent may do right now — no radio semantics, no tab stops, no hover, no
+   * menu and no «переключение ⇧Tab» hint. Mode is the most consequential thing on the session
+   * surface, and a control that looks like it can lower the agent's authority but cannot is worse
+   * than a label that never promised to.
+   */
   onChange?: (mode: AgentMode) => void;
   /**
    * `segmented` — all three always visible (design A).
@@ -101,6 +108,9 @@ export function AgentModeSelector({
   className,
 }: AgentModeSelectorProps): ReactElement {
   const buttons = useRef(new Map<AgentMode, HTMLButtonElement | null>());
+
+  /** Nothing to call ⇒ nothing to press. See the note on `onChange`. */
+  const interactive = Boolean(onChange);
 
   const nameOf = useCallback(
     (mode: AgentMode) => labels?.[mode] ?? AGENT_MODE_LABEL[mode],
@@ -176,6 +186,29 @@ export function AgentModeSelector({
     buttons.current.set(mode, node);
   };
 
+  /** The inside of one allowance bar — identical whether the bar is a button or a read-out. */
+  const barBody = (mode: AgentMode, active: boolean): ReactElement => (
+    <>
+      <span className={styles.barName}>
+        {active && isAutonomous(mode) ? <span className={styles.dot} /> : null}
+        <span className={styles.barNameText}>{AGENT_MODE_SHORT_LABEL[mode]}</span>
+      </span>
+      <span className={styles.track} aria-hidden="true" />
+      <span className={styles.barAllowance}>
+        {active ? AGENT_MODE_ALLOWANCE_FULL[mode] : AGENT_MODE_ALLOWANCE[mode]}
+      </span>
+    </>
+  );
+
+  /** Same for one segment. */
+  const segmentBody = (mode: AgentMode, active: boolean): ReactElement => (
+    <>
+      <Icon name={AGENT_MODE_ICON[mode]} className={styles.icon} />
+      {nameOf(mode)}
+      {active && isAutonomous(mode) ? <span className={styles.dotOnFill} /> : null}
+    </>
+  );
+
   if (variant === 'compact') {
     return (
       <CompactSelector
@@ -185,6 +218,7 @@ export function AgentModeSelector({
         select={select}
         label={label}
         disabled={disabled}
+        interactive={interactive}
         shortcutLabel={shortcutLabel}
         shortcutKeys={shortcutKeys}
         className={className}
@@ -193,6 +227,40 @@ export function AgentModeSelector({
   }
 
   if (variant === 'bars') {
+    /*
+     * The read-out. `role="group"` and not `radiogroup`: a radio group announces itself as a choice,
+     * and there is no choice here. The active row is marked with `aria-current` so the fact still
+     * reaches assistive tech, and a mode policy forbids stays visible and dimmed — hiding what the
+     * agent may not do would be the one thing worse than showing it greyed.
+     */
+    if (!interactive) {
+      return (
+        <div
+          className={className ? `${styles.bars} ${className}` : styles.bars}
+          role="group"
+          aria-label={label}
+          data-active-mode={value}
+        >
+          {AGENT_MODES.map((mode) => {
+            const active = mode === value;
+            return (
+              <span
+                key={mode}
+                className={styles.bar}
+                data-mode={mode}
+                data-static="true"
+                data-active={active || undefined}
+                data-blocked={isBlocked(mode) || undefined}
+                {...(active ? { 'aria-current': 'true' as const } : {})}
+              >
+                {barBody(mode, active)}
+              </span>
+            );
+          })}
+        </div>
+      );
+    }
+
     return (
       <div
         className={className ? `${styles.bars} ${className}` : styles.bars}
@@ -219,17 +287,36 @@ export function AgentModeSelector({
               data-active={active || undefined}
               onClick={() => select(mode)}
             >
-              <span className={styles.barName}>
-                {active && isAutonomous(mode) ? <span className={styles.dot} /> : null}
-                <span className={styles.barNameText}>{AGENT_MODE_SHORT_LABEL[mode]}</span>
-              </span>
-              <span className={styles.track} aria-hidden="true" />
-              <span className={styles.barAllowance}>
-                {active ? AGENT_MODE_ALLOWANCE_FULL[mode] : AGENT_MODE_ALLOWANCE[mode]}
-              </span>
+              {barBody(mode, active)}
             </button>
           );
         })}
+      </div>
+    );
+  }
+
+  if (!interactive) {
+    return (
+      <div className={className ? `${styles.wrap} ${className}` : styles.wrap}>
+        <div className={styles.segmented} role="group" aria-label={label} data-active-mode={value}>
+          {AGENT_MODES.map((mode) => {
+            const active = mode === value;
+            return (
+              <span
+                key={mode}
+                className={styles.segment}
+                data-mode={mode}
+                data-static="true"
+                data-active={active || undefined}
+                data-blocked={isBlocked(mode) || undefined}
+                {...(active ? { 'aria-current': 'true' as const } : {})}
+              >
+                {segmentBody(mode, active)}
+              </span>
+            );
+          })}
+        </div>
+        {/* No hint either: «переключение ⇧Tab» over something that never switches is a third lie. */}
       </div>
     );
   }
@@ -260,9 +347,7 @@ export function AgentModeSelector({
               data-active={active || undefined}
               onClick={() => select(mode)}
             >
-              <Icon name={AGENT_MODE_ICON[mode]} className={styles.icon} />
-              {nameOf(mode)}
-              {active && isAutonomous(mode) ? <span className={styles.dotOnFill} /> : null}
+              {segmentBody(mode, active)}
             </button>
           );
         })}
@@ -279,6 +364,8 @@ interface CompactSelectorProps {
   select: (mode: AgentMode) => void;
   label: string;
   disabled: boolean;
+  /** False when the parent has no `onChange`; then there is no trigger, no chevron and no menu. */
+  interactive: boolean;
   shortcutLabel: string | null;
   shortcutKeys: readonly string[];
   className: string | undefined;
@@ -292,6 +379,7 @@ function CompactSelector({
   select,
   label,
   disabled,
+  interactive,
   shortcutLabel,
   shortcutKeys,
   className,
@@ -334,6 +422,33 @@ function CompactSelector({
     const next = open_[(at + direction + open_.length) % open_.length];
     if (next) setFocused(next);
   };
+
+  /*
+   * The read-out. The chip keeps the mode colour in its left edge — that is a fact about the
+   * session, and the whole reason design B exists — and loses the `▾`, the `aria-haspopup`, the tab
+   * stop and the hover. A menu marker over a menu that cannot change anything is exactly the arrow
+   * the composer's mode chip used to draw.
+   */
+  if (!interactive) {
+    return (
+      <div className={className ? `${styles.wrap} ${className}` : styles.wrap}>
+        <div className={styles.compactWrap} role="group" aria-label={label}>
+          <span
+            className={styles.compact}
+            data-mode={value}
+            data-static="true"
+            data-blocked={disabled || undefined}
+          >
+            <span className={styles.compactName}>
+              {isAutonomous(value) ? <span className={styles.dot} /> : null}
+              <span className={styles.compactNameText}>{nameOf(value)}</span>
+            </span>
+            <span className={styles.compactScope}>{AGENT_MODE_SCOPE[value]}</span>
+          </span>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className={className ? `${styles.wrap} ${className}` : styles.wrap}>

@@ -61,8 +61,17 @@ export type ProjectRole = 'owner' | 'maintainer' | 'member' | 'observer';
 
 export const PROJECT_ROLES: readonly ProjectRole[] = ['owner', 'maintainer', 'member', 'observer'];
 
+/**
+ * The role in words, and deliberately **without naming the scope**.
+ *
+ * One `ProjectRole` now describes two different things: what somebody may do on the hub, and what
+ * they may do inside one project. They are frequently different — the person who owns a project can
+ * be a plain member of the hub — so a label that names one scope is wrong wherever the other is
+ * shown. It said «хозяин хаба» until the team panel started listing a project's roster, and then it
+ * told a project owner they ran the hub. Where the scope matters, the surrounding copy says it.
+ */
 export const PROJECT_ROLE_LABEL: Record<ProjectRole, string> = {
-  owner: 'хозяин хаба',
+  owner: 'владелец',
   maintainer: 'мейнтейнер',
   member: 'участник',
   observer: 'только смотрит',
@@ -70,7 +79,7 @@ export const PROJECT_ROLE_LABEL: Record<ProjectRole, string> = {
 
 /** Capitalised form for a standalone control (the invite panel's radio list). */
 export const PROJECT_ROLE_TITLE: Record<ProjectRole, string> = {
-  owner: 'Хозяин хаба',
+  owner: 'Владелец',
   maintainer: 'Мейнтейнер',
   member: 'Участник',
   observer: 'Только смотрит',

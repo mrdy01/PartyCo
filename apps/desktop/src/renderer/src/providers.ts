@@ -36,16 +36,35 @@ export interface ProviderLayer {
    */
   keysPersisted: boolean | undefined;
   busyProviderId: string | null;
+  /**
+   * Why the last `setKey` did not store anything, and for which provider.
+   *
+   * The main process answers a refusal in its own Russian sentence — the store would not encrypt,
+   * the provider id is not in the catalogue — and until now this hook dropped it on the floor
+   * (`if (!result.ok) return`). The panel then showed a cleared field, «Ключа пока нет» and no
+   * explanation, which is indistinguishable from a save that worked and from one that was never
+   * attempted. Cleared to `null` at the start of every attempt.
+   */
+  keyError: { providerId: string; message: string } | null;
   setMode: (providerId: string, mode: ProviderMode) => void;
   submitKey: (providerId: string, key: string) => void;
   redetect: () => void;
 }
+
+/**
+ * What step 2 of first run says for the same cause, kept in the same words on purpose: the bridge
+ * is missing, so no key can be stored, and the reader is told to skip rather than to retry.
+ */
+const AGENTS_UNAVAILABLE =
+  'Приложение не смогло связаться со своей системной частью, поэтому ключ не сохранён. ' +
+  'Если это повторится, переустанови PartyCo.';
 
 export function useProviderLayer(): ProviderLayer {
   const [providers, setProviders] = useState<readonly ProviderSetupItem[]>([]);
   const [keysPersisted, setKeysPersisted] = useState<boolean | undefined>(undefined);
   const [state, setState] = useState<ProviderSetupState>('loading');
   const [busyProviderId, setBusyProviderId] = useState<string | null>(null);
+  const [keyError, setKeyError] = useState<{ providerId: string; message: string } | null>(null);
   const [modes, setModes] = useState<Record<string, ProviderMode>>({});
   const [nonce, setNonce] = useState(0);
 
@@ -151,12 +170,24 @@ export function useProviderLayer(): ProviderLayer {
 
   const submitKey = useCallback((providerId: string, key: string) => {
     const bridge = window.partyco?.agents;
-    if (!bridge) return;
+    setKeyError(null);
+    if (!bridge) {
+      // The panel has already dropped the key by the time this runs — that is its hygiene rule —
+      // so returning quietly would leave a person who just typed a secret believing it was taken.
+      setKeyError({ providerId, message: AGENTS_UNAVAILABLE });
+      return;
+    }
     setBusyProviderId(providerId);
     void bridge
       .setKey(providerId, key)
       .then((result) => {
-        if (!result.ok) return;
+        if (!result.ok) {
+          // The store's own sentence, carried through unchanged. Paraphrasing «система отказалась
+          // зашифровать ключ» into «не удалось сохранить» would delete the one part a person can
+          // act on.
+          setKeyError({ providerId, message: result.error });
+          return;
+        }
         // Saving is the moment the answer can change — a store that was writable at startup may not
         // be now, and the panel has to stop promising what just failed.
         setKeysPersisted(result.value.persisted);
@@ -165,10 +196,18 @@ export function useProviderLayer(): ProviderLayer {
           current.map((p) => ({ ...p, hasKey: hasKeyById.get(p.id) ?? p.hasKey })),
         );
       })
+      // A rejected `invoke` — no handler registered, the main process gone — used to escape as an
+      // unhandled rejection and leave the panel just as silent as a refusal did.
+      .catch((cause: unknown) => {
+        setKeyError({
+          providerId,
+          message: cause instanceof Error ? cause.message : 'Ключ не сохранён: основной процесс не ответил.',
+        });
+      })
       .finally(() => setBusyProviderId(null));
   }, []);
 
   const redetect = useCallback(() => setNonce((n) => n + 1), []);
 
-  return { providers, state, keysPersisted, busyProviderId, setMode, submitKey, redetect };
+  return { providers, state, keysPersisted, busyProviderId, keyError, setMode, submitKey, redetect };
 }

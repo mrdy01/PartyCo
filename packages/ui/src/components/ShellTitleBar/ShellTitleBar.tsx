@@ -1,4 +1,4 @@
-import type { CSSProperties, ReactElement } from 'react';
+import { useEffect, useRef, type CSSProperties, type ReactElement } from 'react';
 import { Icon } from '@partyco/icons';
 import { SearchField } from '../SearchField/SearchField.tsx';
 import s from './ShellTitleBar.module.css';
@@ -25,11 +25,19 @@ export const SHELL_TITLE_BAR_LABELS: ShellTitleBarLabels = {
 export interface ShellTitleBarProps {
   /** Project display name, e.g. «Хайтейл». */
   projectName: string;
+  /** Omit and the chip is the project's name without a caret — nothing opens, so nothing offers to. */
   onProjectSwitch?: (() => void) | undefined;
   searchValue?: string | undefined;
+  /**
+   * Where a query goes. With neither this nor `onSearchSubmit` the field is not rendered at all: an
+   * input that swallows what a person types is a control that lies twice over.
+   */
   onSearchChange?: ((value: string) => void) | undefined;
   onSearchSubmit?: ((value: string) => void) | undefined;
-  /** Keycaps for the shortcut that focuses search. */
+  /**
+   * Keycaps for the shortcut that focuses search, e.g. `['Ctrl', 'K']`. The bar binds them itself —
+   * drawing a keycap it does not listen for would be a promise nobody keeps. Pass `[]` for none.
+   */
   searchShortcut?: readonly string[] | undefined;
   /**
    * Space kept clear at the trailing edge for the window buttons the OS paints on top of this bar.
@@ -43,6 +51,50 @@ export interface ShellTitleBarProps {
 }
 
 const DEFAULT_RESERVED_CONTROLS_WIDTH = 140;
+
+/** Stable identity so the shortcut listener does not re-subscribe on every render. */
+const DEFAULT_SEARCH_SHORTCUT: readonly string[] = ['Ctrl', 'K'];
+
+/**
+ * Keycaps that name a modifier rather than a key. The last cap in the list is the key itself; the
+ * ones before it are what has to be held down.
+ */
+const SHORTCUT_MODIFIERS: Record<string, 'command' | 'shift' | 'alt'> = {
+  ctrl: 'command',
+  control: 'command',
+  cmd: 'command',
+  meta: 'command',
+  '⌘': 'command',
+  shift: 'shift',
+  '⇧': 'shift',
+  alt: 'alt',
+  opt: 'alt',
+  option: 'alt',
+  '⌥': 'alt',
+};
+
+/**
+ * Does this keypress match the caps drawn in the field?
+ *
+ * `Ctrl` and `⌘` are the same intention on two platforms — the design draws whichever the OS uses —
+ * so either physical modifier satisfies a `command` cap. Every modifier is matched exactly, in both
+ * directions: `Ctrl K` must not fire on `Ctrl Shift K`, which usually belongs to something else.
+ */
+function matchesShortcut(keys: readonly string[], event: KeyboardEvent): boolean {
+  const caps = keys.map((key) => key.toLowerCase());
+  const final = caps[caps.length - 1];
+  if (final === undefined || SHORTCUT_MODIFIERS[final] !== undefined) return false;
+  if (event.key.toLowerCase() !== final) return false;
+
+  const wanted = new Set(
+    caps.slice(0, -1).map((cap) => SHORTCUT_MODIFIERS[cap] ?? 'unknown'),
+  );
+  if (wanted.has('unknown')) return false;
+  if (wanted.has('command') !== (event.ctrlKey || event.metaKey)) return false;
+  if (wanted.has('shift') !== event.shiftKey) return false;
+  if (wanted.has('alt') !== event.altKey) return false;
+  return true;
+}
 
 /**
  * Field-by-field merge, not `{ ...DEFAULT, ...labels }`.
@@ -82,7 +134,7 @@ export function ShellTitleBar({
   searchValue,
   onSearchChange,
   onSearchSubmit,
-  searchShortcut = ['Ctrl', 'K'],
+  searchShortcut = DEFAULT_SEARCH_SHORTCUT,
   reservedControlsWidth = DEFAULT_RESERVED_CONTROLS_WIDTH,
   labels,
   className,
@@ -91,8 +143,41 @@ export function ShellTitleBar({
   const reserve: CSSProperties = { paddingInlineEnd: `${reservedControlsWidth}px` };
   const switcherName = `${text.projectSwitcher} · ${projectName}`;
 
+  /**
+   * Typing has to reach somebody. A field that accepts a query and answers none is the worst shape
+   * a dead control can take — the text appears, so it looks like it worked.
+   */
+  const canSearch = Boolean(onSearchChange ?? onSearchSubmit);
+
+  const barRef = useRef<HTMLElement>(null);
+  /* Joined, so an inline `['Ctrl', 'K']` from the caller does not re-subscribe on every render. */
+  const shortcutKey = searchShortcut ? searchShortcut.join('+') : '';
+
+  /**
+   * The keycaps drawn in the field are a promise, and this is where it is kept — nothing outside
+   * could keep it, because the input this focuses is not exposed to the caller.
+   *
+   * The listener is on `window` the way `CommandPalette` keeps its own `⌘K`. It exists only while
+   * the field does: no field, no caps, no shortcut.
+   */
+  useEffect(() => {
+    if (!canSearch || shortcutKey === '') return;
+    const keys = shortcutKey.split('+');
+    const onKeyDown = (event: KeyboardEvent): void => {
+      if (!matchesShortcut(keys, event)) return;
+      const field = barRef.current?.querySelector<HTMLInputElement>('input[type="search"]');
+      if (!field) return;
+      event.preventDefault();
+      field.focus();
+      field.select();
+    };
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
+  }, [canSearch, shortcutKey]);
+
   return (
     <header
+      ref={barRef}
       className={['pc-titlebar', s.bar, className].filter(Boolean).join(' ')}
       style={reserve}
       data-app-region="drag"
@@ -103,28 +188,43 @@ export function ShellTitleBar({
         <span className={s.pip} data-pip="c" />
       </span>
 
-      <button
-        type="button"
-        className={s.project}
-        data-no-drag="true"
-        onClick={onProjectSwitch}
-        aria-label={switcherName}
-        title={switcherName}
-      >
-        <span className={s.projectName}>{projectName}</span>
-        <Icon name="caret-down" className={s.caret} />
-      </button>
+      {/*
+       * A chip only while there is somewhere to go. Without `onProjectSwitch` the name stays and
+       * everything that promised a menu goes: the caret, the pointer cursor, the hover fill and the
+       * tab stop. A chevron over a name that opens nothing is the same lie the composer's mode chip
+       * used to tell.
+       */}
+      {onProjectSwitch ? (
+        <button
+          type="button"
+          className={s.project}
+          data-no-drag="true"
+          onClick={onProjectSwitch}
+          aria-label={switcherName}
+          title={switcherName}
+        >
+          <span className={s.projectName}>{projectName}</span>
+          <Icon name="caret-down" className={s.caret} />
+        </button>
+      ) : (
+        <span className={s.project} data-static="true">
+          <span className={s.projectName}>{projectName}</span>
+        </span>
+      )}
 
-      <SearchField
-        dense
-        className={s.search}
-        label={text.search}
-        placeholder={text.searchPlaceholder}
-        shortcut={searchShortcut}
-        onValueChange={onSearchChange}
-        onSubmit={onSearchSubmit}
-        {...(searchValue !== undefined ? { value: searchValue } : {})}
-      />
+      {/* No listener, no field — see `canSearch`. */}
+      {canSearch ? (
+        <SearchField
+          dense
+          className={s.search}
+          label={text.search}
+          placeholder={text.searchPlaceholder}
+          shortcut={searchShortcut}
+          onValueChange={onSearchChange}
+          onSubmit={onSearchSubmit}
+          {...(searchValue !== undefined ? { value: searchValue } : {})}
+        />
+      ) : null}
     </header>
   );
 }

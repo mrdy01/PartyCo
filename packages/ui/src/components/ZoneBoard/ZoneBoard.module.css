@@ -82,7 +82,12 @@
     color var(--pc-duration-fast) var(--pc-ease);
 }
 
-.tab:hover:not([data-active]) {
+/* The caption form: the current face named, with nothing offering to change it. */
+.tab[data-static='true'] {
+  cursor: default;
+}
+
+.tab:hover:not([data-active]):not([data-static='true']) {
   color: var(--pc-text-2);
 }
 

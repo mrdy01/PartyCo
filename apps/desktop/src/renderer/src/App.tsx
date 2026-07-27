@@ -247,6 +247,19 @@ function Gate({ workspace }: { workspace: WorkspaceHandle }): ReactElement {
     // Runs once per session identity; re-verifying on every render would hammer the hub.
   }, [session?.token, session?.hubUrl]);
 
+  /**
+   * Switching Вход ⇄ Регистрация, and dropping the hub's last answer on the way.
+   *
+   * `AuthPanel` states plainly that it will not clear `error` by itself — it cannot know whether the
+   * message still applies — and hands that duty to the caller's `onModeChange`. Passing `setMode`
+   * bare skipped it, so a failed sign-in left «Неверная почта или пароль.» in red under a
+   * «Создать аккаунт» button nobody had pressed: a verdict on an action that had not happened.
+   */
+  const changeMode = useCallback((next: AuthMode): void => {
+    setMode(next);
+    setError(null);
+  }, []);
+
   const submit = useCallback((input: AuthSubmit): void => {
     setBusy(true);
     setError(null);
@@ -342,7 +355,7 @@ function Gate({ workspace }: { workspace: WorkspaceHandle }): ReactElement {
       <Door>
         <SignInScreen
           mode={mode}
-          onModeChange={setMode}
+          onModeChange={changeMode}
           onSubmit={submit}
           busy={busy}
           error={error}
@@ -490,6 +503,13 @@ function Product({
           // Same picker, deliberately: see FIRST_RUN_COPY.
           onJoinTeam={chooseFolder}
           providers={providers}
+          /*
+           * The panel keeps the choice itself — no `providerId` is passed — so this exists only to
+           * drop the previous refusal. `agents.setKey` answers with the vendor's own complaint about
+           * the key it was given; leaving «ключ отклонён» under a different provider's field states
+           * something no one has checked.
+           */
+          onProviderChange={() => setKeyError(null)}
           onSaveKey={saveKey}
           onSkip={() => setKeyAnswered(true)}
           busy={step === 2 ? keyBusy : workspace.busy}
@@ -792,7 +812,13 @@ function TitleBar({
           className={styles.navToggle}
           onClick={onToggleNav}
           aria-expanded={navOpen}
-          aria-controls="dev-sections"
+          /*
+           * Only while the rail exists. It is unmounted when collapsed, not hidden, and
+           * `aria-controls` pointing at an id that is not in the document is a reference a screen
+           * reader offers to follow and then cannot — worse than not offering it. `aria-expanded`
+           * alone still says what the button does in the state where there is nothing to point at.
+           */
+          {...(navOpen ? { 'aria-controls': 'dev-sections' } : {})}
           aria-label={navOpen ? 'Скрыть разделы' : 'Показать разделы'}
           title={navOpen ? 'Скрыть разделы' : 'Показать разделы'}
         >
@@ -807,12 +833,21 @@ function TitleBar({
       <div className={styles.titleBarActions} data-no-drag>
         {showThemeControls ? (
           <>
+            {/*
+              Both chips print the state they are **in** and act on the press — so the accessible
+              name has to carry the printed word too. It did not: the chip said «Тёмная» and
+              announced «Переключить на светлую тему», which is a different control as far as
+              anybody driving this by voice is concerned, and no help at all to somebody comparing
+              what they hear with what a sighted colleague reads out.
+            */}
             <button
               type="button"
               className={styles.chip}
               onClick={toggleTheme}
               aria-label={
-                theme === 'dark' ? 'Переключить на светлую тему' : 'Переключить на тёмную тему'
+                theme === 'dark'
+                  ? 'Тема: тёмная. Переключить на светлую'
+                  : 'Тема: светлая. Переключить на тёмную'
               }
             >
               {theme === 'dark' ? 'Тёмная' : 'Светлая'}
@@ -821,7 +856,11 @@ function TitleBar({
               type="button"
               className={styles.chip}
               onClick={() => setDensity(density === 'comfortable' ? 'compact' : 'comfortable')}
-              aria-label="Переключить плотность"
+              aria-label={
+                density === 'comfortable'
+                  ? 'Плотность: comfortable. Переключить на compact'
+                  : 'Плотность: compact. Переключить на comfortable'
+              }
             >
               {density === 'comfortable' ? 'Comfortable' : 'Compact'}
             </button>

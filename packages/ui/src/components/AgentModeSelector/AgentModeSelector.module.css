@@ -102,9 +102,22 @@
     color 90ms linear;
 }
 
-.segment:hover:not(:disabled):not([data-active]) {
+.segment:hover:not(:disabled):not([data-active]):not([data-static='true']) {
   color: var(--pc-text-2);
   background: var(--pc-bg-raised);
+}
+
+/*
+ * The read-out forms. `[data-static]` is a segment / bar / chip drawn without an `onChange` — same
+ * geometry and same mode colour, none of the behaviour, so none of the invitations to press it.
+ * `[data-blocked]` mirrors `:disabled` for those, because a mode policy forbids stays visible.
+ */
+.segment[data-static='true'] {
+  cursor: default;
+}
+
+.segment[data-blocked='true'] {
+  color: var(--pc-text-4);
 }
 
 .segment:active:not(:disabled) {
@@ -161,8 +174,16 @@
   transition: background 90ms linear;
 }
 
-.compact:hover:not(:disabled) {
+.compact:hover:not(:disabled):not([data-static='true']) {
   background: var(--pc-bg-raised);
+}
+
+.compact[data-static='true'] {
+  cursor: default;
+}
+
+.compact[data-blocked='true'] {
+  opacity: 0.6;
 }
 
 .compact:focus-visible {
@@ -185,7 +206,7 @@
   border-left-color: var(--pc-status-warning);
 }
 
-.compact[data-mode='auto']:hover:not(:disabled) {
+.compact[data-mode='auto']:hover:not(:disabled):not([data-static='true']) {
   background: color-mix(in srgb, var(--pc-status-warning) 16%, transparent);
 }
 
@@ -339,8 +360,16 @@
     background 120ms linear;
 }
 
-.bar:hover:not(:disabled):not([data-active]) {
+.bar:hover:not(:disabled):not([data-active]):not([data-static='true']) {
   background: var(--pc-bg-raised);
+}
+
+.bar[data-static='true'] {
+  cursor: default;
+}
+
+.bar[data-blocked='true'] {
+  opacity: 0.55;
 }
 
 .bar:focus-visible {

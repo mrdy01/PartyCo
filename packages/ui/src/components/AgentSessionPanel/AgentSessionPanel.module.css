@@ -154,10 +154,21 @@
   background: var(--pc-bg-panel);
   border: var(--pc-border-width) solid var(--pc-border-subtle);
   border-radius: var(--pc-radius-sm);
+}
+
+/*
+ * The pointer and the hover tint belong to the pressable form of the chip, not to the class.
+ *
+ * Without a handler `ModelChip` degrades to a <span> — the right call — but both affordances were
+ * written on the shared class and stayed behind, so the inert chip still lit up under the cursor and
+ * still offered a finger. That is the Composer mode-chip bug in a second component; the shape is
+ * caught by `affordance-on-non-control` in scripts/check-design-rules.mjs now.
+ */
+button.modelChip {
   cursor: pointer;
 }
 
-.modelChip:hover {
+button.modelChip:hover {
   background: var(--pc-bg-raised);
 }
 

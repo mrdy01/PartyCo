@@ -50,10 +50,16 @@ export function ErrorState({
   meta,
   className,
 }: ErrorStateProps): ReactElement {
+  /*
+   * Only actions that do something. An error block whose «Переподключить» is decoration is worse
+   * than one without it: the reader clicks, nothing changes, and now they distrust the diagnosis
+   * too. `StateActionButton` drops handler-less actions on its own; the filter is repeated here so
+   * the row does not survive as an empty flex box.
+   */
   const allActions: StateAction[] = [
     ...(onRetry ? [{ label: retryLabel, onClick: onRetry }] : []),
     ...(actions ?? []),
-  ];
+  ].filter((action) => action.onClick);
 
   return (
     <div className={[styles.root, className ?? ''].filter(Boolean).join(' ')} role="alert">

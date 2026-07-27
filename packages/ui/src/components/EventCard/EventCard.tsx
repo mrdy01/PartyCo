@@ -24,7 +24,15 @@ export interface EventCardProps {
    * accepts a bare string, so `event.body` renders correctly either way.
    */
   body?: RichText | undefined;
-  /** Runs an action by its `id`. Without it the buttons are still drawn but do nothing. */
+  /**
+   * Runs an action by its `id`.
+   *
+   * Omit it and `event.actions` are **not drawn**. The card is an interruption: «Наложить заново»
+   * and «Отдать зону» read as the way out of it, and a person who presses one and gets nothing has
+   * been told the tool is broken. The event itself is still worth showing without them — what
+   * happened and what it means for my work is the larger half of the card — so the paragraph and
+   * the aside stay and the footer simply loses its buttons.
+   */
   onAction?: ((actionId: string) => void) | undefined;
   identitySet?: IdentitySetName | undefined;
   className?: string | undefined;
@@ -57,7 +65,8 @@ export function EventCard({
   const titleId = useId();
   const tone = SHELL_EVENT_TONE[event.kind];
   const title = event.title ?? SHELL_EVENT_TITLE[event.kind];
-  const actions = (event.actions ?? []).slice(0, MAX_ACTIONS);
+  // No handler, no buttons — see the note on `onAction`.
+  const actions = onAction ? (event.actions ?? []).slice(0, MAX_ACTIONS) : [];
   const hasFooter = actions.length > 0 || Boolean(event.aside);
 
   /* The asker's avatar wins over the dot: the card is about who is asking, not about a state. */
@@ -104,7 +113,8 @@ export function EventCard({
                 key={action.id}
                 variant={action.primary ? 'primary' : 'secondary'}
                 size="lg"
-                onClick={onAction ? () => onAction(action.id) : undefined}
+                /* `actions` is empty unless `onAction` exists, so this is never a dead button. */
+                onClick={() => onAction?.(action.id)}
               >
                 {action.label}
               </Button>

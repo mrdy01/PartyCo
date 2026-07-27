@@ -151,9 +151,14 @@
     color var(--pc-duration-fast) var(--pc-ease);
 }
 
-.item:hover:not([data-active]) {
+.item:hover:not([data-active]):not([data-static='true']) {
   background: var(--pc-bg-panel);
   color: var(--pc-text-2);
+}
+
+/* Nothing to navigate to — the marker stays, the invitation to click does not. */
+.item[data-static='true'] {
+  cursor: default;
 }
 
 .item:focus-visible {

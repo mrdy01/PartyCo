@@ -169,6 +169,22 @@
   align-self: center;
 }
 
+/*
+ * Why the primary button is grey. Note type, secondary text — deliberately not the danger colour of
+ * `.status`: nothing has failed and nobody has pressed anything yet, so this is a label on a closed
+ * door rather than bad news. Centred under the full-width button it belongs to.
+ */
+.why {
+  margin: 0;
+  align-self: center;
+  max-width: 100%;
+  min-width: 0;
+  font: var(--pc-type-note);
+  color: var(--pc-text-3);
+  text-align: center;
+  overflow-wrap: anywhere;
+}
+
 /* ---------- the answer, when it is bad news ---------- */
 
 /*

@@ -47,13 +47,19 @@ export interface WorkSummaryProps {
   summary: string;
   added: number;
   removed: number;
-  /** Trailing link, e.g. «посмотреть дифф». Absent when there is nothing to open. */
+  /**
+   * Wording of the trailing link, e.g. «посмотреть дифф». The link appears only when `onOpenDiff`
+   * is given as well — a label on its own is a caption, not a way in.
+   */
   diffLabel?: string | undefined;
   steps?: readonly WorkStep[] | undefined;
   expanded?: boolean | undefined;
-  /** Omit and the row is a static chip: no chevron affordance, no `aria-expanded`. */
+  /** Omit and the row is a static chip: no chevron affordance, no hover, no `aria-expanded`. */
   onToggle?: (() => void) | undefined;
-  /** Called by the «посмотреть дифф» button, which sits next to the handle — never inside it. */
+  /**
+   * Called by the «посмотреть дифф» button, which sits next to the handle — never inside it. Omit
+   * and the button is not drawn at all, whatever `diffLabel` says.
+   */
   onOpenDiff?: (() => void) | undefined;
   stepsState?: WorkStepsState | undefined;
   onRetrySteps?: (() => void) | undefined;
@@ -100,7 +106,8 @@ export function WorkSummary({
 
   const handleBody = (
     <>
-      <Icon name="chevron-right" className={styles.chevron} />
+      {/* The chevron is the promise that this row opens. It is drawn only where that is true. */}
+      {interactive ? <Icon name="chevron-right" className={styles.chevron} /> : null}
       <span className={styles.summary}>{summary}</span>
       {added > 0 ? (
         <span className={styles.added} title={`${added} ${text.added}`}>
@@ -141,7 +148,12 @@ export function WorkSummary({
             {handleBody}
           </span>
         )}
-        {diffLabel ? (
+        {/*
+         * Both halves or neither. `diffLabel` is only the wording; `onOpenDiff` is what makes it a
+         * link. A caller who has the words but nothing to open gets no link and no divider — the
+         * data model may well carry «посмотреть дифф» on a turn whose diff this surface cannot show.
+         */}
+        {diffLabel && onOpenDiff ? (
           <>
             <span className={styles.divider} aria-hidden="true" />
             <button type="button" className={styles.diff} onClick={onOpenDiff}>

@@ -203,6 +203,19 @@
   box-shadow: var(--pc-focus-ring);
 }
 
+/*
+ * …and the inner control must not draw a second one.
+ *
+ * `global.css` gives every `:focus-visible` element a ring, which is the right default — a focusable
+ * thing with no visible focus is unusable by keyboard. But this component deliberately moved the
+ * ring outward, and without this the two rules both fire: one ring hugs the control, another hugs
+ * the frame, and 3px of saturated blue drawn twice reads as a broken border rather than as focus.
+ * Measured, not guessed — both boxes computed a non-`none` box-shadow at the same time.
+ */
+.modeInput:focus-visible {
+  box-shadow: none;
+}
+
 .radio {
   box-sizing: border-box;
   flex: none;
@@ -406,6 +419,28 @@
 .keySave {
   flex: none;
   min-height: var(--pc-provider-field-h);
+}
+
+/*
+ * The reason the button next to it is refused. `flex-basis: 100%` puts it on its own line under the
+ * pair rather than squeezing the field — the form is a wrapping row, and this is a footnote to all
+ * of it. Quiet colour: nothing has failed, the reader simply has not typed yet.
+ */
+.keyBlocked {
+  flex: 1 0 100%;
+  margin: 0;
+  font: var(--pc-type-note);
+  color: var(--pc-text-3);
+}
+
+/* Same slot as .keyBlocked, for the refusal that came back instead of a saved key. Status colour
+   as text only — §5. */
+.keyFailed {
+  flex: 1 0 100%;
+  margin: 0;
+  font: var(--pc-type-note);
+  color: var(--pc-status-danger);
+  overflow-wrap: anywhere;
 }
 
 .note {

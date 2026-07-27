@@ -105,8 +105,14 @@
   transition: background var(--pc-duration-fast) var(--pc-ease);
 }
 
-.project:hover {
+/* Hover is a promise that a click does something, so it belongs to the button form only. */
+.project:hover:not([data-static='true']) {
   background: var(--pc-bg-raised);
+}
+
+/* No handler, no menu — the chip keeps its plate and stops behaving like a control. */
+.project[data-static='true'] {
+  cursor: default;
 }
 
 .project:focus-visible {

@@ -162,16 +162,24 @@ export function StatusLine({
             ))}
           </span>
 
-          <button
-            type="button"
-            className={s.details}
-            aria-expanded={expanded}
-            aria-controls={detailId}
-            onClick={onToggleDetails}
-          >
-            <span className={s.detailsLabel}>{text.details}</span>
-            <Icon name="chevron-down" className={s.chevron} strokeWidth={1.6} />
-          </button>
+          {/*
+           * The disclosure needs somebody to open it. Without `onToggleDetails` the button and its
+           * chevron are dropped rather than drawn inert — the fields stay in the tree and obey
+           * `expanded`, so a caller that keeps the line permanently open still shows them, and one
+           * that cannot toggle no longer offers a word and an arrow that answer nothing.
+           */}
+          {onToggleDetails ? (
+            <button
+              type="button"
+              className={s.details}
+              aria-expanded={expanded}
+              aria-controls={detailId}
+              onClick={onToggleDetails}
+            >
+              <span className={s.detailsLabel}>{text.details}</span>
+              <Icon name="chevron-down" className={s.chevron} strokeWidth={1.6} />
+            </button>
+          ) : null}
         </>
       ) : null}
     </div>

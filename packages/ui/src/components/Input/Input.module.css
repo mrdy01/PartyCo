@@ -49,6 +49,19 @@
   box-shadow: var(--pc-focus-ring);
 }
 
+/*
+ * …and the inner control must not draw a second one.
+ *
+ * `global.css` gives every `:focus-visible` element a ring, which is the right default — a focusable
+ * thing with no visible focus is unusable by keyboard. But this component deliberately moved the
+ * ring outward, and without this the two rules both fire: one ring hugs the control, another hugs
+ * the frame, and 3px of saturated blue drawn twice reads as a broken border rather than as focus.
+ * Measured, not guessed — both boxes computed a non-`none` box-shadow at the same time.
+ */
+.control:focus-visible {
+  box-shadow: none;
+}
+
 .field[data-invalid='true'] .frame {
   border-color: var(--pc-status-danger);
 }
@@ -57,6 +70,27 @@
   background: var(--pc-bg-raised);
   border-color: var(--pc-border-subtle);
   color: var(--pc-text-4);
+}
+
+/*
+ * `readOnly` — a value to look at, not a field to fill in.
+ *
+ * It must not look like the editable one: an input fill plus a hover border tell the reader they can
+ * type, and typing does nothing. It must not look *disabled* either — the text stays at full
+ * contrast because it is there to be read and copied, which is the whole point of a read-only field.
+ * `:read-only` also matches a disabled input; that one is already darker, and the rule above wins on
+ * the frame either way.
+ */
+.frame:has(.control:read-only) {
+  background: var(--pc-bg-raised);
+}
+
+.frame:has(.control:read-only):hover {
+  border-color: var(--pc-border);
+}
+
+.control:read-only {
+  cursor: default;
 }
 
 .control {

@@ -330,6 +330,8 @@ export function MergeQueueTable({
       <tbody className={styles.group} key={row.id} data-state={row.state}>
         <tr
           className={styles.row}
+          /* Drives the hover highlight: the row lights up only where the click lands somewhere. */
+          data-interactive={onSelect ? 'true' : undefined}
           data-selected={isSelected ? 'true' : undefined}
           data-open={isOpen ? 'true' : undefined}
           aria-current={isSelected ? true : undefined}

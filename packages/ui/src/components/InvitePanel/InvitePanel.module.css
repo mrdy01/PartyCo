@@ -166,6 +166,21 @@
   background: var(--pc-bg-raised);
 }
 
+/*
+ * The switch with nothing behind it (see `Segmented`): the pills are spans, so there is no tab stop
+ * and no focus ring to suppress, but the hover shift and the pointer are written on the shared
+ * `.segment` class and would still say "press me". Both are cancelled here; the active pill keeps
+ * its fill, because that is the fact the row is left to state.
+ */
+.segmented[data-static='true'] .segment {
+  cursor: default;
+}
+
+.segmented[data-static='true'] .segment:hover:not([data-active]) {
+  color: var(--pc-text-3);
+  background: none;
+}
+
 .segment[data-active] {
   background: var(--pc-border);
   color: var(--pc-text-1);
@@ -215,8 +230,24 @@
     border-color var(--pc-duration-fast) var(--pc-ease);
 }
 
-.roleRow:hover {
+/*
+ * Hover belongs to the form that can be pressed, so the read-only row never enters the rule.
+ *
+ * Cancelling it afterwards is what this used to do, and cancelling was not enough: the granted role
+ * carries a stronger border (`[data-selected]`, 0,2,0) and the cancel outranked it (0,3,0), so
+ * putting the cursor on the ticked row dimmed the one mark that said which role was granted. The
+ * row still answered the mouse — quieter than a highlight, and pointing the wrong way.
+ */
+.roleRow:not([data-static='true']):hover {
   border-color: var(--pc-border);
+}
+
+/*
+ * The read-only role list. No radio to move, so no pointer and no hover lift — the row is a line in
+ * a table of abilities, and the granted one carries a tick instead of a dot.
+ */
+.roleRow[data-static='true'] {
+  cursor: default;
 }
 
 /* The real control: native semantics, native keyboard, no visual of its own. */
@@ -233,13 +264,27 @@
   pointer-events: none;
 }
 
-.roleRow:has(.roleInput:checked) {
+.roleRow:has(.roleInput:checked),
+.roleRow[data-selected] {
   background: var(--pc-bg-raised);
   border-color: var(--pc-border-strong);
 }
 
 .roleRow:has(.roleInput:focus-visible) {
   box-shadow: var(--pc-focus-ring);
+}
+
+/*
+ * …and the inner control must not draw a second one.
+ *
+ * `global.css` gives every `:focus-visible` element a ring, which is the right default — a focusable
+ * thing with no visible focus is unusable by keyboard. But this component deliberately moved the
+ * ring outward, and without this the two rules both fire: one ring hugs the control, another hugs
+ * the frame, and 3px of saturated blue drawn twice reads as a broken border rather than as focus.
+ * Measured, not guessed — both boxes computed a non-`none` box-shadow at the same time.
+ */
+.roleInput:focus-visible {
+  box-shadow: none;
 }
 
 .radio {
@@ -276,8 +321,26 @@
   white-space: nowrap;
 }
 
-.roleRow:has(.roleInput:checked) .roleTitle {
+.roleRow:has(.roleInput:checked) .roleTitle,
+.roleRow[data-selected] .roleTitle {
   color: var(--pc-text-1);
+}
+
+/*
+ * Tick and its placeholder. The blank keeps the unselected rows' text on the same left edge as the
+ * ticked one — same box as `.radio`, drawn as nothing rather than as an empty circle, which would
+ * be a radio again.
+ */
+.roleMark,
+.roleMarkBlank {
+  box-sizing: border-box;
+  flex: none;
+  width: var(--pc-invite-radio);
+  height: var(--pc-invite-radio);
+}
+
+.roleMark {
+  color: var(--pc-accent);
 }
 
 .roleAbility {
@@ -297,6 +360,28 @@
 button.cta {
   height: var(--pc-invite-cta-h);
   border-radius: var(--pc-radius-md);
+}
+
+.ctaBlock {
+  display: flex;
+  flex-direction: column;
+  gap: var(--pc-space-6);
+}
+
+/* The reason the button above is refused. Quiet, not alarming — nothing has gone wrong yet. */
+.ctaBlocked {
+  margin: 0;
+  font: var(--pc-type-note);
+  color: var(--pc-text-3);
+}
+
+/* Something *did* go wrong: a write the hub refused, said next to the control that made it.
+   Status colour as text — §5. */
+.writeError {
+  margin: 0;
+  font: var(--pc-type-note);
+  color: var(--pc-status-danger);
+  overflow-wrap: anywhere;
 }
 
 /* ---------- link row + copy ---------- */

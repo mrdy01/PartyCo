@@ -47,6 +47,19 @@ export interface FirstRunKeyCopy {
   /** Button label while the key is being stored. */
   busy: string;
   skip: string;
+  /**
+   * Why the primary button is grey. Shown only while it is, and only for the ordinary reason —
+   * nothing has been pasted yet. A disabled control with no sentence beside it is a puzzle, and an
+   * empty field is not an answer to it: the field is what the person is looking at, not what they
+   * are being told.
+   */
+  whyDisabled: string;
+  /**
+   * Said when the caller offers no providers at all. Then there is nothing to attach a key to, so
+   * the field is switched off with the button instead of accepting a value that could never be
+   * saved.
+   */
+  noProviders: string;
   /** Where the key actually goes. Stated next to the field that asks for it. */
   guarantee: string;
 }
@@ -101,6 +114,10 @@ export const FIRST_RUN_COPY: FirstRunCopy = {
     primary: 'Сохранить и начать',
     busy: 'Сохраняем…',
     skip: 'Пропустить — добавлю позже',
+    whyDisabled: 'Кнопка включится, когда в поле появится ключ.',
+    noProviders:
+      'Ни одного провайдера, которому можно передать ключ, сейчас нет — сохранять его некуда. ' +
+      'Этот шаг можно пропустить.',
     guarantee: KEY_GUARANTEE_STORAGE,
   },
 };
@@ -128,7 +145,14 @@ export interface FirstRunProps {
 
   /** Step 1: opens the OS folder picker. The panel never touches the filesystem itself. */
   onChooseFolder: () => void;
-  /** Step 1: «Меня позвали в проект команды» — hands over to the join-by-code flow. */
+  /**
+   * Step 1: «Меня позвали в проект команды».
+   *
+   * Whatever the host does with it — a join-by-code flow where one exists, the same folder picker
+   * where it does not. The panel makes no claim about the destination, which is why the sentence
+   * that does belongs in `folder.footnote`: a second button that quietly lands on the first one's
+   * screen has to say so before it is pressed.
+   */
   onJoinTeam: () => void;
 
   /** Step 2: the providers to offer. Defaults to the three the model knows. */
@@ -144,7 +168,12 @@ export interface FirstRunProps {
   onKeyChange?: ((key: string) => void) | undefined;
   /** Step 2: store the key. Whatever "store" means is the caller's business, not this panel's. */
   onSaveKey: (input: FirstRunKeySubmit) => void;
-  /** Step 2: «Пропустить — добавлю позже». Both steps are skippable, and this is how. */
+  /**
+   * Step 2: «Пропустить — добавлю позже».
+   *
+   * Only step 2 draws it. Step 1 has no skip and cannot have one: without a folder there is nothing
+   * for the product to be inside of, so «пропустить» there would be a button that leads nowhere.
+   */
   onSkip: () => void;
 
   /** Идёт запрос: кнопка занята, форма помечена `aria-busy`. */
@@ -161,12 +190,12 @@ export interface FirstRunProps {
 /* -------------------------------------------------------------- component */
 
 /**
- * First run: two cards, both skippable — the project folder, then a provider key.
+ * First run: two cards — the project folder, then a provider key, which is the skippable one.
  *
  * Screens 02 of the shell export, lines 477–523. The shape of the thing is the argument: two steps,
- * not ten, and neither one blocks. Theme, density, inviting the team and marking out zones all
- * arrive later, out of the work, because a wizard in front of a product nobody has seen yet teaches
- * nothing — which is the same reason the designer took the theme and density pickers off the door.
+ * not ten, and only the folder is required. Theme, density, inviting the team and marking out zones
+ * all arrive later, out of the work, because a wizard in front of a product nobody has seen yet
+ * teaches nothing — the same reason the designer took the theme and density pickers off the door.
  *
  * The key field is a password by nature and is treated as one: `type="password"`, autocomplete off,
  * spellcheck off, and the value leaves through `onKeyChange`/`onSaveKey` and nowhere else. This
@@ -195,6 +224,7 @@ export function FirstRun({
 
   const autoId = useId();
   const statusId = `pc-first-run-${autoId}-status`;
+  const whyId = `pc-first-run-${autoId}-why`;
 
   const [providerPick, setProviderPick] = useState<string | null>(null);
   const activeId = providerId ?? providerPick ?? providers[0]?.id ?? '';
@@ -224,6 +254,21 @@ export function FirstRun({
   }
 
   const message = error !== null && error !== undefined && error !== '' ? error : null;
+
+  /*
+   * Why «Сохранить и начать» is grey, in the two cases where it is.
+   *
+   * The button used to be `disabled` with nothing beside it, which leaves the person to guess
+   * between «я что-то не заполнил» and «оно сломано» — and the empty field above it is not the
+   * answer, because that field is exactly what they are already looking at.
+   *
+   * `noTarget` is the harder of the two: with nothing selected there is nothing to attach a key to,
+   * so the field is switched off as well. A field that accepts a key which can never be saved is a
+   * worse lie than a grey button. The condition is `activeId`, not `providers.length`, because that
+   * is the one `handleSave` refuses on — an empty list is only the usual way to reach it.
+   */
+  const noTarget = activeId === '';
+  const blocked = noTarget ? t.key.noProviders : key.trim() === '' ? t.key.whyDisabled : null;
 
   const progress = t.progress
     .replace('{step}', String(step))
@@ -345,6 +390,8 @@ export function FirstRun({
                   autoCapitalize="none"
                   spellCheck={false}
                   placeholder={active?.keyHint}
+                  /* Nothing to attach a key to — see `blocked`. */
+                  disabled={noTarget}
                   value={key}
                   onChange={(event) => changeKey(event.target.value)}
                 />
@@ -359,10 +406,21 @@ export function FirstRun({
                   className={s.cta}
                   loading={busy}
                   loadingLabel={t.key.busy}
-                  disabled={key.trim() === '' || activeId === ''}
+                  disabled={blocked !== null}
+                  {...(blocked === null ? {} : { 'aria-describedby': whyId })}
                 >
                   {t.key.primary}
                 </Button>
+                {/*
+                 * Directly under the button it explains, and only while it is grey. Not a status:
+                 * nothing has failed and nobody has pressed anything — this is the label of a
+                 * closed door, so it is quiet type, not the danger colour.
+                 */}
+                {blocked ? (
+                  <p className={s.why} id={whyId}>
+                    {blocked}
+                  </p>
+                ) : null}
                 {/* Skipping is a first-class answer here, so it is a real button, centred. */}
                 <Button variant="ghost" size="md" className={s.skip} onClick={onSkip}>
                   {t.key.skip}

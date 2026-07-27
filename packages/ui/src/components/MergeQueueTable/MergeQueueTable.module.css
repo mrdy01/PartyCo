@@ -169,7 +169,14 @@
   border-bottom: none;
 }
 
-.row:not([data-skeleton='true']):hover > td {
+/*
+ * Row highlight, gated on the row actually being selectable — `LeaseTable` gates the same way.
+ *
+ * `onSelect` is optional and the `onClick` was already conditional on it, but this repaint was not:
+ * a table rendered read-only lit a row under the cursor and swallowed the click that invited. The
+ * skeleton is excluded for the older reason — a placeholder must not answer the mouse at all.
+ */
+.row[data-interactive='true']:not([data-skeleton='true']):hover > td {
   background-color: var(--pc-bg-raised);
 }
 

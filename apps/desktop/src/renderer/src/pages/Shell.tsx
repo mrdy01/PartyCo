@@ -35,7 +35,7 @@ import { useProviderLayer } from '../providers.ts';
 import { pathOfRow, useFileTree, useOpenFile } from '../files.ts';
 import { useConversation } from '../conversation.ts';
 import { useProjects, type ProjectsModel } from '../projects.ts';
-import type { WorkspaceHandle } from '../workspace.ts';
+import { WORKSPACE_UNAVAILABLE, type WorkspaceHandle } from '../workspace.ts';
 import {
   createInvite as hubCreateInvite,
   invites as hubInvites,
@@ -66,6 +66,16 @@ import styles from './Shell.module.css';
 
 /** What may occupy the slide-out panel on the right. Nothing, by default and after every close. */
 type Detail = 'team' | 'invite' | null;
+
+/**
+ * The caps drawn beside the search field, and the keys the bar binds for them — one value, so the
+ * two can never say different things.
+ *
+ * Module scope so it is one array rather than a new one per render. `ShellTitleBar` joins the caps
+ * into a string before it subscribes, so an inline literal would not actually re-subscribe; this is
+ * simply the cheaper of two correct spellings.
+ */
+const SEARCH_SHORTCUT = ['Ctrl', 'K'] as const;
 
 export function ShellPage({
   session,
@@ -110,13 +120,24 @@ export function ShellPage({
     );
   }, [files.nodes, search]);
 
-  const activate = useCallback(
-    (node: ZoneTreeNode) => {
-      files.select(node.id);
-      if (node.kind === 'file') open.open(pathOfRow(node.id));
-      else files.toggle(pathOfRow(node.id));
-    },
-    [files, open],
+  /**
+   * Three handlers for three things, and that separation is a bug fix rather than tidiness.
+   *
+   * `ZoneTree` already decides what a row activation means: it calls `onSelect` for every row and
+   * then `onToggle` for a directory or `onOpen` for a file. One handler wired into both `onSelect`
+   * and `onToggle` therefore ran twice per click — and because expansion is a flip, the second call
+   * undid the first. **Clicking a folder in the tree did nothing at all**: it expanded and collapsed
+   * inside one event, while firing the directory read twice. Only Space, which reaches `onSelect`
+   * alone, actually opened a folder — so the panel worked from the keyboard and looked dead under
+   * the mouse, which is exactly the complaint.
+   *
+   * Each of the three now does one thing and is called once.
+   */
+  const selectRow = useCallback((node: ZoneTreeNode) => files.select(node.id), [files]);
+  const openRow = useCallback((node: ZoneTreeNode) => open.open(pathOfRow(node.id)), [open]);
+  const toggleRow = useCallback(
+    (node: ZoneTreeNode) => files.toggle(pathOfRow(node.id)),
+    [files],
   );
 
   /* ---------- chrome ---------- */
@@ -141,7 +162,21 @@ export function ShellPage({
         // appears broken.
         if (value.trim()) setView('files');
       }}
-      searchShortcut={['Ctrl', 'K']}
+      /*
+       * The keycap is back, because the shortcut behind it now exists.
+       *
+       * It was taken off this page for the right reason: the bar drew «Ctrl K» by default and
+       * nothing in the window listened for it — `CommandPalette` owns that binding and the shell
+       * does not mount one — so the cap was a control written in words that answered nothing. This
+       * page could not fix it either: focusing the field means reaching into the bar's own DOM,
+       * which breaks silently the day a second search field exists.
+       *
+       * `ShellTitleBar` now keeps the promise where it can be kept — it binds the caps it draws and
+       * focuses the input it owns, through its own ref, the way `CommandPalette` keeps its `⌘K`. No
+       * caps, no listener; no field, no listener. So the honest value here is the shortcut the
+       * design export draws, not an empty array that hides a control which works.
+       */
+      searchShortcut={SEARCH_SHORTCUT}
       // The chevron goes to settings rather than opening a popover the designer has not drawn.
       // Everything a person could want from it — switch project, create one, change the folder —
       // is there in full, and inventing a second surface for the same three actions would mean
@@ -163,11 +198,20 @@ export function ShellPage({
         setDetail(null);
       }}
       projectInitial={projectName.slice(0, 1).toUpperCase()}
-      onNewTask={() => {
-        setView('conversation');
-        setDetail(null);
-        setDraft('');
-      }}
+      /*
+       * `onNewTask` is deliberately not passed: there is no new task to start.
+       *
+       * It used to switch to the conversation, close the panel and blank the draft. None of that is
+       * a new task. There is one conversation per folder, appended to for ever, and no task object
+       * anywhere in this build — so «Новая задача» created nothing. What it did do was silently
+       * throw away whatever the person had typed, which is the one effect nobody asks a plus sign
+       * for. Navigating to the conversation is already the rail item directly underneath it.
+       *
+       * Omitting the handler is enough to take the button off the screen: `ContextRail` draws the
+       * `+` only when it has something to call, the same gate `ZoneTree` puts on its header buttons,
+       * `FileViewer` on its diff toggle and `Composer` on the mode chevron. The plus comes back the
+       * day a task is a thing that can be created.
+       */
       self={self}
       // A dot is a claim that something is happening. The one thing this shell genuinely knows is
       // whether a child process of its own is running right now.
@@ -202,7 +246,10 @@ export function ShellPage({
         onChannelChange={team.setChannel}
         email={team.email}
         onEmailChange={team.setEmail}
-        {...(team.error ? { emailError: team.error } : {})}
+        /* One slot per write, so a refusal never lands next to a control that did not make it. */
+        {...(team.emailError ? { emailError: team.emailError } : {})}
+        {...(team.codeError ? { codeError: team.codeError } : {})}
+        {...(team.sentError ? { sentError: team.sentError } : {})}
         role={team.role}
         onRoleChange={team.setRole}
         sending={team.sending}
@@ -243,10 +290,41 @@ export function ShellPage({
         setDraft('');
       }}
       disabled={talk.blocked !== null || talk.running}
+      // The run can be stopped, so the button says so. `cancel` kills the child process the main
+      // process started; before this the only way out of a long turn was closing the window.
+      running={talk.running}
+      onStop={talk.cancel}
       variant={view === 'files' ? 'narrow' : 'wide'}
+      // Two of the three chips lead somewhere real, so they are buttons; the third is a fact and is
+      // drawn as one. The mode chip has no menu because PartyCo passes no permission flag to the
+      // vendor CLI yet — until it does, «Сначала план» is a description of what happens, not a
+      // setting, and a chevron over it would promise a choice that does not exist.
+      onZoneClick={() => {
+        setView('files');
+        setDetail(null);
+      }}
+      onModelClick={() => {
+        setView('settings');
+        setDetail(null);
+      }}
+      /*
+       * A disabled field says why it is disabled, in the field itself.
+       *
+       * Two things switch the composer off and they are not the same fact. `blocked` is a setup
+       * problem and already carries its own sentence. A turn in flight is the other one, and it
+       * used to leave the default «Что делаем дальше?» sitting under a field that would not accept
+       * an answer — a control that refuses without a reason, which is the reading the empty state
+       * is there to prevent everywhere else on this page.
+       *
+       * Order matters: `blocked` first, because nothing can run at all then; the file-view prompt
+       * last, because «Спросить про этот файл…» over a dead field is the same lie one step quieter.
+       */
       copy={{
         ...(talk.blocked ? { placeholder: talk.blocked } : {}),
-        ...(view === 'files' && !talk.blocked ? { placeholder: 'Спросить про этот файл…' } : {}),
+        ...(!talk.blocked && talk.running ? { placeholder: COMPOSER_BUSY } : {}),
+        ...(!talk.blocked && !talk.running && view === 'files'
+          ? { placeholder: 'Спросить про этот файл…' }
+          : {}),
       }}
       // The chips are facts, not menus, until there is something to choose between: mode selection
       // and model selection are both roadmap items, and a chip that opens nothing is a dead control.
@@ -284,8 +362,11 @@ export function ShellPage({
         // `emptyActions` is left out on purpose: the button under an empty state has to do
         // something, and «Разметить зоны» has nothing to call.
         state="empty"
-        meta={OWNERSHIP_META}
+        // The header note belongs to the zones tab and says so by only being there. It used to sit
+        // over the queue as well, explaining boundaries to somebody reading about merges.
+        {...(ownershipTab === 'zones' ? { meta: OWNERSHIP_META } : {})}
         renderQueue={() => null}
+        labels={OWNERSHIP_QUEUE_LABELS}
       />
     ) : view === 'settings' ? (
       <SettingsView
@@ -324,16 +405,28 @@ export function ShellPage({
             filesPanel: (
               <ZoneTree
                 nodes={filtered}
-                state={search.trim() && filtered.length === 0 ? 'empty' : files.state}
+                /*
+                 * A search that matched nothing is `empty` — but only over a tree that was actually
+                 * read. The condition used to be «ищем и ничего не нашли», and it fired while the
+                 * listing was still loading and, worse, after it had failed: an unread tree has no
+                 * rows, so no row matches, so the panel drew «такого файла нет» over an error it had
+                 * just swallowed — and took the «Попробовать снова» button down with it. The state
+                 * that says the read failed has to win over the state that says the filter is empty.
+                 */
+                state={
+                  files.state === 'ready' && search.trim() !== '' && filtered.length === 0
+                    ? 'empty'
+                    : files.state
+                }
                 {...(files.selectedId ? { selectedId: files.selectedId } : {})}
                 footnote={treeFootnote(
                   files.omittedInTreeTotal,
                   files.unreadableDirs,
                   search.trim() !== '',
                 )}
-                onSelect={activate}
-                onOpen={activate}
-                onToggle={(node) => files.toggle(pathOfRow(node.id))}
+                onSelect={selectRow}
+                onOpen={openRow}
+                onToggle={toggleRow}
                 onRetry={files.reload}
                 labels={{
                   emptyBody: search.trim()
@@ -411,6 +504,24 @@ function plural(n: number, one: string, few: string, many: string): string {
 }
 
 const OWNERSHIP_META = 'Границ ещё нет — их раздаёт ядро, а его в этой сборке нет.';
+
+/**
+ * The queue tab, said honestly.
+ *
+ * `ZoneBoard`'s own default is «Очередь пуста · На влитие сейчас никто ничего не отправил», which is
+ * a statement about people: it says the gate is up and nobody used it. There is no gate. Nothing in
+ * this build can send a patch anywhere, so «никто ничего не отправил» describes a choice the team
+ * never had — and the tab is drawn in the success tone, which reads as «всё влито, всё чисто».
+ */
+const OWNERSHIP_QUEUE_LABELS = {
+  queueEmptyTitle: 'Очереди на влитие пока нет',
+  queueEmptyBody:
+    'Очередь ведёт ядро — оно проверяет правки перед вливанием, — а его в этой сборке нет. ' +
+    'Поэтому здесь не пусто «пока», здесь нечему копиться.',
+} as const;
+
+/** Why the composer will not take anything while a turn is in flight. */
+const COMPOSER_BUSY = 'Агент ещё отвечает — дождись конца хода.';
 
 const TEAM_FOOTNOTE =
   'Люди и приглашения — настоящие: они лежат на хабе команды. Зоны и очередь появятся вместе с ядром.';
@@ -615,7 +726,18 @@ interface TeamState {
   code: string | null;
   link: string | null;
   sending: boolean;
-  error: string | null;
+  /**
+   * Three writes, three sentences, three places — and that is a fix rather than bookkeeping.
+   *
+   * There used to be one `error` here and it went into the panel as `emailError`, which prints
+   * under the address field. So a failed «Сменить код» — an action taken on the other tab, about a
+   * code — was rendered as a validation message on an e-mail address the reader had not touched,
+   * and the same for a failed «Отменить» on an already-sent invitation. A message in the wrong slot
+   * does not merely fail to help: it marks a good address bad.
+   */
+  emailError: string | null;
+  codeError: string | null;
+  sentError: string | null;
   send: () => void;
   rotate: () => void;
   revoke: (invite: InviteRecord) => void;
@@ -641,7 +763,9 @@ function useTeam(session: HubSession, projectId: string | null): TeamState {
   const [lifetime, setLifetime] = useState<InviteLifetime>('day');
   const [seats, setSeats] = useState<InviteSeats>('five');
   const [sending, setSending] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const [emailError, setEmailError] = useState<string | null>(null);
+  const [codeError, setCodeError] = useState<string | null>(null);
+  const [sentError, setSentError] = useState<string | null>(null);
 
   const manages = canManageInvites(session.member);
 
@@ -686,6 +810,19 @@ function useTeam(session: HubSession, projectId: string | null): TeamState {
 
   const reload = useCallback(() => setNonce((n) => n + 1), []);
 
+  /**
+   * Editing the address retires the hub's verdict on the previous one.
+   *
+   * «На эту почту уже есть аккаунт» is true of the address it was said about and of no other, but it
+   * used to survive every keystroke until the next send — so the reader corrected the address, saw
+   * the same refusal still sitting under it, and had no way to tell whether it was the old answer or
+   * a new one. A message that outlives its subject is a message that cannot be trusted.
+   */
+  const setEmailAndClearError = useCallback((next: string) => {
+    setEmail(next);
+    setEmailError(null);
+  }, []);
+
   // `Date.now()` is read here rather than stored: an invitation's remaining time is a function of
   // now, not a value that was true when the response arrived.
   const invites = useMemo(() => {
@@ -701,7 +838,7 @@ function useTeam(session: HubSession, projectId: string | null): TeamState {
 
   const send = useCallback(() => {
     setSending(true);
-    setError(null);
+    setEmailError(null);
     void hubCreateInvite(session.hubUrl, session.token, {
       role,
       ...(channel === 'email' ? { email } : {}),
@@ -713,7 +850,7 @@ function useTeam(session: HubSession, projectId: string | null): TeamState {
         reload();
       })
       .catch((cause: unknown) => {
-        setError(cause instanceof Error ? cause.message : 'Не удалось создать приглашение.');
+        setEmailError(cause instanceof Error ? cause.message : 'Не удалось создать приглашение.');
       })
       .finally(() => setSending(false));
   }, [session.hubUrl, session.token, role, channel, email, lifetime, seats, reload]);
@@ -723,13 +860,13 @@ function useTeam(session: HubSession, projectId: string | null): TeamState {
     // endpoint on purpose — an old code must stop admitting people the instant a new one exists,
     // and two statements in that order are easier to reason about than one that does both.
     setSending(true);
-    setError(null);
+    setCodeError(null);
     const previous = liveCode?.code;
     void (previous ? hubRevokeInvite(session.hubUrl, session.token, previous) : Promise.resolve())
       .then(() => hubCreateInvite(session.hubUrl, session.token, { role, lifetime, seats }))
       .then(() => reload())
       .catch((cause: unknown) => {
-        setError(cause instanceof Error ? cause.message : 'Не удалось сменить код.');
+        setCodeError(cause instanceof Error ? cause.message : 'Не удалось сменить код.');
       })
       .finally(() => setSending(false));
   }, [session.hubUrl, session.token, liveCode, role, lifetime, seats, reload]);
@@ -737,10 +874,13 @@ function useTeam(session: HubSession, projectId: string | null): TeamState {
   const revoke = useCallback(
     (invite: InviteRecord) => {
       if (!invite.code) return;
+      setSentError(null);
       void hubRevokeInvite(session.hubUrl, session.token, invite.code)
         .then(() => reload())
         .catch((cause: unknown) => {
-          setError(cause instanceof Error ? cause.message : 'Не удалось отменить приглашение.');
+          setSentError(
+            cause instanceof Error ? cause.message : 'Не удалось отменить приглашение.',
+          );
         });
     },
     [session.hubUrl, session.token, reload],
@@ -754,7 +894,7 @@ function useTeam(session: HubSession, projectId: string | null): TeamState {
     channel,
     setChannel,
     email,
-    setEmail,
+    setEmail: setEmailAndClearError,
     role,
     setRole,
     lifetime,
@@ -764,7 +904,9 @@ function useTeam(session: HubSession, projectId: string | null): TeamState {
     code: liveCode?.code ?? null,
     link: liveCode?.joinUrl ?? null,
     sending,
-    error,
+    emailError,
+    codeError,
+    sentError,
     send,
     rotate,
     revoke,
@@ -803,6 +945,11 @@ function SettingsView({
 }): React.ReactElement {
   const { theme, density, toggleTheme, setDensity } = useTheme();
 
+  // Why the folder cannot be changed, or why the last attempt did not change it. `null` covers both
+  // «всё в порядке» and «человек закрыл диалог» — a cancelled picker is not a problem to report.
+  const folderProblem =
+    workspace.state === 'unavailable' ? WORKSPACE_UNAVAILABLE : workspace.error;
+
   return (
     <div className={styles.settings}>
       <div className={styles.settingsColumn}>
@@ -826,11 +973,27 @@ function SettingsView({
               type="button"
               className={styles.rowAction}
               onClick={() => void workspace.choose()}
-              disabled={workspace.busy}
+              /*
+               * `unavailable` means this window has no bridge to the main process, so no picker can
+               * open — the button could only fail. It is switched off with the reason printed under
+               * it rather than left live: a control that opens nothing and says nothing is exactly
+               * what «кнопочки не работают» describes.
+               */
+              disabled={workspace.busy || workspace.state === 'unavailable'}
             >
               Сменить
             </button>
           </div>
+          {/*
+           * And when it fails for any other reason, the sentence lands here.
+           *
+           * `choose()` puts the main process's own words on the snapshot and resolves to `null`;
+           * nothing on this page read them, so a refused picker looked identical to a cancelled one
+           * — the dialog does not appear, the row does not change, and the person is left to guess
+           * which of the two happened. A cancel still says nothing, which is correct: cancelling is
+           * an answer, not a fault.
+           */}
+          {folderProblem ? <p className={styles.blockError}>{folderProblem}</p> : null}
           <p className={styles.blockNote}>
             Проект — общий для команды, папка — твоя копия на этом компьютере. Связать их
             по-настоящему сможет только репозиторий на хабе, а его ещё нет: пока это две отдельные
@@ -872,6 +1035,10 @@ function SettingsView({
               ? {}
               : { keysPersisted: providers.keysPersisted })}
             busyProviderId={providers.busyProviderId}
+            // A refused save used to end here silently: the field cleared, the spinner stopped, and
+            // «Ключа пока нет» stayed on screen. Now the store's own sentence lands under the
+            // button that failed.
+            keyError={providers.keyError}
             onModeChange={providers.setMode}
             onKeySubmit={providers.submitKey}
             onRedetect={providers.redetect}

@@ -614,13 +614,23 @@
   border-radius: var(--pc-radius-sm);
   color: inherit;
   font: inherit;
+}
+
+/*
+ * The finger follows the element, not the data.
+ *
+ * `data-free` says nobody holds the path; it never said anything about whether the chip can be
+ * pressed, and using it to cancel the pointer got both halves wrong. A held path rendered without
+ * `onGuardedPathClick` is a <span> that still offered a finger, and a free path rendered *with* one
+ * is a real button that looked inert. Hover was already qualified this way — the cursor now matches.
+ */
+button.chip {
   cursor: pointer;
 }
 
 .chip[data-free='true'] {
   border-style: dashed;
   border-color: var(--pc-border);
-  cursor: default;
 }
 
 button.chip:hover {

@@ -103,7 +103,11 @@ export interface ZoneTreeProps {
   onSelect?: ((node: ZoneTreeNode) => void) | undefined;
   /** A file was opened — Enter or a click. Zones toggle instead. */
   onOpen?: ((node: ZoneTreeNode) => void) | undefined;
-  /** A zone was expanded or collapsed. The caller flips `expanded` on the node. */
+  /**
+   * A zone was expanded or collapsed. The caller flips `expanded` on the node. Omit and no zone
+   * draws a twisty and none reports `aria-expanded` — the rows still show what the data says is
+   * open, they simply stop offering to change it.
+   */
   onToggle?: ((node: ZoneTreeNode) => void) | undefined;
   /** Omit and the header button is not rendered — a dead control is worse than no control. */
   onSearch?: (() => void) | undefined;
@@ -265,13 +269,15 @@ export function ZoneTree({
             break;
           case 'ArrowRight':
             event.preventDefault();
-            if (isZone && !expanded) onToggle?.(node);
+            // With no `onToggle` a zone cannot open, so the key does the other useful thing rather
+            // than nothing at all — a dead key is as much a lie as a dead button.
+            if (isZone && !expanded && onToggle) onToggle(node);
             else focusAt(index + 1);
             break;
           case 'ArrowLeft': {
             event.preventDefault();
-            if (isZone && expanded) {
-              onToggle?.(node);
+            if (isZone && expanded && onToggle) {
+              onToggle(node);
               break;
             }
             // A file steps out to the zone that holds it — the only parent this tree has.
@@ -367,6 +373,16 @@ export function ZoneTree({
           const owner = owners.get(node.id);
           const selected = isSelected(node);
           const isZone = node.kind === 'zone';
+          /*
+           * Whether *this* row does anything when pressed, not whether the panel is wired up in
+           * general: a zone answers to select and toggle, a file to select and open. A row that
+           * answers to neither keeps its place in the keyboard walk — reading a tree is a real use
+           * of it — but drops the pointer cursor, the hover outline and the click handler, because
+           * those three together say «нажми меня» and it has nothing to give back.
+           */
+          const actionable = isZone
+            ? Boolean(onSelect ?? onToggle)
+            : Boolean(onSelect ?? onOpen);
           return (
             <div
               key={node.id}
@@ -377,9 +393,11 @@ export function ZoneTree({
               role="treeitem"
               aria-level={isZone ? 1 : 2}
               aria-selected={selected}
-              aria-expanded={isZone ? node.expanded === true : undefined}
+              /* `aria-expanded` is a claim that this row can be opened and closed. */
+              aria-expanded={isZone && onToggle ? node.expanded === true : undefined}
               tabIndex={node.id === rovingId ? 0 : -1}
               title={node.label}
+              data-static={actionable ? undefined : 'true'}
               className={cx(
                 styles.row,
                 selected && styles.selected,
@@ -389,10 +407,15 @@ export function ZoneTree({
                 (selected || (isZone && node.state === 'mine')) && styles.strong,
               )}
               style={rowStyle(owner, selected, identitySet)}
-              onClick={() => activate(node)}
+              {...(actionable ? { onClick: () => activate(node) } : {})}
               onKeyDown={handleKeyDown(node, index)}
             >
-              {isZone ? (
+              {/*
+               * The twisty is the one part of the row that promises a specific act — «здесь ещё
+               * что-то, нажми». Without `onToggle` nothing can open, so it gives way to the spacer
+               * the files already use and the column stays aligned to the same x.
+               */}
+              {isZone && onToggle ? (
                 <Icon
                   name="chevron-right"
                   className={cx(styles.twisty, node.expanded === true && styles.twistyOpen)}

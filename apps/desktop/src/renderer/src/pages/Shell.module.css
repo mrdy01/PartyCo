@@ -123,6 +123,18 @@
   color: var(--pc-text-3);
 }
 
+/*
+ * The same slot as .blockNote, for the sentence that explains a control instead of the block.
+ *
+ * Status colour as text — the role CONVENTIONS §5 allows it in, never as a fill. It sits under the
+ * row it is about, because a refusal printed anywhere else is a refusal the person has to hunt for.
+ */
+.blockError {
+  margin: var(--pc-space-4) 0 0;
+  font: var(--pc-type-note);
+  color: var(--pc-status-danger);
+}
+
 /** A fact where a button would otherwise be. Not a control, and it must not look like one. */
 .rowFact {
   margin-left: auto;

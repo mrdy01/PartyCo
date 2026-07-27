@@ -155,6 +155,8 @@ export interface ProviderSetupCopy {
   keySave: string;
   keyReplace: string;
   keySaving: string;
+  /** Why the save button is refused. Shown next to it while the field is empty. */
+  keySaveBlocked: string;
   keyNeverShown: string;
   /** `{env}` is replaced with the variable name. */
   keyEnv: string;
@@ -220,6 +222,7 @@ export const PROVIDER_SETUP_COPY: ProviderSetupCopy = {
   keySave: 'Сохранить ключ',
   keyReplace: 'Заменить ключ',
   keySaving: 'Сохраняем…',
+  keySaveBlocked: 'Пока поле ключа пустое, сохранять нечего.',
   keyNeverShown: 'Сам ключ не показывается — ни здесь, ни на других экранах.',
   keyEnv:
     'Ключ попадает в {env} того процесса, который ты запустил, и никуда больше: окружение ' +
@@ -310,6 +313,19 @@ export interface ProviderSetupProps {
   onRedetect?: (() => void) | undefined;
   /** Which provider's key is being stored right now. Its submit spins and stops taking clicks. */
   busyProviderId?: string | null | undefined;
+  /**
+   * Why the last submission did not store a key, in the words of whoever refused it, and whose
+   * provider it was.
+   *
+   * Without this the save button is the worst shape a dead control can take: it accepts the click,
+   * spins, clears the field it was given — that is this panel's own hygiene rule, the key is gone
+   * the moment it is handed over — and then leaves «Ключа пока нет» on screen with nothing to say
+   * that anything went wrong. The reader has no way to tell a stored key from a refused one, and
+   * the refusals are exactly the ones they could act on («система отказалась зашифровать ключ»).
+   *
+   * The panel does not compose this sentence and must not: it never sees the store.
+   */
+  keyError?: { providerId: string; message: string } | null | undefined;
   state?: ProviderSetupState | undefined;
   onRetry?: (() => void) | undefined;
   /**
@@ -440,6 +456,7 @@ export function ProviderSetup({
   onKeySubmit,
   onRedetect,
   busyProviderId,
+  keyError,
   state = 'ready',
   onRetry,
   keysStored,
@@ -593,6 +610,25 @@ export function ProviderSetup({
             >
               {item.hasKey ? t.keyReplace : t.keySave}
             </Button>
+            {/*
+             * Why it is grey. The button refuses an empty field — `submitKey` refuses it a second
+             * time — and until now it refused silently: a disabled primary control with nothing near
+             * it saying so reads as a broken panel, and the empty box above is not an explanation,
+             * it is what the reader is already staring at.
+             */}
+            {draft.trim() === '' && !busy ? (
+              <p className={s.keyBlocked}>{t.keySaveBlocked}</p>
+            ) : null}
+            {/*
+             * And why the last press did not save. Suppressed while a new attempt is in flight —
+             * a refusal from the previous one, printed under a spinner, is a verdict on something
+             * that has not finished happening. See the note on `keyError`.
+             */}
+            {!busy && keyError?.providerId === item.id ? (
+              <p className={s.keyFailed} role="status">
+                {keyError.message}
+              </p>
+            ) : null}
           </form>
         ) : null}
 

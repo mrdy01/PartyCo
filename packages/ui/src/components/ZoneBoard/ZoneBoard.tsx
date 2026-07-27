@@ -147,7 +147,9 @@ export interface ZoneBoardProps {
   /** The plate with the `info` glyph under the table. Omit to drop the plate. */
   footnote?: ReactNode;
   identitySet?: IdentitySetName | undefined;
+  /** Omit and no card draws its action button, whatever `card.action` says. */
   onCardAction?: ((card: ZoneCardData, actionId: string) => void) | undefined;
+  /** Omit and no row draws its action link, whatever `row.action` says. */
   onRowAction?: ((row: ZoneTableRow, actionId: string) => void) | undefined;
   /**
    * Body of the queue tab. Rendered only while that tab is active, so the caller's
@@ -264,6 +266,23 @@ export function ZoneBoard({
 
   const [ownTab, setOwnTab] = useState<OwnershipTab>(defaultTab);
   const activeTab = tab ?? ownTab;
+
+  /**
+   * Can the switch actually switch?
+   *
+   * Uncontrolled, it always can — the board keeps the tab itself. Controlled, only the caller can
+   * move it, so without `onTabChange` pressing «Очередь на влитие» would leave the board exactly
+   * where it was. That case draws the current tab as a caption instead of a tablist: the person
+   * still reads which of the two faces they are looking at, and is not offered a door that is
+   * painted on.
+   */
+  const switchable = tab === undefined || onTabChange !== undefined;
+
+  /** «Очередь на влитие · 2» — one wording, used by the switch and by the caption alike. */
+  const tabLabel = (id: OwnershipTab): string =>
+    id === 'queue' && queueCount !== undefined
+      ? `${labels.tabs.queue} · ${queueCount}`
+      : labels.tabs[id];
 
   const tabRefs = useRef(new Map<OwnershipTab, HTMLButtonElement | null>());
 
@@ -391,7 +410,9 @@ export function ZoneBoard({
           </div>
         ) : null}
 
-        {action ? (
+        {/* The data may offer an action the caller cannot run; then the card carries none. A
+            «Взять зону» that takes no zone is worse than a card that does not offer one. */}
+        {action && onCardAction ? (
           <Button
             size="md"
             variant="secondary"
@@ -399,7 +420,7 @@ export function ZoneBoard({
             /* «Взять зону» appears on every free card; without the path they are indistinguishable
                to anyone reading the page through assistive tech. */
             aria-label={`${action.label} · ${card.path}`}
-            onClick={() => onCardAction?.(card, action.id)}
+            onClick={() => onCardAction(card, action.id)}
           >
             {action.label}
           </Button>
@@ -445,13 +466,14 @@ export function ZoneBoard({
           </span>
         </td>
         <td className={styles.cellAction} style={tint ?? undefined}>
-          {action ? (
+          {/* Same rule as the card: the link exists only where the request actually goes out. */}
+          {action && onRowAction ? (
             <button
               type="button"
               className={styles.link}
               /* Three rows, two of them «Попросить» — the path is what tells them apart. */
               aria-label={`${action.label} · ${row.path}`}
-              onClick={() => onRowAction?.(row, action.id)}
+              onClick={() => onRowAction(row, action.id)}
             >
               {action.label}
             </button>
@@ -593,47 +615,57 @@ export function ZoneBoard({
         <h2 className={styles.title} id={`${baseId}-title`}>
           {labels.title}
         </h2>
-        <div
-          className={styles.tabs}
-          role="tablist"
-          aria-label={labels.tabsLabel}
-          onKeyDown={onTabsKeyDown}
-        >
-          {ZONE_BOARD_TABS.map((id) => {
-            const active = id === activeTab;
-            const label =
-              id === 'queue' && queueCount !== undefined
-                ? `${labels.tabs.queue} · ${queueCount}`
-                : labels.tabs[id];
-            return (
-              <button
-                key={id}
-                ref={(node) => {
-                  tabRefs.current.set(id, node);
-                }}
-                type="button"
-                role="tab"
-                id={tabDomId(id)}
-                className={styles.tab}
-                data-active={active || undefined}
-                aria-selected={active}
-                aria-controls={panelDomId}
-                tabIndex={active ? 0 : -1}
-                onClick={() => selectTab(id)}
-              >
-                {label}
-              </button>
-            );
-          })}
-        </div>
+        {switchable ? (
+          <div
+            className={styles.tabs}
+            role="tablist"
+            aria-label={labels.tabsLabel}
+            onKeyDown={onTabsKeyDown}
+          >
+            {ZONE_BOARD_TABS.map((id) => {
+              const active = id === activeTab;
+              return (
+                <button
+                  key={id}
+                  ref={(node) => {
+                    tabRefs.current.set(id, node);
+                  }}
+                  type="button"
+                  role="tab"
+                  id={tabDomId(id)}
+                  className={styles.tab}
+                  data-active={active || undefined}
+                  aria-selected={active}
+                  aria-controls={panelDomId}
+                  tabIndex={active ? 0 : -1}
+                  onClick={() => selectTab(id)}
+                >
+                  {tabLabel(id)}
+                </button>
+              );
+            })}
+          </div>
+        ) : (
+          <div className={styles.tabs}>
+            <span className={styles.tab} data-active="true" data-static="true">
+              {tabLabel(activeTab)}
+            </span>
+          </div>
+        )}
         {meta ? <span className={styles.meta}>{meta}</span> : null}
       </header>
 
       <div
         className={styles.body}
-        role="tabpanel"
-        id={panelDomId}
-        aria-labelledby={tabDomId(activeTab)}
+        /* No tablist, no tabpanel: `aria-labelledby` would point at a tab that is not in the page,
+           and a dangling IDREF is reported as a broken control. */
+        {...(switchable
+          ? {
+              role: 'tabpanel' as const,
+              id: panelDomId,
+              'aria-labelledby': tabDomId(activeTab),
+            }
+          : { role: 'group' as const, 'aria-label': tabLabel(activeTab) })}
         aria-busy={state === 'loading' || undefined}
       >
         {activeTab === 'zones' ? renderZones() : renderQueueTab()}
