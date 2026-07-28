@@ -51,6 +51,20 @@ export interface HubSession {
   expiresAt: number;
   member: HubSelf;
   hubUrl: string;
+  /**
+   * Which of the two ways in produced this session.
+   *
+   * `local` is the hub the desktop starts for this machine and signs into without a password;
+   * `hub` is one somebody typed an address and a password for. The difference is invisible in every
+   * request — a local session is an ordinary session, deliberately — and matters in exactly one
+   * place: what the settings screen offers next to the member's own name. «Выйти» from an account
+   * that regenerates itself on the next launch, while clearing the working folder and the provider
+   * keys on the way out, is a control that does harm and no good; «Работать командой» is the move a
+   * person on the local hub actually has.
+   *
+   * A stored session written before this field existed reads back as `hub`, which is what it was.
+   */
+  kind: 'local' | 'hub';
 }
 
 /**
@@ -178,7 +192,7 @@ export async function register(
     '/v1/auth/register',
     { method: 'POST', body },
   );
-  return { ...result, hubUrl: normalise(hubUrl) };
+  return { ...result, hubUrl: normalise(hubUrl), kind: 'hub' };
 }
 
 export async function login(
@@ -190,7 +204,7 @@ export async function login(
     '/v1/auth/login',
     { method: 'POST', body: input },
   );
-  return { ...result, hubUrl: normalise(hubUrl) };
+  return { ...result, hubUrl: normalise(hubUrl), kind: 'hub' };
 }
 
 /** Whoever the token belongs to — your own row, so the address is there. */
@@ -395,7 +409,13 @@ export function readStoredSession(): HubSession | null {
     const parsed = JSON.parse(raw) as HubSession;
     if (!parsed?.token || !parsed?.member?.id) return null;
     if (typeof parsed.expiresAt === 'number' && parsed.expiresAt < Date.now()) return null;
-    return parsed;
+    /*
+     * Only a chosen session is ever written here, so anything read back is a `hub` one — including
+     * rows stored before the field existed. Normalising on read rather than trusting the stored
+     * value also closes the sillier case: a hand-edited `local` in localStorage would otherwise turn
+     * a team account's settings screen into one that offers to join a team it is already in.
+     */
+    return { ...parsed, kind: 'hub' };
   } catch {
     return null;
   }

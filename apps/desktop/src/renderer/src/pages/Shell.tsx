@@ -104,10 +104,13 @@ export function ShellPage({
   session,
   workspace,
   onSignOut,
+  onJoinTeam,
 }: {
   session: HubSession;
   workspace: WorkspaceHandle;
   onSignOut: () => void;
+  /** Opens the hub sign-in. Passed down to the settings screen, which is where the choice lives. */
+  onJoinTeam: () => void;
 }): React.ReactElement {
   const [view, setView] = useState<ShellView>('conversation');
   const [detail, setDetail] = useState<Detail>(null);
@@ -484,6 +487,8 @@ export function ShellPage({
         providers={providers}
         onOpenTeam={() => setDetail('team')}
         onSignOut={onSignOut}
+        onJoinTeam={onJoinTeam}
+        sessionKind={session.kind}
       />
     ) : view === 'files' && open.state !== 'empty' ? (
       <div className={styles.split}>
@@ -1041,6 +1046,8 @@ function SettingsView({
   providers,
   onOpenTeam,
   onSignOut,
+  onJoinTeam,
+  sessionKind,
 }: {
   self: ProjectMember;
   memberCount: number;
@@ -1049,6 +1056,10 @@ function SettingsView({
   providers: ReturnType<typeof useProviderLayer>;
   onOpenTeam: () => void;
   onSignOut: () => void;
+  /** Opens the hub sign-in — the one move the local account has that is not destructive. */
+  onJoinTeam: () => void;
+  /** Which of the two ways in produced this session. See `HubSession.kind`. */
+  sessionKind: 'local' | 'hub';
 }): React.ReactElement {
   const { theme, density, toggleTheme, setDensity } = useTheme();
 
@@ -1165,15 +1176,32 @@ function SettingsView({
           </div>
         </section>
 
+        {/*
+          * Two different accounts, and the difference is what the button may honestly promise.
+          *
+          * On the local hub «Выйти» would sign a person out of an account that is recreated on the
+          * next launch — while clearing their working folder and their provider keys on the way, by
+          * the shared-machine rule those two obey. All cost, no effect: the control would do harm
+          * and mean nothing. What that person can actually do is join somebody's team.
+          *
+          * On a team hub «Выйти» is exactly what it says, and the cleanup is the point.
+          */}
         <section className={styles.block}>
           <h2 className={styles.blockTitle}>Аккаунт</h2>
           <div className={styles.row}>
             <span className={styles.rowLabel}>
               {self.name} · @{self.handle}
+              {sessionKind === 'local' ? ' · на этом компьютере' : ''}
             </span>
-            <button type="button" className={styles.rowAction} onClick={onSignOut}>
-              Выйти
-            </button>
+            {sessionKind === 'local' ? (
+              <button type="button" className={styles.rowAction} onClick={onJoinTeam}>
+                Работать командой
+              </button>
+            ) : (
+              <button type="button" className={styles.rowAction} onClick={onSignOut}>
+                Выйти
+              </button>
+            )}
           </div>
         </section>
       </div>

@@ -54,6 +54,44 @@ export interface CoreEndpoint {
 export type WindowAction = 'minimize' | 'maximize' | 'close';
 
 /* ------------------------------------------------------------------ *
+ * The hub that raises itself
+ * ------------------------------------------------------------------ */
+
+/** A member as every hub response describes one. Never carries a password hash. */
+export interface LocalHubMember {
+  id: string;
+  email: string;
+  handle: string;
+  displayName: string;
+  colorSlug: string;
+  role: string;
+  createdAt: number;
+}
+
+/**
+ * The session the main process opened against the hub it started for this machine.
+ *
+ * A token does cross the bridge here, and it is the one credential that may: it belongs to the
+ * member reading this window, it authorises nothing beyond a loopback server on their own computer,
+ * and the renderer has to hold it to make any request at all — the alternative is proxying the whole
+ * hub API through IPC to hide a secret from the person it belongs to. Provider keys stay on the
+ * other side for the opposite reason: those authorise spending against somebody's vendor account.
+ */
+export interface LocalHubReady {
+  status: 'ready';
+  url: string;
+  session: { token: string; expiresAt: number; member: LocalHubMember };
+}
+
+/** Why the local hub is not there. Human, Russian, and specific enough to act on. */
+export interface LocalHubFailed {
+  status: 'failed';
+  reason: string;
+}
+
+export type LocalHubState = LocalHubReady | LocalHubFailed;
+
+/* ------------------------------------------------------------------ *
  * Provider layer
  * ------------------------------------------------------------------ */
 
@@ -130,6 +168,12 @@ export interface PartyCoBridge {
    */
   coreEndpoint(): Promise<CoreEndpoint | null>;
   windowControl(action: WindowAction): Promise<void>;
+  /**
+   * The hub PartyCo runs for this machine, and a session on it — so that opening the application
+   * alone requires neither a server nor an account. Resolves once the hub is listening; a member who
+   * has connected to a team hub instead never calls this.
+   */
+  localHub(): Promise<LocalHubState>;
   /** Reads one of the shipped architecture docs by filename. Rejects anything path-like. */
   readDoc(name: string): Promise<string | null>;
   /** Model providers: detection, policy, one turn at a time. See `main/agents.ts`. */
@@ -250,6 +294,7 @@ const bridge: PartyCoBridge = {
   nativeTheme: () => ipcRenderer.invoke('theme:native') as Promise<'dark' | 'light'>,
   coreEndpoint: () => ipcRenderer.invoke('core:endpoint') as Promise<CoreEndpoint | null>,
   windowControl: (action) => ipcRenderer.invoke('window:controls', action) as Promise<void>,
+  localHub: () => ipcRenderer.invoke('hub:local') as Promise<LocalHubState>,
   readDoc: (name) => ipcRenderer.invoke('docs:read', name) as Promise<string | null>,
   agents,
   workspace,

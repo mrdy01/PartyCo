@@ -1,16 +1,21 @@
 /**
- * `partycod` — the PartyCo coordination hub daemon.
+ * `partycod` — the PartyCo coordination hub, as a library.
  *
- * Entry point: reads configuration from the environment, opens hub.db, wires the routes
- * and listens. Zero runtime dependencies — `node:http`, `node:crypto`, `node:sqlite`.
- * Every dependency here is something the owner would have to patch on their own VPS at
- * 2am, so there are none.
+ * Opens hub.db, wires the routes, listens. Zero runtime dependencies — `node:http`,
+ * `node:crypto`, `node:sqlite`. Every dependency here is something the owner would have to
+ * patch on their own VPS at 2am, so there are none.
  *
  * The hub is a coordination plane and holds no model-provider credentials. Account
  * passwords (hashed) and session tokens (hashed) are the only secrets in its database.
  *
- * Run:      node apps/hub/src/index.js
- * Env:      PARTYCOD_DB, PARTYCOD_PORT, PARTYCOD_HOST, PARTYCOD_ORIGINS,
+ * **Nothing in this file runs on import.** It has two callers with nothing in common — `cli.js`,
+ * which is the daemon an operator starts, and the desktop's main process, which embeds a hub for one
+ * person on loopback — and the second is why the rule is written down: the desktop bundles this
+ * module, so anything that read the environment or bound a port at import time would do it inside
+ * somebody's application. That is not hypothetical, it is the bug that produced this split.
+ *
+ * Run:      node apps/hub/src/cli.js   (or `npm start -w @partyco/hub`)
+ * Env:      read in `cli.js` — PARTYCOD_DB, PARTYCOD_PORT, PARTYCOD_HOST, PARTYCOD_ORIGINS,
  *           PARTYCOD_TRUST_PROXY, PARTYCOD_RATE_LIMIT, PARTYCOD_RATE_WINDOW_MS,
  *           PARTYCOD_PUBLIC_URL, PARTYCOD_SMTP_URL
  *
@@ -50,13 +55,29 @@ import {
 } from './projects.js';
 import { createHttpServer, parseOrigins, createRateLimiter, HttpError } from './http.js';
 
+/**
+ * Re-exported so that the process embedding a local hub imports one module, not two.
+ *
+ * The desktop starts a hub for a single person on loopback and then needs the first session for it.
+ * `openLocalSession` is that, and it works by owning the database file rather than by any HTTP
+ * route — see the header of `local.js`, which is where the argument lives.
+ */
+export { openLocalSession, LOCAL_EMAIL } from './local.js';
+
 /** Wire protocol version. Bumped when the shape of these responses changes incompatibly. */
 export const PROTOCOL_VERSION = 1;
 
 export const DEFAULT_PORT = 7717;
 
-/** Read once, from the manifest, so `/v1/health` cannot drift from the package. */
-const VERSION = (() => {
+/**
+ * Read once, from the manifest, so `/v1/health` cannot drift from the package.
+ *
+ * The read is allowed to fail, and does when the hub is bundled into another program: there is no
+ * `package.json` next to `out/main/index.js`. `0.0.0` is the honest answer in that case — the
+ * embedded hub is not a release anybody deployed, and inventing a number for it would put a version
+ * on `/v1/health` that matches nothing.
+ */
+export const VERSION = (() => {
   try {
     const manifest = fs.readFileSync(path.join(import.meta.dirname, '..', 'package.json'), 'utf8');
     return String(JSON.parse(manifest).version ?? '0.0.0');
@@ -344,91 +365,4 @@ export async function startHub(options = {}) {
     url: listeningUrl,
     close,
   };
-}
-
-/**
- * Parse a non-negative integer from the environment.
- * An unset OR empty variable falls back — `Number('')` is 0, which would silently turn
- * `PARTYCOD_PORT=` into "listen on a random port".
- *
- * @param {string|undefined} raw
- * @param {number} fallback
- * @returns {number}
- */
-function intFromEnv(raw, fallback) {
-  if (typeof raw !== 'string' || raw.trim() === '') return fallback;
-  const n = Number(raw);
-  return Number.isInteger(n) && n >= 0 ? n : fallback;
-}
-
-/** Read the environment and start. Only used when this file is the process entry point. */
-async function main() {
-  const dbPath = process.env.PARTYCOD_DB || './hub.db';
-  const port = intFromEnv(process.env.PARTYCOD_PORT, DEFAULT_PORT);
-  // Loopback by default: a hub that binds every interface the moment it is installed is a
-  // plain-HTTP login form on the public internet. Opening it is an explicit act.
-  const host = process.env.PARTYCOD_HOST === '0.0.0.0' ? '0.0.0.0' : '127.0.0.1';
-  const origins = parseOrigins(process.env.PARTYCOD_ORIGINS);
-  const trustProxy = process.env.PARTYCOD_TRUST_PROXY === '1';
-  const publicUrl = process.env.PARTYCOD_PUBLIC_URL || null;
-  // Presence only. The hub sends no mail; this flag makes the API say "an operator has
-  // configured a route" instead of pretending a letter went out.
-  const smtpUrl = process.env.PARTYCOD_SMTP_URL || null;
-
-  const hub = await startHub({
-    dbPath,
-    port,
-    host,
-    origins,
-    trustProxy,
-    publicUrl,
-    smtpUrl,
-    rateLimit: {
-      limit: intFromEnv(process.env.PARTYCOD_RATE_LIMIT, 10),
-      windowMs: intFromEnv(process.env.PARTYCOD_RATE_WINDOW_MS, 60_000),
-    },
-    log: console.error,
-  });
-
-  console.log(
-    `partycod ${VERSION} (protocol ${PROTOCOL_VERSION}, schema ${SCHEMA_VERSION}) listening on ${hub.url}`,
-  );
-  console.log(`  database: ${path.resolve(dbPath)}`);
-  console.log(`  origins:  ${origins ? origins.join(', ') : 'http://localhost:* (dev default)'}`);
-  console.log(`  join:     ${publicUrl ?? hub.url}/join/…${publicUrl ? '' : '  (set PARTYCOD_PUBLIC_URL)'}`);
-  if (smtpUrl) {
-    console.log('  mail:     настроена, но отправка приглашений ещё не реализована — ссылку отдаёт UI');
-  }
-  if (host === '0.0.0.0') {
-    console.warn(
-      '  WARNING: bound to 0.0.0.0 over plain HTTP. Passwords cross this socket in the clear — put a TLS terminator in front.',
-    );
-  }
-
-  let shuttingDown = false;
-  for (const signal of ['SIGINT', 'SIGTERM']) {
-    process.on(signal, () => {
-      if (shuttingDown) return;
-      shuttingDown = true;
-      console.log(`\npartycod: ${signal}, shutting down`);
-      hub.close().then(
-        () => process.exit(0),
-        (err) => {
-          console.error(err);
-          process.exit(1);
-        },
-      );
-    });
-  }
-}
-
-// `node src/index.js` runs the daemon; `import` from a test does not.
-const invokedDirectly =
-  process.argv[1] && path.resolve(process.argv[1]) === path.resolve(import.meta.dirname, 'index.js');
-
-if (invokedDirectly) {
-  main().catch((err) => {
-    console.error('partycod failed to start:', err instanceof Error ? err.message : err);
-    process.exit(1);
-  });
 }

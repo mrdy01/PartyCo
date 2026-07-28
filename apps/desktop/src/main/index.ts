@@ -4,6 +4,7 @@ import { join } from 'node:path';
 import { platformPaths } from './platform.ts';
 import { readCoreEndpoint, type CoreEndpoint } from './core-endpoint.ts';
 import { abortAllAgentRuns, registerAgentIpc } from './agents.ts';
+import { closeLocalHub, ensureLocalHub, type LocalHubState } from './hub-local.ts';
 import { currentWorkspaceRoot, registerWorkspaceIpc } from './workspace.ts';
 import { registerTranscriptIpc } from './transcript.ts';
 
@@ -160,15 +161,41 @@ if (!app.requestSingleInstanceLock()) {
     installCsp();
     mainWindow = createWindow();
 
+    /*
+     * Started here rather than on the renderer's first ask, and not awaited.
+     *
+     * Opening a database and binding a socket is work that can happen while Chromium is still
+     * building the window, so doing it in parallel costs nothing and takes the hub off the path
+     * between launch and first paint. `ensureLocalHub` memoises its promise, so the renderer's
+     * `hub:local` either finds it done or waits on this same start rather than racing a second one.
+     */
+    void ensureLocalHub();
+
     app.on('activate', () => {
       if (BrowserWindow.getAllWindows().length === 0) mainWindow = createWindow();
     });
   });
 
-  // A delegated CLI is the member's own process, started by their own action — but it is *our*
-  // child, and a child that outlives the window still consumes their subscription. Quitting stops
-  // every turn that is still running.
-  app.on('will-quit', abortAllAgentRuns);
+  /**
+   * Shutdown, in the order the two things need.
+   *
+   * A delegated CLI is the member's own process, started by their own action — but it is *our*
+   * child, and a child that outlives the window still consumes their subscription. Quitting stops
+   * every turn that is still running, and that happens first and synchronously: it is a kill, it
+   * cannot fail, and it must not wait behind anything.
+   *
+   * The hub then needs an await that `will-quit` does not give by default, so the quit is deferred
+   * once and re-issued. `closingDown` is what keeps that from being a loop — without it the second
+   * `app.quit()` would land back here and defer again, and the window would never close.
+   */
+  let closingDown = false;
+  app.on('will-quit', (event) => {
+    abortAllAgentRuns();
+    if (closingDown) return;
+    closingDown = true;
+    event.preventDefault();
+    void closeLocalHub().finally(() => app.quit());
+  });
 
   app.on('window-all-closed', () => {
     if (process.platform !== 'darwin') app.quit();
@@ -196,6 +223,15 @@ ipcMain.handle('theme:native', () => (nativeTheme.shouldUseDarkColors ? 'dark' :
  * here and is not logged.
  */
 ipcMain.handle('core:endpoint', async (): Promise<CoreEndpoint | null> => readCoreEndpoint());
+
+/**
+ * The hub PartyCo runs for this machine, and this member's session on it.
+ *
+ * No argument, and nothing the renderer can influence: the URL, the port, the database path and the
+ * account are all decided in `main/hub-local.ts`. The renderer is told the answer so it can talk to
+ * the hub over HTTP like any other client — it does not get to ask for a different one.
+ */
+ipcMain.handle('hub:local', (): Promise<LocalHubState> => ensureLocalHub());
 
 ipcMain.handle('window:controls', (event, action: 'minimize' | 'maximize' | 'close') => {
   const win = BrowserWindow.fromWebContents(event.sender);

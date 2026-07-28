@@ -36,6 +36,10 @@ export type {
   AgentSettings,
   AgentsBridge,
   IpcResult,
+  LocalHubFailed,
+  LocalHubMember,
+  LocalHubReady,
+  LocalHubState,
   PartyCoBridge,
 } from '../../preload/index.ts';
 

@@ -13,7 +13,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 
-import { startHub } from './src/index.js';
+import { startHub, openLocalSession, LOCAL_EMAIL } from './src/index.js';
 import { hashPassword, verifyPassword, COLOR_SLUGS } from './src/auth.js';
 import { createRateLimiter, isAllowedOrigin, parseOrigins } from './src/http.js';
 import {
@@ -1817,4 +1817,118 @@ test('somebody already in the project keeps the role they have', async (t) => {
     2,
     'and she is in it once',
   );
+});
+
+/* ------------------------------------------------------------------ *
+ * The local session — the single-player way in
+ * ------------------------------------------------------------------ */
+
+test('the first local session creates an owner, the second reuses them', async (t) => {
+  const { hub } = await bootHub();
+  t.after(() => hub.close());
+
+  const first = openLocalSession(hub.db, { displayName: 'Ann' });
+  assert.equal(first.member.role, 'owner', 'first account on a fresh hub is its owner');
+  assert.equal(first.member.email, LOCAL_EMAIL);
+  assert.equal(first.member.displayName, 'Ann');
+  assert.ok(first.token.length > 0);
+
+  const second = openLocalSession(hub.db, { displayName: 'Somebody Else' });
+  assert.equal(second.member.id, first.member.id, 'the same person, not a second account');
+  assert.notEqual(second.token, first.token, 'and a fresh session token each launch');
+  assert.equal(
+    second.member.displayName,
+    'Ann',
+    'renaming somebody because their OS username changed is not this function’s business',
+  );
+
+  assert.equal(hub.db.prepare('SELECT count(*) AS n FROM member').get().n, 1);
+});
+
+test('the local account cannot be logged into, because its password does not exist', async (t) => {
+  const { hub, call } = await bootHub();
+  t.after(() => hub.close());
+  openLocalSession(hub.db, {});
+
+  // Everything a person could reasonably type, plus the two values a reader of local.js might
+  // guess the placeholder to be. All of them are wrong, and all of them are wrong the same way.
+  for (const password of ['', 'password', 'local', LOCAL_EMAIL, 'partyco', 'x'.repeat(32)]) {
+    const res = await call('POST', '/v1/auth/login', { body: { email: LOCAL_EMAIL, password } });
+    assert.equal(res.status, 401, `«${password}» must not open the local account`);
+    assert.equal(res.json.error.code, 'invalid_credentials');
+  }
+});
+
+test('a local session is an ordinary session to every route on the hub', async (t) => {
+  const { hub, call } = await bootHub();
+  t.after(() => hub.close());
+  const local = openLocalSession(hub.db, { displayName: 'Ann' });
+
+  // The point of minting it through registerMember: nothing downstream needs a special case.
+  const me = await call('GET', '/v1/auth/me', { token: local.token });
+  assert.equal(me.status, 200);
+  assert.equal(me.json.member.id, local.member.id);
+
+  const project = await call('POST', '/v1/projects', { token: local.token, body: { name: 'Solo' } });
+  assert.equal(project.status, 201, 'an owner may open a project');
+
+  // And it is a real hub, so the local person can grow it into a team without moving anywhere.
+  const invite = await call('POST', '/v1/invites', { token: local.token, body: { role: 'member' } });
+  assert.equal(invite.status, 201, 'the owner of a local hub may hand out seats');
+  assert.ok(invite.json.invite.code);
+});
+
+test('a disabled local account is re-enabled rather than left as a dead end', async (t) => {
+  const { hub } = await bootHub();
+  t.after(() => hub.close());
+  const first = openLocalSession(hub.db, {});
+  hub.db.prepare('UPDATE member SET disabled_at = ? WHERE id = ?').run(Date.now(), first.member.id);
+
+  const second = openLocalSession(hub.db, {});
+  assert.equal(second.member.id, first.member.id);
+  assert.equal(
+    hub.db.prepare('SELECT disabled_at FROM member WHERE id = ?').get(first.member.id).disabled_at,
+    null,
+    'there is no administrator to appeal to here — the member is the administrator',
+  );
+});
+
+test('a local member does not take the owner seat away from a real one', async (t) => {
+  const { hub, call } = await bootHub();
+  t.after(() => hub.close());
+
+  // A hub that had people on it before anything local happened: the local member joins as an
+  // ordinary member, by the ordinary first-ever rule, with no special case anywhere.
+  const owner = await bootOwner(call);
+  const local = openLocalSession(hub.db, { displayName: 'Ann' });
+
+  assert.equal(local.member.role, 'member', 'the seat was already taken, and taken honestly');
+  assert.notEqual(local.member.id, owner.member.id);
+});
+
+test('importing the hub starts nothing — the desktop bundles this module', async () => {
+  /*
+   * The regression this exists for: `index.js` used to end with "if I am the process entry point,
+   * read the environment and start a daemon", guarded by comparing `process.argv[1]` to its own
+   * path. Bundled into the desktop's main process by Rollup, that comparison came out true — so
+   * launching the application also tried to start an environment-configured hub on the documented
+   * port, and on a machine that already had one it killed the app with EADDRINUSE.
+   *
+   * Checking the file's text rather than its behaviour is deliberate. A behavioural test would only
+   * prove that nothing listened *under this test's argv*, which is exactly the condition the old
+   * guard got right; what has to stay true is that the module has no entry-point logic at all.
+   */
+  const source = fs.readFileSync(new URL('./src/index.js', import.meta.url), 'utf8');
+
+  for (const forbidden of ['process.argv', 'process.exit', 'process.env']) {
+    assert.ok(
+      !source.includes(forbidden),
+      `index.js must not read or act on ${forbidden} — that belongs in cli.js`,
+    );
+  }
+
+  // And the daemon's own entry point still exists, so the split did not simply delete it.
+  const cli = fs.readFileSync(new URL('./src/cli.js', import.meta.url), 'utf8');
+  assert.match(cli, /PARTYCOD_PORT/, 'cli.js is where the environment is read');
+  assert.match(cli, /^main\(\)/m, 'and it starts unconditionally, because nothing imports it');
 });

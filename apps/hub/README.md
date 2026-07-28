@@ -18,7 +18,7 @@
 ## Запуск локально
 
 ```bash
-node apps/hub/src/index.js
+node apps/hub/src/cli.js
 ```
 
 Поднимется на `http://127.0.0.1:7717`, база создастся рядом с процессом в `./hub.db`.
@@ -460,7 +460,7 @@ User=partycod
 Group=partycod
 WorkingDirectory=/opt/partyco
 EnvironmentFile=/etc/partycod.env
-ExecStart=/usr/bin/node /opt/partyco/apps/hub/src/index.js
+ExecStart=/usr/bin/node /opt/partyco/apps/hub/src/cli.js
 Restart=on-failure
 RestartSec=2
 # SIGTERM сервис обрабатывает сам: перестаёт принимать, доигрывает запросы, закрывает базу.

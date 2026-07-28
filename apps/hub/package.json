@@ -3,13 +3,19 @@
   "version": "0.0.0",
   "private": true,
   "description": "partycod — coordination hub daemon: SQLite storage and email/password authentication. Zero runtime dependencies.",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/mrdy01/PartyCo.git"
+  },
   "type": "module",
   "main": "src/index.js",
+  "types": "src/index.d.ts",
   "engines": {
     "node": ">=24.0.0"
   },
   "scripts": {
-    "start": "node src/index.js",
+    "start": "node src/cli.js",
     "test": "node --test"
   }
 }

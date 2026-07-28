@@ -35,6 +35,7 @@ import {
   storeSession,
   type HubSession,
 } from './hub.ts';
+import type { LocalHubReady } from './bridge.d.ts';
 import { CoreStatusPage } from './pages/CoreStatus.tsx';
 import { ShellPage } from './pages/Shell.tsx';
 import { WORKSPACE_UNAVAILABLE, useWorkspace, type WorkspaceHandle } from './workspace.ts';
@@ -194,15 +195,73 @@ export function App(): ReactElement | null {
 }
 
 /**
- * Sign-in gate.
+ * The gate — which is, for one person on one machine, no gate at all.
  *
- * The first thing in this product that is not a fixture: the member behind the session is a real row
- * in a real database on a real server.
+ * Identity in PartyCo comes from a hub and nowhere else, and that has not changed. What changed is
+ * who has to build one. The product used to open on a sign-in form for a server the newcomer had not
+ * been told to start, which made the first screen a dead end for everybody except the person who had
+ * already read the README — a fine price for a team of five, and the entire experience for anybody
+ * evaluating it alone.
+ *
+ * So there are two ways in, tried in this order, and the order is the argument:
+ *
+ *  1. **A session the member chose.** Stored from a real sign-in against a real hub — theirs or
+ *     their team's. It wins outright, because it is the only one that represents a decision. A
+ *     member who joined a team hub must not be silently returned to their private one.
+ *  2. **The hub this machine runs for itself.** Started by the main process, minted without a
+ *     password because the process that owns the database file has nothing to prove — the argument
+ *     is in `apps/hub/src/local.js`, and it is worth reading before touching this.
+ *
+ * The sign-in form is still here and still real; it is simply no longer the front door. It is what
+ * «Работать командой» opens, and what the local path falls back to when there is no bridge to raise
+ * a hub with — `npm run dev:web` in a browser tab, where nothing can start a server.
  *
  * A stored session is trusted for the first paint and verified against the hub straight after, so a
  * revoked or expired token drops the человек back to the panel instead of showing an app that cannot
  * do anything. If the hub is simply unreachable we keep the session: a dead server is not a logout.
  */
+
+/**
+ * The local grant, in the shape the rest of the renderer already speaks.
+ *
+ * `role` is the one field that needs checking rather than casting. The hub types it as a plain
+ * string across the process boundary, `HubSelf` narrows it to the four the product knows, and the
+ * gap between those two is exactly where a fifth role would enter the UI without a type error. It
+ * cannot happen today — the local member is always `owner` — which is why the guard is cheap now and
+ * would be archaeology later.
+ */
+function asHubSession(url: string, grant: LocalHubReady['session']): HubSession | null {
+  const { role } = grant.member;
+  if (role !== 'owner' && role !== 'maintainer' && role !== 'member' && role !== 'observer') {
+    return null;
+  }
+  return {
+    token: grant.token,
+    expiresAt: grant.expiresAt,
+    member: { ...grant.member, role },
+    hubUrl: url,
+    kind: 'local',
+  };
+}
+
+/** Where the local path can be in its lifetime. `null` means "not asked yet". */
+type LocalHub = { state: 'starting' } | { state: 'failed'; reason: string } | { state: 'absent' };
+
+/**
+ * The local member came back with a role the product does not have.
+ *
+ * Unreachable through any path that exists — `openLocalSession` produces `owner` and nothing else —
+ * so this sentence is written for the only way it could ever appear: a `hub.db` edited by hand, or
+ * one written by a build that knows a role this one does not.
+ */
+const LOCAL_ROLE_UNKNOWN =
+  'Локальный аккаунт PartyCo записан с ролью, которой эта версия программы не знает. Обнови ' +
+  'PartyCo — или убери файл hub.db из папки данных, чтобы аккаунт создался заново.';
+
+/** The bridge answered with something that was not an answer. */
+const LOCAL_UNREACHABLE =
+  'Служебная часть PartyCo не ответила, поэтому локальный вход не состоялся. Перезапусти ' +
+  'программу; если повторится — можно войти на хаб команды.';
 /**
  * What the sign-in panel says when the folder outlived the session.
  *
@@ -218,11 +277,76 @@ const FOLDER_KEPT =
   'компьютере вместе с историей разговора в ней. Если за компьютером работает кто-то ещё, войди ' +
   'снова и выбери другую папку: прежняя перестанет быть выбранной.';
 
-function Gate({ workspace }: { workspace: WorkspaceHandle }): ReactElement {
+function Gate({ workspace }: { workspace: WorkspaceHandle }): ReactElement | null {
   const [session, setSession] = useState<HubSession | null>(readStoredSession);
   const [mode, setMode] = useState<AuthMode>('login');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  /**
+   * Whether the member asked for the sign-in form on purpose.
+   *
+   * Separate from "there is no session", because those stopped being the same question. Without a
+   * session the answer is the local hub; the form appears only when somebody chose it — «Работать
+   * командой» — or when the local path has no way to work.
+   */
+  const [wantsHub, setWantsHub] = useState(false);
+
+  /** `null` until the first answer arrives — the one state where nothing may be painted yet. */
+  const [local, setLocal] = useState<LocalHub | null>(null);
+
+  /*
+   * Raise the local hub, unless a chosen session already answers the question.
+   *
+   * Not run when `session` is set: a member signed into their team's hub has no use for a private
+   * one, and starting it anyway would open a database and bind a port for a screen nobody will see.
+   */
+  useEffect(() => {
+    if (session) return;
+    const bridge = window.partyco;
+    if (!bridge) {
+      // A browser tab. Nothing here can start a server, so the honest fallback is the form that
+      // asks for one somebody else started.
+      setLocal({ state: 'absent' });
+      return;
+    }
+
+    let cancelled = false;
+    setLocal({ state: 'starting' });
+    void bridge
+      .localHub()
+      .then((answer) => {
+        if (cancelled) return;
+        if (answer.status === 'failed') {
+          setLocal({ state: 'failed', reason: answer.reason });
+          return;
+        }
+        const next = asHubSession(answer.url, answer.session);
+        if (!next) {
+          setLocal({ state: 'failed', reason: LOCAL_ROLE_UNKNOWN });
+          return;
+        }
+        /*
+         * Deliberately not stored. The main process mints this session at every launch against a
+         * hub whose port the OS picks fresh, so a copy in `localStorage` would be a token for a
+         * server that no longer exists — and it would outrank the live one on the next start, since
+         * a stored session wins. What persists is the member row in `hub.db`, which is the part that
+         * should.
+         */
+        setSession(next);
+      })
+      .catch((cause: unknown) => {
+        if (cancelled) return;
+        setLocal({
+          state: 'failed',
+          reason: cause instanceof Error ? cause.message : LOCAL_UNREACHABLE,
+        });
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [session]);
 
   useEffect(() => {
     if (!session) return;
@@ -274,8 +398,11 @@ function Gate({ workspace }: { workspace: WorkspaceHandle }): ReactElement {
 
     void run
       .then((next) => {
+        // Stored, unlike the local session: this one is a decision, and a decision has to survive a
+        // restart or the member makes it again every launch.
         storeSession(next);
         setSession(next);
+        setWantsHub(false);
       })
       .catch((cause: unknown) => {
         setError(cause instanceof Error ? cause.message : 'Не удалось связаться с хабом.');
@@ -348,7 +475,28 @@ function Gate({ workspace }: { workspace: WorkspaceHandle }): ReactElement {
     [workspace],
   );
 
-  if (!session) {
+  /*
+   * The one moment nothing may be painted: the local hub has been asked and has not answered.
+   *
+   * It resolves in the tens of milliseconds a loopback bind and an SQLite open take, so a spinner
+   * would appear and vanish — and the alternative, flashing the sign-in form first, would show a
+   * person a question that is about to answer itself.
+   */
+  if (!session && (local === null || local.state === 'starting')) return null;
+
+  if (!session || wantsHub) {
+    /*
+     * Two different screens wearing the same component.
+     *
+     * Without a session this is a failure report: the local hub could not start, and the form is the
+     * remaining way in — somebody else's hub, if the member has one. With a session it is a
+     * deliberate move to a team hub, opened from «Меня позвали в проект команды».
+     *
+     * `error` from a failed submit outranks the local reason, because it is newer and it is about
+     * the thing the member just did.
+     */
+    const localReason = !session && local?.state === 'failed' ? local.reason : null;
+
     // `SignInScreen` centres itself in the window and carries the mark, the sub-line and the
     // guarantee about provider keys — the gate wrapper it used to need is part of it now.
     return (
@@ -358,7 +506,7 @@ function Gate({ workspace }: { workspace: WorkspaceHandle }): ReactElement {
           onModeChange={changeMode}
           onSubmit={submit}
           busy={busy}
-          error={error}
+          error={error ?? localReason}
           hubUrl={DEFAULT_HUB_URL}
         />
       </Door>
@@ -367,6 +515,10 @@ function Gate({ workspace }: { workspace: WorkspaceHandle }): ReactElement {
 
   return (
     <Product
+      onJoinTeam={() => {
+        setError(null);
+        setWantsHub(true);
+      }}
       /*
        * A fresh `Product` per member, and the key is the point rather than a React formality.
        *
@@ -405,18 +557,20 @@ const AGENTS_UNAVAILABLE =
 /**
  * The footnote of step 1, with one sentence added to the designer's.
  *
- * «Меня позвали в проект команды» leads to the same folder picker as the primary button, because
- * joining somebody else's project needs a repository on the hub and the hub has no repositories
- * yet. That is said here, before the click, rather than discovered after it — and it is said
- * instead of drawing a join-by-code form that could not do anything: a button that lies is worse
- * than a button that is missing, and a form that lies is worse than both.
+ * «Меня позвали в проект команды» used to open the same folder picker as the primary button, and the
+ * footnote's job was to admit it before the click. It now opens the hub sign-in, which is the thing
+ * the button always claimed — so the sentence stopped being an apology and became a description.
+ *
+ * What it still refuses to promise is the repository: joining a team means an account on their hub
+ * and a seat in their project, and the shared repository behind it does not exist yet. Saying so
+ * here is cheaper than a person discovering it after signing up.
  */
 const FIRST_RUN_COPY: FirstRunCopyInput = {
   folder: {
     footnote:
       'Второй шаг — ключ провайдера. Его можно пропустить: без ключа приложение работает, просто ' +
-      'агент не отвечает. «Меня позвали в проект команды» пока открывает тот же выбор папки — ' +
-      'присоединиться к чужому проекту получится, когда на хабе появится сам репозиторий.',
+      'агент не отвечает. «Меня позвали в проект команды» открывает вход на хаб команды — тот, ' +
+      'адрес которого дал пригласивший; общий репозиторий на хабе пока не заводится.',
   },
 };
 
@@ -431,10 +585,13 @@ function Product({
   session,
   workspace,
   onSignOut,
+  onJoinTeam,
 }: {
   session: HubSession;
   workspace: WorkspaceHandle;
   onSignOut: () => void;
+  /** Opens the hub sign-in. Owned by the gate, because the gate is what decides who is signed in. */
+  onJoinTeam: () => void;
 }): ReactElement {
   /**
    * Whether the key question has been dealt with in this run.
@@ -500,8 +657,8 @@ function Product({
           step={step}
           userName={session.member.displayName}
           onChooseFolder={chooseFolder}
-          // Same picker, deliberately: see FIRST_RUN_COPY.
-          onJoinTeam={chooseFolder}
+          // The hub sign-in, which is what this button has always said it was: see FIRST_RUN_COPY.
+          onJoinTeam={onJoinTeam}
           providers={providers}
           /*
            * The panel keeps the choice itself — no `providerId` is passed — so this exists only to
@@ -521,9 +678,23 @@ function Product({
   }
 
   if (!SCAFFOLDING) {
-    return <ShellPage session={session} workspace={workspace} onSignOut={onSignOut} />;
+    return (
+      <ShellPage
+        session={session}
+        workspace={workspace}
+        onSignOut={onSignOut}
+        onJoinTeam={onJoinTeam}
+      />
+    );
   }
-  return <Harness session={session} workspace={workspace} onSignOut={onSignOut} />;
+  return (
+    <Harness
+      session={session}
+      workspace={workspace}
+      onSignOut={onSignOut}
+      onJoinTeam={onJoinTeam}
+    />
+  );
 }
 
 /**
@@ -633,10 +804,12 @@ function Harness({
   session,
   workspace,
   onSignOut,
+  onJoinTeam,
 }: {
   session: HubSession;
   workspace: WorkspaceHandle;
   onSignOut: () => void;
+  onJoinTeam: () => void;
 }): ReactElement {
   /** What is on screen. Lags `target` by exactly as long as a lazy chunk takes to arrive. */
   const [view, setView] = useState<View>('shell');
@@ -720,7 +893,12 @@ function Harness({
           */}
           <Suspense fallback={null}>
             {view === 'shell' ? (
-              <ShellPage session={session} workspace={workspace} onSignOut={onSignOut} />
+              <ShellPage
+                session={session}
+                workspace={workspace}
+                onSignOut={onSignOut}
+                onJoinTeam={onJoinTeam}
+              />
             ) : view === 'core' ? (
               <CoreStatusPage />
             ) : (
