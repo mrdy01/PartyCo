@@ -17,6 +17,9 @@ import {
   TeamPanel,
   ZoneBoard,
   ZoneTree,
+  LANG_LABEL,
+  useLocale,
+  useT,
   useTheme,
   type InviteChannel,
   type InviteLifetime,
@@ -27,6 +30,7 @@ import {
   type ProjectRole,
   type ShellStatus,
   type AgentMode,
+  type Dictionary,
   type ShellView,
   type ZoneTreeNode,
 } from '@partyco/ui';
@@ -87,6 +91,21 @@ const SEARCH_SHORTCUT = ['Ctrl', 'K'] as const;
 const AGENT_MODES: readonly AgentMode[] = ['plan', 'accept-edits', 'auto'];
 
 /**
+ * The mode's two lines in the chosen language.
+ *
+ * A lookup rather than a key built by string surgery: the product spells the middle mode
+ * `accept-edits` and the dictionary spells it `acceptEdits`, and a `mode.replace('-', '')` bridging
+ * the two would compile happily for a fourth mode that has no entry at all. Written out, a new mode
+ * is a type error here — which is the same trick `PERMISSION_FLAG` uses on the adapter side, for the
+ * same reason.
+ */
+function agentModeCopy(t: Dictionary, mode: AgentMode): { label: string; note: string } {
+  if (mode === 'plan') return t.agentMode.plan;
+  if (mode === 'accept-edits') return t.agentMode.acceptEdits;
+  return t.agentMode.auto;
+}
+
+/**
  * The row that means «я не выбирал» — and it is a row, not an absence.
  *
  * A menu whose only honest answer is "nothing is set" still has to let a person return to that
@@ -112,6 +131,7 @@ export function ShellPage({
   /** Opens the hub sign-in. Passed down to the settings screen, which is where the choice lives. */
   onJoinTeam: () => void;
 }): React.ReactElement {
+  const t = useT();
   const [view, setView] = useState<ShellView>('conversation');
   const [detail, setDetail] = useState<Detail>(null);
   const [statusExpanded, setStatusExpanded] = useState(false);
@@ -370,6 +390,9 @@ export function ShellPage({
        * last, because «Спросить про этот файл…» over a dead field is the same lie one step quieter.
        */
       copy={{
+        // The chosen language first, then the three overrides above, in their existing order. The
+        // spread order is the precedence: a blocked field's own sentence must survive translation.
+        ...t.composer,
         ...(talk.blocked ? { placeholder: talk.blocked } : {}),
         ...(!talk.blocked && talk.running ? { placeholder: COMPOSER_BUSY } : {}),
         ...(!talk.blocked && !talk.running && view === 'files'
@@ -397,8 +420,8 @@ export function ShellPage({
                   : {})}
                 items={AGENT_MODES.map((mode) => ({
                   value: mode,
-                  label: AGENT_MODE_PLAIN_LABEL[mode],
-                  note: AGENT_MODE_PLAIN_NOTE[mode],
+                  label: agentModeCopy(t, mode).label,
+                  note: agentModeCopy(t, mode).note,
                   tone: AGENT_MODE_TONE[mode],
                   // A provider that honours no mode still shows all three, blocked, with the reason
                   // on screen. Hiding them would be honest and mute: the person would never learn
@@ -1062,6 +1085,7 @@ function SettingsView({
   sessionKind: 'local' | 'hub';
 }): React.ReactElement {
   const { theme, density, toggleTheme, setDensity } = useTheme();
+  const { lang, setLang, t } = useLocale();
 
   // Why the folder cannot be changed, or why the last attempt did not change it. `null` covers both
   // «всё в порядке» and «человек закрыл диалог» — a cancelled picker is not a problem to report.
@@ -1071,21 +1095,18 @@ function SettingsView({
   return (
     <div className={styles.settings}>
       <div className={styles.settingsColumn}>
-        <h1 className={styles.settingsTitle}>Настройки</h1>
-        <p className={styles.settingsLead}>
-          Эта страница ещё не нарисована — здесь только то, что переехало из титлбара, проект, папка
-          и провайдеры.
-        </p>
+        <h1 className={styles.settingsTitle}>{t.settings.title}</h1>
+        <p className={styles.settingsLead}>{t.settings.lead}</p>
 
         <ProjectSection projects={projects} workspace={workspace} />
 
         <section className={styles.block}>
-          <h2 className={styles.blockTitle}>Папка на этой машине</h2>
+          <h2 className={styles.blockTitle}>{t.settings.folder.title}</h2>
           <div className={styles.row}>
             <span className={styles.rowLabel}>
               {workspace.workspace
                 ? `${workspace.workspace.name} · ${workspace.workspace.root}`
-                : 'Папка не выбрана'}
+                : t.settings.folder.none}
             </span>
             <button
               type="button"
@@ -1099,7 +1120,7 @@ function SettingsView({
                */
               disabled={workspace.busy || workspace.state === 'unavailable'}
             >
-              Сменить
+              {t.settings.folder.change}
             </button>
           </div>
           {/*
@@ -1120,21 +1141,49 @@ function SettingsView({
         </section>
 
         <section className={styles.block}>
-          <h2 className={styles.blockTitle}>Вид</h2>
+          <h2 className={styles.blockTitle}>{t.settings.view.title}</h2>
           <div className={styles.row}>
-            <span className={styles.rowLabel}>Тема</span>
+            <span className={styles.rowLabel}>{t.settings.view.theme}</span>
             <button type="button" className={styles.rowAction} onClick={toggleTheme}>
-              {theme === 'dark' ? 'Тёмная' : 'Светлая'}
+              {theme === 'dark' ? t.settings.view.themeDark : t.settings.view.themeLight}
             </button>
           </div>
           <div className={styles.row}>
-            <span className={styles.rowLabel}>Плотность строк</span>
+            <span className={styles.rowLabel}>{t.settings.view.density}</span>
             <button
               type="button"
               className={styles.rowAction}
               onClick={() => setDensity(density === 'comfortable' ? 'compact' : 'comfortable')}
             >
-              {density === 'comfortable' ? 'Просторная' : 'Плотная'}
+              {density === 'comfortable'
+                ? t.settings.view.densityComfortable
+                : t.settings.view.densityCompact}
+            </button>
+          </div>
+
+          {/*
+            * The language switch, in «Вид», next to the theme.
+            *
+            * Not a section of its own, and not a first-run question either. It belongs with the two
+            * settings it resembles: something about how the product looks, changed by whoever is
+            * looking, effective immediately.
+            *
+            * The button shows the language that is *on*, exactly as the two rows above it show the
+            * theme and the density that are on. Showing the alternative instead would read better
+            * for somebody hunting the switch and worse for everybody else, because it would be the
+            * only row on the page whose button names something other than the current state.
+            *
+            * Each name is written in its own language — «Русский», «English» — so the row is
+            * findable by shape by a person who cannot read the heading above it.
+            */}
+          <div className={styles.row}>
+            <span className={styles.rowLabel}>{t.language.label}</span>
+            <button
+              type="button"
+              className={styles.rowAction}
+              onClick={() => setLang(lang === 'ru' ? 'en' : 'ru')}
+            >
+              {LANG_LABEL[lang]}
             </button>
           </div>
         </section>
@@ -1145,7 +1194,7 @@ function SettingsView({
           machine. A refused transport is drawn refused, with the vendor's own sentence next to it.
         */}
         <section className={styles.block}>
-          <h2 className={styles.blockTitle}>Провайдеры</h2>
+          <h2 className={styles.blockTitle}>{t.settings.providers.title}</h2>
           <ProviderSetup
             providers={providers.providers}
             state={providers.state}
@@ -1165,13 +1214,13 @@ function SettingsView({
         </section>
 
         <section className={styles.block}>
-          <h2 className={styles.blockTitle}>Команда</h2>
+          <h2 className={styles.blockTitle}>{t.settings.team.title}</h2>
           <div className={styles.row}>
             <span className={styles.rowLabel}>
-              {memberCount > 0 ? `${memberCount} в проекте` : 'Кто в проекте'}
+              {memberCount > 0 ? t.settings.team.count(memberCount) : t.settings.team.empty}
             </span>
             <button type="button" className={styles.rowAction} onClick={onOpenTeam}>
-              Открыть
+              {t.common.open}
             </button>
           </div>
         </section>
@@ -1187,19 +1236,19 @@ function SettingsView({
           * On a team hub «Выйти» is exactly what it says, and the cleanup is the point.
           */}
         <section className={styles.block}>
-          <h2 className={styles.blockTitle}>Аккаунт</h2>
+          <h2 className={styles.blockTitle}>{t.settings.account.title}</h2>
           <div className={styles.row}>
             <span className={styles.rowLabel}>
               {self.name} · @{self.handle}
-              {sessionKind === 'local' ? ' · на этом компьютере' : ''}
+              {sessionKind === 'local' ? ` · ${t.settings.account.localNote}` : ''}
             </span>
             {sessionKind === 'local' ? (
               <button type="button" className={styles.rowAction} onClick={onJoinTeam}>
-                Работать командой
+                {t.settings.account.joinTeam}
               </button>
             ) : (
               <button type="button" className={styles.rowAction} onClick={onSignOut}>
-                Выйти
+                {t.settings.account.signOut}
               </button>
             )}
           </div>

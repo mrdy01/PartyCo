@@ -4,6 +4,19 @@
  */
 
 export { ThemeProvider, useTheme, type ThemeApi, type ThemeState, type ThemeProviderProps } from './theme.tsx';
+export {
+  LocaleProvider,
+  useLocale,
+  useT,
+  LANGS,
+  LANG_LABEL,
+  RU,
+  EN,
+  type Lang,
+  type Dictionary,
+  type LocaleApi,
+  type LocaleProviderProps,
+} from './i18n/index.tsx';
 export * from './identity.ts';
 
 export {

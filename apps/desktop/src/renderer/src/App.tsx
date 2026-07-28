@@ -11,12 +11,16 @@ import {
 } from 'react';
 import {
   FirstRun,
+  LocaleProvider,
   SignInScreen,
   ThemeProvider,
   avatarStyle,
   initialsOf,
+  useT,
   useTheme,
   type AuthMode,
+  type Dictionary,
+  type Lang,
   type AuthSubmit,
   type FirstRunCopyInput,
   type FirstRunKeySubmit,
@@ -153,9 +157,49 @@ function readNavOpen(): boolean {
   }
 }
 
+/**
+ * The chosen language, read synchronously so the first paint is already in it.
+ *
+ * `localStorage`, not the main process, and the difference is a frame. The theme is asked for over
+ * IPC because only the OS knows it; the language is the person's own answer, and routing it through
+ * an async bridge would mean painting Russian and correcting it — which is exactly the flash the
+ * theme code goes out of its way to avoid.
+ *
+ * The first launch has no answer, so the browser's own preference decides: somebody whose system is
+ * English should not have to find a switch to read the first screen. Anything that is not Russian
+ * gets English, because those are the two languages that exist — a Polish system is better served by
+ * the one it is more likely to read than by the one it certainly cannot.
+ */
+const LANG_KEY = 'partyco.lang';
+
+function readStoredLang(): Lang {
+  try {
+    const stored = window.localStorage.getItem(LANG_KEY);
+    if (stored === 'ru' || stored === 'en') return stored;
+  } catch {
+    // A locked-down partition must not stop the window from rendering.
+  }
+  try {
+    return navigator.language.toLowerCase().startsWith('ru') ? 'ru' : 'en';
+  } catch {
+    return 'ru';
+  }
+}
+
 export function App(): ReactElement | null {
   // The OS preference decides the first paint so the window does not flash the wrong theme.
   const [initialTheme, setInitialTheme] = useState<'dark' | 'light' | null>(null);
+
+  const [lang, setLangState] = useState<Lang>(readStoredLang);
+
+  const setLang = useCallback((next: Lang): void => {
+    setLangState(next);
+    try {
+      window.localStorage.setItem(LANG_KEY, next);
+    } catch {
+      // Losing the preference is survivable; refusing to switch because it cannot be saved is not.
+    }
+  }, []);
 
   /**
    * Started here, beside the theme, and not deeper down where it is used.
@@ -189,7 +233,9 @@ export function App(): ReactElement | null {
 
   return (
     <ThemeProvider theme={initialTheme}>
-      <Gate workspace={workspace} />
+      <LocaleProvider lang={lang} onLangChange={setLang}>
+        <Gate workspace={workspace} />
+      </LocaleProvider>
     </ThemeProvider>
   );
 }
@@ -278,6 +324,7 @@ const FOLDER_KEPT =
   'снова и выбери другую папку: прежняя перестанет быть выбранной.';
 
 function Gate({ workspace }: { workspace: WorkspaceHandle }): ReactElement | null {
+  const t = useT();
   const [session, setSession] = useState<HubSession | null>(readStoredSession);
   const [mode, setMode] = useState<AuthMode>('login');
   const [busy, setBusy] = useState(false);
@@ -323,7 +370,7 @@ function Gate({ workspace }: { workspace: WorkspaceHandle }): ReactElement | nul
         }
         const next = asHubSession(answer.url, answer.session);
         if (!next) {
-          setLocal({ state: 'failed', reason: LOCAL_ROLE_UNKNOWN });
+          setLocal({ state: 'failed', reason: t.localHub.roleUnknown });
           return;
         }
         /*
@@ -339,7 +386,7 @@ function Gate({ workspace }: { workspace: WorkspaceHandle }): ReactElement | nul
         if (cancelled) return;
         setLocal({
           state: 'failed',
-          reason: cause instanceof Error ? cause.message : LOCAL_UNREACHABLE,
+          reason: cause instanceof Error ? cause.message : t.localHub.unreachable,
         });
       });
 
@@ -565,14 +612,37 @@ const AGENTS_UNAVAILABLE =
  * and a seat in their project, and the shared repository behind it does not exist yet. Saying so
  * here is cheaper than a person discovering it after signing up.
  */
-const FIRST_RUN_COPY: FirstRunCopyInput = {
-  folder: {
-    footnote:
-      'Второй шаг — ключ провайдера. Его можно пропустить: без ключа приложение работает, просто ' +
-      'агент не отвечает. «Меня позвали в проект команды» открывает вход на хаб команды — тот, ' +
-      'адрес которого дал пригласивший; общий репозиторий на хабе пока не заводится.',
-  },
-};
+function firstRunCopy(t: Dictionary): FirstRunCopyInput {
+  const c = t.firstRun;
+  return {
+    region: c.region,
+    heading: c.heading,
+    // The braces are filled by `FirstRun` itself — see the note on `progress` in `ru.ts`.
+    progress: c.progress('{step}', '{total}'),
+    statusRegion: c.statusRegion,
+    folder: {
+      title: c.folder.title('{name}'),
+      titleAnonymous: c.folder.titleAnonymous,
+      body: c.folder.body,
+      primary: c.folder.primary,
+      secondary: c.folder.secondary,
+      footnote: c.folder.footnote,
+    },
+    key: {
+      title: c.key.title,
+      body: c.key.body,
+      providerGroup: c.key.providerGroup,
+      field: c.key.field,
+      primary: c.key.primary,
+      busy: c.key.busy,
+      skip: c.key.skip,
+      whyDisabled: c.key.whyDisabled,
+      noProviders: c.key.noProviders,
+      // `guarantee` is deliberately absent: it is the keychain promise, and `FirstRun`'s own default
+      // is the reviewed wording. Overriding it here would fork one sentence into two owners.
+    },
+  };
+}
 
 /**
  * What the product is once somebody is signed in: first run, or the shell.
@@ -600,6 +670,7 @@ function Product({
    * asking them for a key on every launch would make the wizard the product. Only the walk-through
    * that just chose a folder gets step 2.
    */
+  const t = useT();
   const [keyAnswered, setKeyAnswered] = useState(() => workspace.workspace !== null);
   const [keyBusy, setKeyBusy] = useState(false);
   const [keyError, setKeyError] = useState<string | null>(null);
@@ -657,7 +728,7 @@ function Product({
           step={step}
           userName={session.member.displayName}
           onChooseFolder={chooseFolder}
-          // The hub sign-in, which is what this button has always said it was: see FIRST_RUN_COPY.
+          // The hub sign-in, which is what this button has always said it was: see firstRunCopy.
           onJoinTeam={onJoinTeam}
           providers={providers}
           /*
@@ -671,7 +742,7 @@ function Product({
           onSkip={() => setKeyAnswered(true)}
           busy={step === 2 ? keyBusy : workspace.busy}
           error={message}
-          copy={FIRST_RUN_COPY}
+          copy={firstRunCopy(t)}
         />
       </Door>
     );
