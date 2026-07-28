@@ -1,0 +1,8 @@
+blank_issues_enabled: true
+contact_links:
+  - name: Уязвимость / Security issue
+    url: https://github.com/mrdy01/PartyCo/security/advisories/new
+    about: Приватный канал. Публичный трекер для уязвимости — инструкция для тех, кто быстрее вас.
+  - name: Вопрос или идея / Question or idea
+    url: https://github.com/mrdy01/PartyCo/discussions
+    about: Проект ранний — вопрос часто полезнее, чем pull request.

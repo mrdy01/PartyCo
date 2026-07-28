@@ -1,93 +1,59 @@
 # PartyCo
 
-Самохостимая desktop-«коробка»: несколько живых людей и их разнородные AI-агенты работают над одним
-проектом и **не могут сломать код друг другу**. Windows-first, macOS — портируемо.
+**Несколько человек и их AI-агенты работают над одним проектом и не могут сломать код друг другу.**
+Самохостимая desktop-программа: ваш код, ваши ключи, ваш сервер. Windows-first, macOS портируемо.
 
-Гарантия формулируется узко и честно: **ничего конфликтующего не попадает в trunk**, а обо всём
-остальном участник узнаёт рано.
+*A self-hosted desktop workspace where several people and their heterogeneous AI coding agents share
+one project without breaking each other's code. Your code, your keys, your server.*
+[English](#english) ↓
 
-## Состояние
+> **Состояние: ранняя разработка.** Работает то, что перечислено ниже, — и только оно. Там, где
+> подсистемы ещё нет, программа показывает честное пустое состояние, а не демо-данные. Это
+> сознательное правило, а не недоделка: человек, поверивший «Ствол здоров», когда ствол никто не
+> проверял, обманут собственным инструментом.
 
-Приложение запускается и работает на настоящих данных: аккаунты, приглашения, провайдеры, рабочая
-папка, файлы и история разговора. Ядра (`partycod`) ещё нет — см. милстоуны в
-[docs/architecture.md](docs/architecture.md) §12, — поэтому зон, границ и merge gate в продукте нет
-и **на экране они не изображаются**: там, где подсистемы нет, стоит честное пустое состояние, а не
-демо-данные.
+## Зачем это
 
-| Что | Где | Готовность |
-|---|---|---|
-| **Передача контекста** | [docs/HANDOFF.md](docs/HANDOFF.md) | ✅ читать первым |
-| Архитектура, 13 разделов | [docs/architecture.md](docs/architecture.md) | ✅ |
-| Провайдеры + легальность подписок | [docs/providers-and-subscription-legality.md](docs/providers-and-subscription-legality.md) | ✅ |
-| Транспорт подключения (варианты A–E) | [docs/connectivity-options.md](docs/connectivity-options.md) | ✅ |
-| Дизайн: система + Workspace + Leases + Merge queue | `design/raw/` | ✅ импортировано |
-| Обмен с дизайнером, открытые вопросы | [docs/design-handoff.md](docs/design-handoff.md) | ✅ |
-| Токены | `packages/tokens` | ✅ 123 токена, обе темы, обе плотности |
-| Иконки | `packages/icons` | ✅ 35 иконок, извлекаются из выгрузок скриптом |
-| Библиотека компонентов | `packages/ui` | ✅ 76 компонентов, 517 экспортов |
-| Страница дизайн-системы | `apps/desktop/.../designsystem` | ✅ живая сверка с выгрузкой |
-| **Оболочка — сам продукт** | `apps/desktop/.../pages/Shell.tsx` | ✅ разговор, файлы, владение, настройки |
-| Хаб: аккаунты, приглашения, проекты | `apps/hub` | ✅ ноль зависимостей, 48 тестов |
-| Провайдеры: ключ и делегированный CLI | `packages/agents` | ✅ 56 тестов |
-| Рабочая папка и история разговора | `apps/desktop/src/main` | ✅ 28 тестов |
-| Шрифты | `packages/tokens/assets` | ✅ IBM Plex Sans + JetBrains Mono, латиница и кириллица |
-| **Экран 2.1 Workspace** | `apps/desktop/.../Workspace.tsx` | ✅ 4 состояния, живые счётчики |
-| **Экран 2.3 Leases** | `apps/desktop/.../Leases.tsx` | ✅ 5 состояний, карта владения, живой TTL |
-| **Экран 2.4 Merge queue** | `apps/desktop/.../MergeQueue.tsx` | ✅ 6 сценариев, 3 вида отказа гейта, живая очередь |
-| Electron-оболочка | `apps/desktop` | ✅ main / preload / renderer, собирается |
-| Репозиторий проекта на хабе | — | ⬜ таблицы и клиент есть, bare repo нет |
-| Границы, зоны, merge gate | — | ⬜ нужен `partycod` |
-| Ядро `partycod` | — | ⬜ M0 |
+Когда два человека натравливают на один репозиторий двух агентов, ломается не модель — ломается
+общий код. Агент правит файл, которого касается сосед, оба коммитят, trunk краснеет, и никто не
+знает, чей ход это сделал.
 
-## Раскладка
+PartyCo даёт **узкую и честную гарантию: ничего конфликтующего не попадает в trunk**, а обо всём
+остальном участник узнаёт рано. Не «мы решим все конфликты» — а «мы не дадим им доехать до общей
+ветки». Дальше: изоляция worktree, границы на модулях, серийная очередь на влитие.
 
-```
-docs/                     проектные документы (читать первыми)
-design/raw/               выгрузка из Claude Design — источник правды по визуалу, не редактируется
-packages/tokens/          дизайн-токены: palette.ts → tokens.generated.css
-packages/icons/           35 иконок, извлекаются из дизайна скриптом
-packages/agents/          провайдеры: API-ключ и делегированный CLI. Ноль зависимостей
-packages/ui/              библиотека компонентов (CONVENTIONS.md обязателен к прочтению)
-apps/desktop/             Electron-оболочка: main / preload / renderer
-apps/hub/                 partycod: аккаунты, приглашения, проекты. Ноль зависимостей
-```
+## Что уже работает
 
-## Запуск
+Запускается и работает на настоящих данных, без моков:
+
+- **Открывается сразу.** Ни сервера поднимать, ни аккаунт заводить не нужно: программа поднимает
+  свой координационный хаб на loopback и заводит локального участника молча. Команда — отдельный
+  шаг, когда он понадобится.
+- **Разговор с агентом** в выбранной папке, история на диске, прерывание хода.
+- **Провайдеры**: API-ключ (шифруется системой) или **делегированный CLI** — запускается тот
+  `claude` / `codex`, который вы поставили и в который вошли сами. Выбор модели и режима
+  полномочий — чипами над полем ввода.
+- **Файлы проекта**: дерево, чтение, отказ вместо искажения на бинарниках и больших файлах.
+- **Команда**: аккаунты, приглашения, проекты на хабе — если поднять хаб для команды.
+
+Чего ещё нет: ядра `partycod` как демона, границ и зон, merge gate, общего репозитория на хабе.
+Экраны Workspace / Leases / Merge queue существуют как дев-стенд и в собранную программу не входят.
+
+## Установка
+
+Нужен **Node.js 24+**.
 
 ```bash
 npm install
 ```
 
-Шрифты — третья сторона под SIL OFL 1.1, в репозитории их нет. Тянутся один раз, дальше команда
-ничего не делает (её же зовут `npm run dev` и `npm run build`, так что обычно её не набирают руками):
-
-```bash
-npm run fonts
-```
-
-Приложение начинается с входа, а вход требует хаба. Подними его первым — он на чистом Node, ставить
-нечего:
-
-```bash
-npm start -w @partyco/hub
-```
-
-Слушает `127.0.0.1:7717`, базу кладёт в `hub.db` рядом с собой. Первый зарегистрировавшийся получает
-роль `owner`. Развёртывание на VPS, systemd-unit и бэкапы — [apps/hub/README.md](apps/hub/README.md).
-
-Electron-бинарь качается postinstall-скриптом, который npm 11 блокирует по умолчанию. Один раз:
+Electron качается postinstall-скриптом, который npm 11 блокирует по умолчанию. Один раз:
 
 ```bash
 npm approve-scripts electron
 ```
 
-Полное приложение (Electron), режим разработки:
-
-```bash
-npm run dev
-```
-
-Собрать и запустить собранное — то, что и есть «программа»:
+Собрать и запустить:
 
 ```bash
 npm run build
@@ -97,31 +63,68 @@ npm run build
 npm start
 ```
 
-Установщик:
+Установщик под Windows (`apps/desktop/dist/PartyCo-<версия>-setup.exe`, NSIS, per-user, без UAC):
 
 ```bash
 npm run dist
 ```
 
-Кладёт `apps/desktop/dist/PartyCo-<версия>-setup.exe` — NSIS, per-user (без UAC), с выбором папки,
-ярлыками на рабочем столе и в меню «Пуск». Рядом `dist/win-unpacked/PartyCo.exe` — то же приложение
-без установки, для быстрой проверки.
+**Сборка не подписана** — сертификата Authenticode у проекта нет, поэтому Windows покажет
+SmartScreen-предупреждение при первом запуске.
 
-**Сборка не подписана.** Сертификата Authenticode у проекта нет, поэтому Windows покажет
-SmartScreen-предупреждение при первом запуске. Когда сертификат появится, он добавляется в
-`apps/desktop/electron-builder.yml` (или через `CSC_LINK` / `CSC_KEY_PASSWORD`), больше ничего менять
-не нужно.
+Шрифты — третья сторона под SIL OFL 1.1, в репозитории их нет; `npm run dev` и `npm run build`
+тянут их сами один раз (`npm run fonts`).
 
-Иконка **генерируется** из логотипа дизайна, руками не правится:
+## Работать командой
+
+Соло-режим ничего не требует. Для команды нужен хаб на машине, которую видят все участники —
+это чистый Node без единой зависимости:
 
 ```bash
-npm run -w @partyco/desktop icon
+npm start -w @partyco/hub
 ```
 
-Только UI в браузере, без Electron и без бинаря — так быстрее всего смотреть дизайн-систему:
+Слушает `127.0.0.1:7717`, базу кладёт рядом. Первый зарегистрировавшийся становится владельцем.
+Развёртывание на VPS, systemd-unit, TLS и бэкапы — [apps/hub/README.md](apps/hub/README.md).
 
-```bash
-npm run -w @partyco/desktop dev:web
+В программе: «Меня позвали в проект команды» на первом запуске или «Работать командой» в
+настройках → адрес хаба, который дал пригласивший.
+
+## Ключевые ограничения
+
+Их стоит прочитать до того, как предлагать правки: каждое стоило исследования или пойманного бага.
+
+- **Свой OAuth к подписочным эндпоинтам вендоров запрещён** самими вендорами, на всех тарифах.
+  Инструменты, которые так делали, отключили server-side в январе 2026. Выживший паттерн —
+  запускать CLI, который участник поставил и в который вошёл сам. Цитаты с URL:
+  [docs/providers-and-subscription-legality.md](docs/providers-and-subscription-legality.md).
+- **Пять инвариантов держат этот путь легальным**: не читаем credential, не делаем запросов к
+  вендору, не показываем экран входа вендора, не подделываем идентичность клиента, процесс — на
+  машине участника. Инварианты 1 и 4 покрыты grep-тестом по собственным исходникам.
+- **Окружение дочернего процесса собирается по allowlist, а не наследуется.** Одна унаследованная
+  `ANTHROPIC_API_KEY` молча переводит участника с подписки на поштучный биллинг, и счёт уходит
+  владельцу ключа. Ничего не падает — отличается только счёт.
+- **Ключ шифруется системой или не хранится вовсе** (DPAPI / Keychain). Открытым текстом на диск
+  не ложится никогда и через мост в интерфейс не отдаётся.
+- **Credential'ы не покидают машину участника.** Хаб — coordination plane, не inference plane; в
+  его wire-схеме нет поля, способного перенести токен.
+- **CRDT для кода отклонён** (ADR-0001). Редактор есть, совместного набора нет.
+- **Интерфейс: рабочее место, а не панель приборов.** Разговор — единственная колонка, открытая по
+  умолчанию. Любая новая поверхность обязана обосновать своё право быть видимой без спроса.
+- **Каждый контрол либо работает, либо не выглядит контролом.** Кнопка, которая ничего не делает,
+  хуже отсутствующей кнопки.
+
+## Раскладка
+
+```
+docs/                проектные документы — читать первыми
+design/raw/          выгрузки Claude Design: источник правды по визуалу, руками не редактируется
+packages/tokens/     дизайн-токены: palette.ts → tokens.generated.css (генерируется)
+packages/icons/      иконки, извлекаются из выгрузки скриптом
+packages/agents/     провайдеры: API-ключ и делегированный CLI. Ноль зависимостей
+packages/ui/         библиотека компонентов (CONVENTIONS.md обязателен к прочтению)
+apps/desktop/        Electron: main / preload / renderer
+apps/hub/            partycod: аккаунты, приглашения, проекты. Ноль зависимостей
 ```
 
 ## Проверка
@@ -130,54 +133,88 @@ npm run -w @partyco/desktop dev:web
 npm run check
 ```
 
-Прогоняет три вещи: пересборку токенов, `check:design` и типизацию всего монорепо. Тесты
-запускаются отдельно и **обязательно с путём до файла** — `node --test apps/hub` находит ноль тестов
-и всё равно завершается успехом:
+Токены, дизайн-линтер и типизация всего монорепо. Тесты запускаются отдельно и **обязательно с
+путями до файлов** — `node --test apps/hub` находит ноль тестов и всё равно завершается успехом:
 
 ```bash
 node --test apps/hub/test.mjs packages/agents/test.mjs apps/desktop/test-transcript.mjs
 ```
 
-`check:design` — не косметика, каждое правило появилось из реально пойманного бага:
+## Документы
 
-- **animation-not-global** — Vite локализует имена анимаций в CSS-модулях, поэтому
-  `animation: pc-pulse` компилируется в несуществующее имя и анимация молча не играет.
-  Нужно `animation: global(pc-pulse)`.
-- **raw-colour** — ни одного хекса в компонентах, только токены.
-- **identity-token-in-css** — цвет участника берётся хелперами из `identity.ts`, а не строкой
-  `var(--pc-id-…)`, иначе он утекает за пределы разрешённых ролей.
-- **unknown-token** — ссылка на несуществующий `--pc-*`.
+| Файл | Зачем |
+|---|---|
+| [docs/HANDOFF.md](docs/HANDOFF.md) | Где что лежит, что сделано, чем проверяется, какие вопросы открыты |
+| [docs/architecture.md](docs/architecture.md) | Топология, слои, схема БД, протокол, милстоуны |
+| [docs/providers-and-subscription-legality.md](docs/providers-and-subscription-legality.md) | Легальность провайдеров. Читать до любого кода про auth |
+| [docs/connectivity-options.md](docs/connectivity-options.md) | Транспорт до хаба, варианты A–E |
+| [CONTRIBUTING.md](CONTRIBUTING.md) | Как присылать правки |
+| [SECURITY.md](SECURITY.md) | Куда писать про уязвимость |
 
-## Пересборка из дизайна
+## Лицензия
 
-Токены и иконки **генерируются** из выгрузки дизайна. Руками не править:
+[MIT](LICENSE).
+
+Шрифты IBM Plex Sans и JetBrains Mono — третья сторона под
+[SIL OFL 1.1](https://openfontlicense.org/), в репозитории не хранятся.
+
+---
+
+<a name="english"></a>
+
+## English
+
+**PartyCo is a self-hosted desktop workspace where several people and their heterogeneous AI coding
+agents share one project without breaking each other's code.** Your code, your keys, your server.
+Windows-first; macOS is portable.
+
+> **Status: early development.** What is listed below works, and nothing else does. Where a
+> subsystem does not exist yet, the app shows an honest empty state rather than demo data — a
+> deliberate rule, not an omission.
+
+When two people point two agents at one repository, it is not the model that breaks — it is the
+shared code. PartyCo makes one narrow, honest guarantee: **nothing conflicting reaches trunk**, and
+you learn about everything else early. Worktree isolation, leases on module boundaries, a serialised
+merge train.
+
+**It opens straight away** — no server to stand up, no account to create. The app starts its own
+coordination hub on loopback and creates a local member silently; joining a team is a separate step
+for when you need one.
+
+Working today: a conversation with an agent inside a folder you choose, with history on disk; model
+providers via an API key (encrypted by the OS) or a **delegated CLI** — running the `claude` /
+`codex` you installed and signed into yourself; the project's file tree; accounts, invitations and
+projects on a hub if you run one for a team.
+
+Not there yet: the `partycod` daemon, boundaries and leases, the merge gate, a shared repository on
+the hub.
+
+### Getting started
+
+Node.js 24+ required.
 
 ```bash
-npm run build:tokens
+npm install
 ```
 
 ```bash
-node packages/icons/scripts/extract.mjs
+npm run build
 ```
 
-При новой выгрузке из Claude Design: положить файлы в `design/raw/`, прогнать оба скрипта,
-затем сверить компоненты — расхождения ловятся глазами на странице дизайн-системы в приложении.
+```bash
+npm start
+```
 
-## Ключевые ограничения (не пересматривать без причины)
+### The constraint that shapes the provider layer
 
-- **Провайдерский слой**: API-ключ — единственный официально поддерживаемый режим для
-  Anthropic / OpenAI / Google. Свой OAuth к подписочным эндпоинтам **запрещён** вендорами —
-  см. цитаты в [docs/providers-and-subscription-legality.md](docs/providers-and-subscription-legality.md) §1.
-  Второй путь — делегированный CLI: запускаем `claude` / `codex`, которые участник поставил и в
-  которые вошёл сам. Промпт уходит в stdin, а не в командную строку.
-- **Ключ шифруется системой или не хранится вовсе.** `safeStorage` (DPAPI / Keychain); если система
-  шифровать не даёт, на диск не пишется ничего, и приложение говорит об этом прямо. Открытым текстом
-  ключ не ложится никогда, и через мост в интерфейс не отдаётся — только `hasKey`.
-- **Credential'ы не покидают машину участника.** Hub — coordination plane, не inference plane.
-  В его wire-схеме нет поля, способного перенести токен.
-- **Цвет участника — четыре роли**: заливка аватара, кромка зоны 2px, подложка гаттера диффа,
-  площадь владения. **Статусный — четыре**: точка, пилюля, текст, обводка. Запрещено: статусный цвет
-  как большая заливка и как левая кромка зоны. Подробности — `packages/ui/CONVENTIONS.md` §5.
-- **CRDT для кода отклонён** (ADR-0001). Встроенный редактор есть, совместного набора нет.
-- **Шрифты бандлятся локально.** В renderer'е строгий CSP без внешних хостов; приложение обязано
-  работать офлайн.
+Vendors forbid third-party applications from running their own OAuth against consumer-subscription
+endpoints — on every tier. Tools that did it were cut off server-side in January 2026. The pattern
+that survived is spawning a CLI the member installed and signed into themselves, and PartyCo holds
+five invariants to stay on that side of the line: it never reads a credential, never makes the model
+request, never shows a vendor login screen, never spoofs client identity, and always runs the agent
+on the member's own machine. Sources with URLs are in
+[docs/providers-and-subscription-legality.md](docs/providers-and-subscription-legality.md).
+
+Most documentation is in Russian. The code and its comments are in English.
+
+Contributions welcome — see [CONTRIBUTING.md](CONTRIBUTING.md). Licensed [MIT](LICENSE).

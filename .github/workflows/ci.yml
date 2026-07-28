@@ -1,0 +1,83 @@
+# The checks a contributor cannot be asked to remember.
+#
+# Two jobs, and the split is on purpose: `check` is what must never break, `build` is what proves
+# the thing still becomes a program. Running both on Windows because that is the primary target and
+# because every platform-specific bug this repository has caught so far — `.cmd` wrappers, MAX_PATH,
+# interpreter selection — only reproduces there.
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  # So a fork can prove itself green before opening anything.
+  workflow_dispatch:
+
+# A second push to the same branch cancels the first: nobody reads the results of a superseded run.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  check:
+    name: check + tests
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          # 24, not 22: the hub uses `node:sqlite`, which is only unflagged from 24 onwards.
+          node-version: '24'
+          cache: npm
+
+      # `--ignore-scripts` skips Electron's postinstall binary download, which `check` does not
+      # need — it is a type-check, a token rebuild and a stylesheet linter. The build job below
+      # installs for real.
+      - run: npm ci --ignore-scripts
+
+      - run: npm run check
+
+      # Paths are mandatory. `node --test apps/hub` finds zero tests and still exits 0, which is
+      # the worst possible outcome for a CI step: a green tick over nothing.
+      - name: tests
+        run: node --test apps/hub/test.mjs packages/agents/test.mjs apps/desktop/test-transcript.mjs
+
+  build:
+    name: build
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: npm
+
+      - run: npm ci
+
+      # Electron's binary arrives through a postinstall script that npm blocks by default.
+      - run: npm approve-scripts electron
+        continue-on-error: true
+
+      - run: npm run build
+
+      # The fixtures must not reach the product's entry chunk. This has regressed once already —
+      # `SCAFFOLDING` is decided at runtime, so Rollup cannot prove the branch dead and used to keep
+      # every fixture module in the entry. A packaged build carrying an invented colleague's name is
+      # one mistake away from showing her to somebody as if she were real.
+      - name: fixtures stayed out of the product
+        shell: pwsh
+        run: |
+          $entry = Get-ChildItem apps/desktop/out/renderer/assets/index-*.js | Select-Object -First 1
+          if (-not $entry) { throw "no entry chunk found" }
+          $text = Get-Content $entry.FullName -Raw
+          foreach ($needle in @('Марина', 'Хайтейл')) {
+            if ($text -match [regex]::Escape($needle)) {
+              throw "fixture data '$needle' reached the product entry chunk $($entry.Name)"
+            }
+          }
+          Write-Output "entry chunk $($entry.Name) is clean"

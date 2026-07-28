@@ -1,0 +1,60 @@
+name: Баг / Bug report
+description: Что-то работает не так, как написано на экране или в документации
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Уязвимости — **не сюда**, см. [SECURITY.md](../blob/main/SECURITY.md).
+
+        *Security issues do not belong here. English reports are welcome.*
+
+  - type: textarea
+    id: what
+    attributes:
+      label: Что произошло
+      description: Что вы делали, что ожидали, что получилось вместо этого.
+      placeholder: |
+        1. Открыл программу на чистой машине
+        2. Нажал «Выбрать папку»
+        3. Ожидал системный диалог, получил …
+    validations:
+      required: true
+
+  - type: textarea
+    id: message
+    attributes:
+      label: Что программа написала словами
+      description: >
+        Приведите фразу целиком, если она была. Тексты в PartyCo специально сделаны разными, и по
+        фразе обычно видно, какая именно ветка сработала — это экономит больше времени, чем любой лог.
+    validations:
+      required: false
+
+  - type: input
+    id: version
+    attributes:
+      label: Версия
+      description: Из установщика, или короткий хеш коммита, если собирали сами.
+    validations:
+      required: true
+
+  - type: input
+    id: os
+    attributes:
+      label: ОС
+      placeholder: Windows 11 23H2 / macOS 15.2
+    validations:
+      required: true
+
+  - type: dropdown
+    id: mode
+    attributes:
+      label: Как запущено
+      options:
+        - Установленная сборка
+        - npm run build && npm start
+        - npm run dev
+        - npm run dev:web (браузер, без Electron)
+    validations:
+      required: true
