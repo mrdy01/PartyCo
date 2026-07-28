@@ -95,9 +95,11 @@ npm start -w @partyco/hub
 Их стоит прочитать до того, как предлагать правки: каждое стоило исследования или пойманного бага.
 
 - **Свой OAuth к подписочным эндпоинтам вендоров запрещён** самими вендорами, на всех тарифах.
-  Инструменты, которые так делали, отключили server-side в январе 2026. Выживший паттерн —
-  запускать CLI, который участник поставил и в который вошёл сам. Цитаты с URL:
-  [docs/providers-and-subscription-legality.md](docs/providers-and-subscription-legality.md).
+  Anthropic формулирует это так: «Anthropic does not permit third-party developers to offer
+  Claude.ai login or to route requests through Free, Pro, or Max plan credentials on behalf of their
+  users» ([code.claude.com/docs/en/legal-and-compliance](https://code.claude.com/docs/en/legal-and-compliance)).
+  Инструменты, которые всё же так делали и подделывали идентичность клиента, отключили server-side в
+  январе 2026. Выживший паттерн — запускать CLI, который участник поставил и в который вошёл сам.
 - **Пять инвариантов держат этот путь легальным**: не читаем credential, не делаем запросов к
   вендору, не показываем экран входа вендора, не подделываем идентичность клиента, процесс — на
   машине участника. Инварианты 1 и 4 покрыты grep-тестом по собственным исходникам.
@@ -117,15 +119,17 @@ npm start -w @partyco/hub
 ## Раскладка
 
 ```
-docs/                проектные документы — читать первыми
-design/raw/          выгрузки Claude Design: источник правды по визуалу, руками не редактируется
 packages/tokens/     дизайн-токены: palette.ts → tokens.generated.css (генерируется)
-packages/icons/      иконки, извлекаются из выгрузки скриптом
+packages/icons/      иконки, генерируются из макета и лежат в репозитории готовыми
 packages/agents/     провайдеры: API-ключ и делегированный CLI. Ноль зависимостей
 packages/ui/         библиотека компонентов (CONVENTIONS.md обязателен к прочтению)
 apps/desktop/        Electron: main / preload / renderer
 apps/hub/            partycod: аккаунты, приглашения, проекты. Ноль зависимостей
+scripts/             линтер дизайн-правил, он же гейт качества CSS
 ```
+
+Макеты, из которых выведены токены и иконки, в репозитории не лежат: и то и другое закоммичено уже
+сгенерированным, так что собрать, запустить и изменить приложение можно без них.
 
 ## Проверка
 
@@ -144,12 +148,16 @@ node --test apps/hub/test.mjs packages/agents/test.mjs apps/desktop/test-transcr
 
 | Файл | Зачем |
 |---|---|
-| [docs/HANDOFF.md](docs/HANDOFF.md) | Где что лежит, что сделано, чем проверяется, какие вопросы открыты |
-| [docs/architecture.md](docs/architecture.md) | Топология, слои, схема БД, протокол, милстоуны |
-| [docs/providers-and-subscription-legality.md](docs/providers-and-subscription-legality.md) | Легальность провайдеров. Читать до любого кода про auth |
-| [docs/connectivity-options.md](docs/connectivity-options.md) | Транспорт до хаба, варианты A–E |
-| [CONTRIBUTING.md](CONTRIBUTING.md) | Как присылать правки |
-| [SECURITY.md](SECURITY.md) | Куда писать про уязвимость |
+| [CONTRIBUTING.md](CONTRIBUTING.md) | Как присылать правки и какие правила тут не обсуждаются |
+| [SECURITY.md](SECURITY.md) | Куда писать про уязвимость и что ею считается |
+| [apps/hub/README.md](apps/hub/README.md) | Хаб для команды: запуск, переменные, systemd, TLS, бэкапы |
+| [packages/ui/CONVENTIONS.md](packages/ui/CONVENTIONS.md) | Правила библиотеки компонентов |
+
+Главный документ — сам код. Комментарии в нём объясняют **почему**, а не что: почти в каждом
+нетривиальном месте написано, какой баг или какое ограничение вендора привело к именно такому
+решению. Начинать имеет смысл с `apps/desktop/src/renderer/src/App.tsx` (вход и первый запуск),
+`packages/agents/src/engine.ts` (как устроен ход агента) и `apps/hub/src/local.js` (почему локальный
+вход без пароля — это не дыра).
 
 ## Лицензия
 
@@ -212,9 +220,13 @@ endpoints — on every tier. Tools that did it were cut off server-side in Janua
 that survived is spawning a CLI the member installed and signed into themselves, and PartyCo holds
 five invariants to stay on that side of the line: it never reads a credential, never makes the model
 request, never shows a vendor login screen, never spoofs client identity, and always runs the agent
-on the member's own machine. Sources with URLs are in
-[docs/providers-and-subscription-legality.md](docs/providers-and-subscription-legality.md).
+on the member's own machine. Anthropic's own wording: "Anthropic does not permit third-party
+developers to offer Claude.ai login or to route requests through Free, Pro, or Max plan credentials
+on behalf of their users"
+([source](https://code.claude.com/docs/en/legal-and-compliance)).
 
-Most documentation is in Russian. The code and its comments are in English.
+The interface is available in Russian and English — the switch is in Settings → Appearance. Coverage
+of the English side is still partial; the parts a newcomer meets first are done. The code and its
+comments are in English throughout.
 
 Contributions welcome — see [CONTRIBUTING.md](CONTRIBUTING.md). Licensed [MIT](LICENSE).

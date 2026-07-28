@@ -9,8 +9,7 @@
   },
   "type": "module",
   "exports": {
-    ".": "./src/index.ts",
-    "./fixtures/*": "./src/fixtures/*.ts"
+    ".": "./src/index.ts"
   },
   "dependencies": {
     "@partyco/icons": "*",

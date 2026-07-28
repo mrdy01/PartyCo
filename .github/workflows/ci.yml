@@ -65,28 +65,7 @@ jobs:
 
       - run: npm run build
 
-      # The fixtures must not reach the product's entry chunk. This has regressed once already —
-      # `SCAFFOLDING` is decided at runtime, so Rollup cannot prove the branch dead and used to keep
-      # every fixture module in the entry. A packaged build carrying an invented colleague's name is
-      # one mistake away from showing her to somebody as if she were real.
-      #
-      # **The entry is read out of index.html, never guessed from the filename.** The build emits
-      # more than one `assets/index-*.js`, and the others are lazy chunks that carry the bench and
-      # its fixtures on purpose. Picking the first match by name failed this step on a perfectly
-      # clean build — the guard was wrong, not the bundle — so the only honest way to find the entry
-      # is to ask the document that loads it.
-      - name: fixtures stayed out of the product
-        shell: pwsh
-        run: |
-          $html = Get-Content apps/desktop/out/renderer/index.html -Raw
-          $match = [regex]::Match($html, 'src="\./?(assets/[^"]+\.js)"')
-          if (-not $match.Success) { throw "index.html loads no entry script" }
-          $entry = Join-Path 'apps/desktop/out/renderer' $match.Groups[1].Value
-          if (-not (Test-Path $entry)) { throw "entry chunk $entry is missing" }
-          $text = Get-Content $entry -Raw
-          foreach ($needle in @('Марина', 'Хайтейл')) {
-            if ($text -match [regex]::Escape($needle)) {
-              throw "fixture data '$needle' reached the product entry chunk $entry"
-            }
-          }
-          Write-Output "entry chunk $entry is clean"
+      # The guard that used to live here checked that demo fixtures had not leaked into the product's
+      # entry chunk. It is gone because the fixtures are — there is no bench in this repository any
+      # more, so there is no invented colleague to leak. Reinstate something like it the moment
+      # sample data comes back for any reason.

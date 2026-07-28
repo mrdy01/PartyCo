@@ -332,7 +332,7 @@ curl -s -X POST http://127.0.0.1:7717/v1/projects/members -H "Authorization: Bea
 
 ## База
 
-SQLite в режиме WAL, один писатель — как в `docs/architecture.md` §9.1.
+SQLite в режиме WAL, один писатель.
 
 Таблицы: `member` (та самая из §9.1, расширенная тремя колонками, которые нужны аутентификации:
 `email`, `password_hash`, `color_slug`), `session`, `invite`, `invite_use`, `project`,

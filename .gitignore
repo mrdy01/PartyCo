@@ -26,6 +26,22 @@ hub.db
 hub.db-wal
 hub.db-shm
 
+# ---------------------------------------------------------------------------
+# How PartyCo is made, as opposed to what PartyCo is.
+#
+# This repository publishes the program. The apparatus used to build it stays on the maintainer's
+# machine: project documents and research, the design exports the visuals are derived from, and the
+# script that extracts icons out of them. None of it is needed to build, run or modify the app —
+# tokens and icons are committed in their generated form — and none of it is anyone else's business.
+#
+# These paths are ignored rather than deleted: they are live working material, and a contributor who
+# happens to create a folder by one of these names will simply find git quiet about it.
+# ---------------------------------------------------------------------------
+docs/
+design/
+.claude/
+packages/icons/scripts/extract.mjs
+
 # local state
 *.log
 .DS_Store
