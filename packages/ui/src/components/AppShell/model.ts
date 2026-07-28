@@ -41,11 +41,45 @@ export const ZONE_TERM_HINT = 'lease';
  * Plain-language names for the agent's authority. `AGENT_MODE_LABEL` («План», «Приём правок»,
  * «Авто») is the operator's vocabulary and stays where the old screens use it; the composer chip a
  * person reads twenty times a day says what the mode actually does.
+ *
+ * `accept-edits` used to read «Спрашивает перед правкой», and that was the wrong way round. The
+ * vendor's `acceptEdits` means edits are accepted *without* being asked about, and in the
+ * non-interactive run PartyCo starts there is nobody to ask in the first place. As a caption on a
+ * fact it was merely inaccurate; the moment the chip became a switch it would have been a false
+ * statement about the authority the member had just granted. The replacement is the wording
+ * `AGENT_MODE_ALLOWANCE_FULL` already uses, so no seventh vocabulary is born.
  */
 export const AGENT_MODE_PLAIN_LABEL: Record<AgentMode, string> = {
   plan: 'Сначала план',
-  'accept-edits': 'Спрашивает перед правкой',
+  'accept-edits': 'Правит в своей зоне',
   auto: 'Сам решает',
+};
+
+/**
+ * What the mode says under each name, when there is room for a second line.
+ *
+ * The menu has that room and the chip does not, which is the whole reason this is separate: a person
+ * choosing an authority level should read what it costs them before they pick, and re-read nothing
+ * afterwards.
+ */
+export const AGENT_MODE_PLAIN_NOTE: Record<AgentMode, string> = {
+  plan: 'Читает и отвечает. Ничего не меняет на диске.',
+  'accept-edits': 'Правит файлы внутри выбранной папки, не спрашивая.',
+  auto: 'Правит и запускает команды сам. Границы — только папка.',
+};
+
+/**
+ * Status colour per mode — role #1 of the status palette, one dot.
+ *
+ * The export paints the dot amber for the mode it drew. With three modes reachable from one chip,
+ * one colour for two writing modes is the same picture for «правит внутри папки» and «правит и
+ * запускает что угодно», and those differ by exactly the thing a person would want to see without
+ * reading. Green / amber / red is a departure from the export and the designer is told so.
+ */
+export const AGENT_MODE_TONE: Record<AgentMode, 'success' | 'warning' | 'danger'> = {
+  plan: 'success',
+  'accept-edits': 'warning',
+  auto: 'danger',
 };
 
 /* ------------------------------------------------------------------ *

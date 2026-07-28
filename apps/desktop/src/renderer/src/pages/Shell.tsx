@@ -1,6 +1,10 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
+  AGENT_MODE_PLAIN_LABEL,
+  AGENT_MODE_PLAIN_NOTE,
+  AGENT_MODE_TONE,
   AppShell,
+  ChipMenu,
   Composer,
   ContextRail,
   Conversation,
@@ -22,9 +26,11 @@ import {
   type ProjectMember,
   type ProjectRole,
   type ShellStatus,
+  type AgentMode,
   type ShellView,
   type ZoneTreeNode,
 } from '@partyco/ui';
+import type { AgentPermission } from '../bridge';
 import {
   canManageInvites,
   toInviteRecord,
@@ -77,6 +83,23 @@ type Detail = 'team' | 'invite' | null;
  */
 const SEARCH_SHORTCUT = ['Ctrl', 'K'] as const;
 
+/** The three, in the order a person meets them. Mirrors `AGENT_PERMISSIONS` in `@partyco/agents`. */
+const AGENT_MODES: readonly AgentMode[] = ['plan', 'accept-edits', 'auto'];
+
+/**
+ * The row that means «я не выбирал» — and it is a row, not an absence.
+ *
+ * A menu whose only honest answer is "nothing is set" still has to let a person return to that
+ * state after picking something, so «выбирает CLI» is selectable rather than being the blank you
+ * get by closing the menu.
+ */
+const MODEL_UNSET = 'выбирает CLI';
+const MODEL_UNSET_VALUE = '';
+
+const MODEL_LIST_UNKNOWN =
+  'Списка моделей этого вендора PartyCo не знает — брать его неоткуда, не спросив вендора, ' +
+  'а мы к нему не ходим. CLI выберет сам.';
+
 export function ShellPage({
   session,
   workspace,
@@ -104,7 +127,26 @@ export function ShellPage({
   const providers = useProviderLayer();
   const files = useFileTree(folder);
   const open = useOpenFile(folder);
-  const talk = useConversation(folder, self, providers.providers, providers.state === 'ready');
+  const talk = useConversation(folder, self, providers.providers, providers.state === 'ready', {
+    agentMode: providers.agentMode,
+    models: providers.models,
+  });
+
+  /*
+   * What the two chips may offer, for the provider a turn would actually run on.
+   *
+   * Read from the catalogue the main process sent rather than from a list written here, so a row can
+   * never be offered that `buildArgs` cannot emit — the same guarantee a test asserts on the other
+   * side of the bridge.
+   */
+  const capability = useMemo(
+    () => providers.capabilities.find((entry) => entry.providerId === talk.target?.providerId),
+    [providers.capabilities, talk.target],
+  );
+
+  const chosenModel = talk.target ? providers.models[talk.target.providerId] : undefined;
+  const chosenModelLabel =
+    capability?.models.find((model) => model.id === chosenModel)?.label ?? chosenModel;
   const status = useShellStatus(team.state);
 
   /* ---------- the files panel ---------- */
@@ -278,9 +320,14 @@ export function ShellPage({
         // passes no permission flags to the vendor CLI, and a non-interactive run has nobody to
         // answer a write prompt, so the agent reads the project and answers without editing it.
         // The three modes become a real choice when the engine starts passing the flag.
-        mode: 'plan',
+        mode: providers.agentMode,
         providerId: talk.target?.providerId ?? '',
-        modelLabel: talk.target?.label ?? 'нет провайдера',
+        // The model, once one is chosen — otherwise the plain truth that nobody chose one and the
+        // CLI will. Naming a model here that PartyCo did not send would be the chip asserting a fact
+        // about somebody else's default.
+        modelLabel: talk.target
+          ? (chosenModelLabel ?? MODEL_UNSET)
+          : 'нет провайдера',
       }}
       self={self}
       value={draft}
@@ -326,9 +373,69 @@ export function ShellPage({
           ? { placeholder: 'Спросить про этот файл…' }
           : {}),
       }}
-      // The chips are facts, not menus, until there is something to choose between: mode selection
-      // and model selection are both roadmap items, and a chip that opens nothing is a dead control.
-      modeTone="success"
+      /*
+       * Both chips are menus now, and each one is drawn as a menu only where it is one.
+       *
+       * `renderModeMenu`/`renderModelMenu` win over `onZoneClick`-style handlers in `Composer`, so a
+       * chip either opens this list or does nothing visible — there is no third state where the
+       * caret is drawn and the click goes elsewhere. When no provider can run, neither menu is
+       * passed and the chips fall back to plain text, because there is nothing true to choose.
+       */
+      {...(talk.target
+        ? {
+            renderModeMenu: ({ close }: { close: () => void }) => (
+              <ChipMenu
+                label="Что агенту разрешено"
+                selected={providers.agentMode}
+                onSelect={(value) => providers.setAgentMode(value as AgentPermission)}
+                onClose={close}
+                {...(capability && capability.agentModes.length === 0 && capability.modesNote
+                  ? { note: capability.modesNote }
+                  : {})}
+                items={AGENT_MODES.map((mode) => ({
+                  value: mode,
+                  label: AGENT_MODE_PLAIN_LABEL[mode],
+                  note: AGENT_MODE_PLAIN_NOTE[mode],
+                  tone: AGENT_MODE_TONE[mode],
+                  // A provider that honours no mode still shows all three, blocked, with the reason
+                  // on screen. Hiding them would be honest and mute: the person would never learn
+                  // that the choice exists or what it depends on.
+                  ...(capability?.agentModes.includes(mode)
+                    ? {}
+                    : { disabledReason: 'Этот провайдер режим допуска не принимает.' }),
+                }))}
+              />
+            ),
+            renderModelMenu: ({ close }: { close: () => void }) => (
+              <ChipMenu
+                label="Модель"
+                selected={chosenModel ?? MODEL_UNSET_VALUE}
+                onSelect={(value) =>
+                  providers.setModel(
+                    talk.target?.providerId ?? '',
+                    value === MODEL_UNSET_VALUE ? null : value,
+                  )
+                }
+                onClose={close}
+                {...(capability && capability.models.length === 0
+                  ? { note: MODEL_LIST_UNKNOWN }
+                  : {})}
+                items={[
+                  {
+                    value: MODEL_UNSET_VALUE,
+                    label: MODEL_UNSET,
+                    note: 'PartyCo не передаёт модель — CLI берёт свою обычную.',
+                  },
+                  ...(capability?.models ?? []).map((model) => ({
+                    value: model.id,
+                    label: model.label,
+                    note: model.note,
+                  })),
+                ]}
+              />
+            ),
+          }
+        : {})}
     />
   );
 

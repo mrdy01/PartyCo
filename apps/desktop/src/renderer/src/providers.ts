@@ -14,6 +14,7 @@
 
 import { useCallback, useEffect, useState } from 'react';
 import type { ProviderMode, ProviderSetupItem, ProviderSetupState } from '@partyco/ui';
+import type { AgentPermission, ProviderCapability } from './bridge';
 
 /**
  * What the detector found, keyed by provider.
@@ -49,6 +50,20 @@ export interface ProviderLayer {
   setMode: (providerId: string, mode: ProviderMode) => void;
   submitKey: (providerId: string, key: string) => void;
   redetect: () => void;
+
+  /**
+   * What each provider may actually be asked for. Empty until the main process has answered.
+   *
+   * Carried over IPC rather than imported, because `@partyco/agents` reaches `node:child_process`
+   * through its barrel and this file runs in web content.
+   */
+  capabilities: readonly ProviderCapability[];
+  /** How much the agent may do, as the composer chip says it. Remembered between launches. */
+  agentMode: AgentPermission;
+  setAgentMode: (mode: AgentPermission) => void;
+  /** Chosen model alias per provider. Absent ⇒ the CLI picks, and the chip says so. */
+  models: Readonly<Record<string, string>>;
+  setModel: (providerId: string, modelId: string | null) => void;
 }
 
 /**
@@ -67,6 +82,33 @@ export function useProviderLayer(): ProviderLayer {
   const [keyError, setKeyError] = useState<{ providerId: string; message: string } | null>(null);
   const [modes, setModes] = useState<Record<string, ProviderMode>>({});
   const [nonce, setNonce] = useState(0);
+  const [capabilities, setCapabilities] = useState<readonly ProviderCapability[]>([]);
+  const [agentMode, setAgentModeState] = useState<AgentPermission>('plan');
+  const [models, setModels] = useState<Readonly<Record<string, string>>>({});
+
+  /*
+   * The remembered chips, read once per launch.
+   *
+   * Read before anything can be sent rather than lazily: a turn that goes out with the default while
+   * the member's own choice is still in flight would run under an authority they did not pick, and
+   * the chip would be showing the right answer at the time.
+   */
+  useEffect(() => {
+    const bridge = window.partyco?.agents;
+    if (!bridge) return;
+    let cancelled = false;
+    void bridge
+      .settings()
+      .then((result) => {
+        if (cancelled || !result.ok) return;
+        setAgentModeState(result.value.agentMode);
+        setModels(result.value.models);
+      })
+      .catch(() => undefined);
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   useEffect(() => {
     const bridge = window.partyco?.agents;
@@ -92,6 +134,7 @@ export function useProviderLayer(): ProviderLayer {
           setState('error');
           return;
         }
+        setCapabilities(policy.value.capabilities);
 
         const detectionById = new Map<string, Detection>();
         if (detected.ok) {
@@ -209,5 +252,59 @@ export function useProviderLayer(): ProviderLayer {
 
   const redetect = useCallback(() => setNonce((n) => n + 1), []);
 
-  return { providers, state, keysPersisted, busyProviderId, keyError, setMode, submitKey, redetect };
+  /*
+   * The screen changes first, the disk second.
+   *
+   * A chip that waited for a file write before repainting would lag behind the click on a slow disk,
+   * and the member would click twice. A failed write costs the choice at next launch and nothing in
+   * this session — the run already carries the value from state, not from the file.
+   */
+  const persist = useCallback((next: { agentMode: AgentPermission; models: Record<string, string> }) => {
+    void window.partyco?.agents?.setSettings(next).catch(() => undefined);
+  }, []);
+
+  const setAgentMode = useCallback(
+    (next: AgentPermission) => {
+      setAgentModeState(next);
+      setModels((current) => {
+        persist({ agentMode: next, models: { ...current } });
+        return current;
+      });
+    },
+    [persist],
+  );
+
+  const setModel = useCallback(
+    (providerId: string, modelId: string | null) => {
+      setModels((current) => {
+        const next = { ...current };
+        // `null` is «пусть выбирает CLI», which is the absence of a value rather than a value called
+        // "default" — so the key goes away instead of holding a word the adapter would then send.
+        if (modelId === null) delete next[providerId];
+        else next[providerId] = modelId;
+        setAgentModeState((mode) => {
+          persist({ agentMode: mode, models: next });
+          return mode;
+        });
+        return next;
+      });
+    },
+    [persist],
+  );
+
+  return {
+    providers,
+    state,
+    keysPersisted,
+    busyProviderId,
+    keyError,
+    setMode,
+    submitKey,
+    redetect,
+    capabilities,
+    agentMode,
+    setAgentMode,
+    models,
+    setModel,
+  };
 }

@@ -52,6 +52,8 @@ export {
   ZONE_WORD,
   ZONE_TERM_HINT,
   AGENT_MODE_PLAIN_LABEL,
+  AGENT_MODE_PLAIN_NOTE,
+  AGENT_MODE_TONE,
   PROJECT_ROLES,
   PROJECT_ROLE_LABEL,
   PROJECT_ROLE_TITLE,
@@ -175,6 +177,11 @@ export {
   Checkbox,
   type CheckboxProps,
 } from './components/Checkbox/index.ts';
+export {
+  ChipMenu,
+  type ChipMenuProps,
+  type ChipMenuItem,
+} from './components/ChipMenu/index.ts';
 export {
   CommandPalette,
   type CommandPaletteProps,

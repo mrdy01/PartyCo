@@ -77,6 +77,27 @@ export type AgentEvent = TextEvent | ToolEvent | ResultEvent | ErrorEvent | Canc
  * What goes in
  * ------------------------------------------------------------------ */
 
+/**
+ * How much the agent may do without being asked — the three modes §7 of the handoff fixed.
+ *
+ * A closed union rather than a string, and the reason is a hole this file would otherwise open.
+ * `planSpawn` guards *flags*: it refuses any argv token starting with `-` that the adapter did not
+ * declare. A permission **value** carries no dash, so it sails past that check untouched — and the
+ * vendor CLI accepts three more values we will never offer (`bypassPermissions`, `dontAsk`,
+ * `manual`). The first is the old `--dangerously-skip-permissions` under a new name; the other two
+ * ask a human who, in a non-interactive run, does not exist. Naming the three permitted values here
+ * means an unknown one cannot be typed anywhere in the product, and the adapter's own lookup table
+ * turns anything that arrives despite that into no flag at all.
+ *
+ * Spelled `agentMode`, not `mode`: `RunOptions.mode` one interface below is the *auth* mode, and two
+ * fields called `mode` meaning different things in one call is how a wrong value gets passed for
+ * years without anybody noticing.
+ */
+export type AgentPermission = 'plan' | 'accept-edits' | 'auto';
+
+/** The three, in the order a person meets them. Iterated by the UI and by the IPC allowlist. */
+export const AGENT_PERMISSIONS: readonly AgentPermission[] = ['plan', 'accept-edits', 'auto'];
+
 export interface AgentRequest {
   /** What the person asked for. */
   prompt: string;
@@ -84,6 +105,14 @@ export interface AgentRequest {
   cwd: string;
   /** Model as the vendor names it. Omitted means "whatever the CLI is configured for". */
   model?: string;
+  /**
+   * How much the agent may do. Omitted means the CLI's own default, which is what shipped until now.
+   *
+   * An adapter whose vendor has no equivalent ignores this field rather than approximating it — see
+   * the note above `buildArgs` in `adapters/codex.ts`. Approximating a permission model is how a
+   * person ends up with wider authority than the words on their screen promised.
+   */
+  agentMode?: AgentPermission;
 }
 
 /**

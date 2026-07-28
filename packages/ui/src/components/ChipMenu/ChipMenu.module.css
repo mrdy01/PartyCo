@@ -1,0 +1,116 @@
+/*
+ * The chip menu.
+ *
+ * Elevation in this design system is a background step plus a border, not a shadow — there is no
+ * shadow token, and inventing one here would be the first. `--pc-bg-raised` over the composer's own
+ * surface plus `--pc-border-strong` is the same pair every other floating surface in the library
+ * uses.
+ */
+
+.root {
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  gap: var(--pc-space-2);
+  min-width: 232px;
+  max-width: 320px;
+  padding: var(--pc-space-4);
+  border: var(--pc-border-width) solid var(--pc-border-strong);
+  border-radius: var(--pc-radius-md);
+  background: var(--pc-bg-raised);
+}
+
+.note {
+  margin: 0;
+  padding: var(--pc-space-6) var(--pc-space-8);
+  font: var(--pc-type-meta);
+  color: var(--pc-text-3);
+}
+
+.row {
+  box-sizing: border-box;
+  display: flex;
+  align-items: flex-start;
+  gap: var(--pc-space-8);
+  width: 100%;
+  margin: 0;
+  padding: var(--pc-space-6) var(--pc-space-8);
+  border: 0;
+  border-radius: var(--pc-radius-sm);
+  background: transparent;
+  text-align: left;
+  cursor: pointer;
+  -webkit-appearance: none;
+  appearance: none;
+  transition: background var(--pc-duration-fast) var(--pc-ease);
+}
+
+.row:hover:not(:disabled) {
+  background: var(--pc-bg-input);
+}
+
+.row:focus-visible {
+  outline: none;
+  box-shadow: var(--pc-focus-ring);
+}
+
+.row[data-selected='true'] {
+  background: var(--pc-bg-input);
+}
+
+/*
+ * A blocked row is dimmed but keeps its reason at full readability — the sentence is the only part
+ * of it that still does any work, so it must not be the part that fades.
+ */
+.row:disabled {
+  cursor: default;
+}
+
+.row:disabled .label,
+.row:disabled .itemNote {
+  color: var(--pc-text-4);
+}
+
+.dot {
+  flex: none;
+  /* Aligns the dot to the cap height of the first line rather than to the box. */
+  margin-top: var(--pc-space-6);
+  width: calc(var(--pc-space-4) + var(--pc-border-width));
+  height: calc(var(--pc-space-4) + var(--pc-border-width));
+  border-radius: 50%;
+  background: transparent;
+}
+
+.dot[data-tone='success'] {
+  background: var(--pc-status-success);
+}
+
+.dot[data-tone='warning'] {
+  background: var(--pc-status-warning);
+}
+
+.dot[data-tone='danger'] {
+  background: var(--pc-status-danger);
+}
+
+.body {
+  display: flex;
+  flex-direction: column;
+  gap: var(--pc-space-2);
+  min-width: 0;
+}
+
+.label {
+  font: var(--pc-type-label);
+  color: var(--pc-text-read);
+}
+
+.itemNote {
+  font: var(--pc-type-meta);
+  color: var(--pc-text-3);
+}
+
+.reason {
+  font: var(--pc-type-meta);
+  color: var(--pc-status-warning);
+}

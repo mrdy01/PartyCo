@@ -403,6 +403,19 @@ function parseLine(line: string): AgentEvent[] {
  * positional value and cannot be mistaken for an option — and then write the question and close the
  * stream. See `promptDelivery` at the bottom of this file.
  */
+/**
+ * `request.agentMode` is ignored here, and that is a decision rather than an oversight.
+ *
+ * Codex has no `--permission-mode`. What it has is `--sandbox`, and the two are different axes:
+ * one is *who approves an edit*, the other is *what the process may touch at all*. Mapping «План»
+ * onto `--sandbox read-only` would read plausibly and be wrong — it would mean the mode chip
+ * silently widens or narrows a vendor sandbox, which the note below already says is not this
+ * adapter's call to make permanently.
+ *
+ * So the chip does not quietly do nothing here either: `ProviderCapability` reports that this
+ * provider accepts no modes, and the menu says so in words instead of offering three rows that
+ * change the argv not at all. A test asserts this argv is byte-identical with and without the field.
+ */
 function buildArgs(request: AgentRequest): string[] {
   const args = [
     'exec',

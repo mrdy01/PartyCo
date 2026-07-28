@@ -11,7 +11,7 @@ import {
 import { Icon } from '@partyco/icons';
 import type { IdentitySetName } from '@partyco/tokens';
 import { zoneEdgeStyle, type Member } from '../../identity.ts';
-import { AGENT_MODE_PLAIN_LABEL, type ComposerContext } from '../AppShell/model.ts';
+import { AGENT_MODE_PLAIN_LABEL, AGENT_MODE_TONE, type ComposerContext } from '../AppShell/model.ts';
 import { ProviderGlyph } from '../ProviderGlyph/ProviderGlyph.tsx';
 import styles from './Composer.module.css';
 
@@ -96,14 +96,24 @@ export interface ComposerProps {
   onZoneClick?: (() => void) | undefined;
   /** Used when `renderModeMenu` is absent — then the chip is just a button. */
   onModeClick?: (() => void) | undefined;
+  /** Used when `renderModelMenu` is absent — then the chip is just a button. */
   onModelClick?: (() => void) | undefined;
   /**
-   * Optional popover over the mode chip — `AgentModeSelector` belongs here, rendered by the caller
-   * so this component never forks it. Present ⇒ the chip toggles the popover instead of calling
-   * `onModeClick`.
+   * Optional popover over the mode chip, rendered by the caller so this component never forks a
+   * picker. Present ⇒ the chip toggles the popover instead of calling `onModeClick`, which is a
+   * precedence worth stating: passing both means the click handler is never reached.
    */
   renderModeMenu?: ((api: ComposerModeMenuApi) => ReactNode) | undefined;
-  /** Status tone of the mode dot. The design draws warning; a stricter mode may want another. */
+  /** The same arrangement for the model chip, and the same precedence over `onModelClick`. */
+  renderModelMenu?: ((api: ComposerModeMenuApi) => ReactNode) | undefined;
+  /**
+   * Status tone of the mode dot.
+   *
+   * Defaulted from the mode itself rather than fixed at `warning`. With three modes behind one dot a
+   * single colour makes «Правит в своей зоне» and «Сам решает» indistinguishable — and those two are
+   * exactly the pair a person needs to tell apart at a glance, because one of them is bounded by the
+   * zone and the other is not. A caller may still override.
+   */
   modeTone?: 'success' | 'warning' | 'danger' | 'running' | undefined;
   copy?: Partial<ComposerCopy> | undefined;
   autoFocus?: boolean | undefined;
@@ -136,7 +146,8 @@ export function Composer({
   onModeClick,
   onModelClick,
   renderModeMenu,
-  modeTone = 'warning',
+  renderModelMenu,
+  modeTone,
   copy,
   autoFocus = false,
   className,
@@ -148,10 +159,12 @@ export function Composer({
   const draft = controlled ? value : inner;
 
   const [focused, setFocused] = useState(false);
-  const [menuOpen, setMenuOpen] = useState(false);
+  /** At most one chip menu is open at a time — two popovers over one row is two answers to one row. */
+  const [openMenu, setOpenMenu] = useState<'mode' | 'model' | null>(null);
 
   const fieldRef = useRef<HTMLTextAreaElement>(null);
   const modeSlotRef = useRef<HTMLDivElement>(null);
+  const modelSlotRef = useRef<HTMLDivElement>(null);
 
   /**
    * Auto-grow. The height is measured from the content, so it is one of the few numbers that
@@ -166,14 +179,21 @@ export function Composer({
   }, [draft]);
 
   useEffect(() => {
-    if (!menuOpen) return;
+    if (openMenu === null) return;
     const onKey = (event: globalThis.KeyboardEvent): void => {
-      if (event.key === 'Escape') setMenuOpen(false);
+      if (event.key === 'Escape') setOpenMenu(null);
     };
     const onPointerDown = (event: PointerEvent): void => {
       const target = event.target;
-      if (target instanceof Node && modeSlotRef.current?.contains(target)) return;
-      setMenuOpen(false);
+      if (!(target instanceof Node)) {
+        setOpenMenu(null);
+        return;
+      }
+      // A click inside the open menu's own slot is not an outside click — and the slot is whichever
+      // chip is open, so the two menus cannot close each other's clicks.
+      const slot = openMenu === 'mode' ? modeSlotRef.current : modelSlotRef.current;
+      if (slot?.contains(target)) return;
+      setOpenMenu(null);
     };
     document.addEventListener('keydown', onKey);
     document.addEventListener('pointerdown', onPointerDown);
@@ -181,7 +201,7 @@ export function Composer({
       document.removeEventListener('keydown', onKey);
       document.removeEventListener('pointerdown', onPointerDown);
     };
-  }, [menuOpen]);
+  }, [openMenu]);
 
   const canSend = !disabled && draft.trim().length > 0;
   // Stopping is offered only when there is both something to stop and somebody able to stop it.
@@ -225,10 +245,15 @@ export function Composer({
    * only make it when it can keep it.
    */
   const modeInteractive = Boolean(renderModeMenu) || Boolean(onModeClick);
+  const modelInteractive = Boolean(renderModelMenu) || Boolean(onModelClick);
 
   const modeChipBody = (
     <>
-      <span className={styles.modeDot} data-tone={modeTone} aria-hidden="true" />
+      <span
+        className={styles.modeDot}
+        data-tone={modeTone ?? AGENT_MODE_TONE[context.mode]}
+        aria-hidden="true"
+      />
       <span className={styles.modeLabel}>{AGENT_MODE_PLAIN_LABEL[context.mode]}</span>
       {modeInteractive ? <Icon name="caret-down" className={styles.caret} /> : null}
     </>
@@ -238,6 +263,7 @@ export function Composer({
     <>
       <ProviderGlyph providerId={context.providerId} />
       <span className={styles.modelName}>{context.modelLabel}</span>
+      {modelInteractive ? <Icon name="caret-down" className={styles.caret} /> : null}
     </>
   );
 
@@ -295,20 +321,22 @@ export function Composer({
           )
         ) : null}
 
-        <div className={styles.modeSlot} ref={modeSlotRef}>
+        <div className={styles.slot} ref={modeSlotRef}>
           {modeInteractive ? (
             <button
               type="button"
               className={cx(styles.chip, styles.chipButton)}
               onClick={() => {
                 if (renderModeMenu) {
-                  setMenuOpen((open) => !open);
+                  setOpenMenu((open) => (open === 'mode' ? null : 'mode'));
                   return;
                 }
                 onModeClick?.();
               }}
               aria-label={`${text.modeLabel}: ${AGENT_MODE_PLAIN_LABEL[context.mode]}`}
-              {...(renderModeMenu ? { 'aria-haspopup': 'menu' as const, 'aria-expanded': menuOpen } : {})}
+              {...(renderModeMenu
+                ? { 'aria-haspopup': 'menu' as const, 'aria-expanded': openMenu === 'mode' }
+                : {})}
             >
               {modeChipBody}
             </button>
@@ -320,18 +348,34 @@ export function Composer({
               {modeChipBody}
             </span>
           )}
-          {renderModeMenu && menuOpen ? (
-            <div className={styles.menu}>{renderModeMenu({ close: () => setMenuOpen(false) })}</div>
+          {renderModeMenu && openMenu === 'mode' ? (
+            <div className={styles.menu}>{renderModeMenu({ close: () => setOpenMenu(null) })}</div>
           ) : null}
         </div>
 
-        {variant === 'wide' ? (
-          onModelClick ? (
+        {/*
+          The model chip is drawn in the narrow composer too, which the export does not do (screen 04
+          shows the chip row without it). Deliberate: with a file open the question is usually about
+          that file, and hiding the control there means the only way to change which model answers is
+          to close the file first. The hint beside the send button stays wide-only, so the row does
+          not outgrow the pane. Flagged to the designer.
+        */}
+        <div className={styles.slot} ref={modelSlotRef}>
+          {modelInteractive ? (
             <button
               type="button"
               className={cx(styles.chip, styles.chipButton)}
-              onClick={onModelClick}
+              onClick={() => {
+                if (renderModelMenu) {
+                  setOpenMenu((open) => (open === 'model' ? null : 'model'));
+                  return;
+                }
+                onModelClick?.();
+              }}
               aria-label={`${text.modelLabel}: ${context.modelLabel}`}
+              {...(renderModelMenu
+                ? { 'aria-haspopup': 'menu' as const, 'aria-expanded': openMenu === 'model' }
+                : {})}
             >
               {modelChipBody}
             </button>
@@ -339,8 +383,11 @@ export function Composer({
             <span className={styles.chip} title={`${text.modelLabel}: ${context.modelLabel}`}>
               {modelChipBody}
             </span>
-          )
-        ) : null}
+          )}
+          {renderModelMenu && openMenu === 'model' ? (
+            <div className={styles.menu}>{renderModelMenu({ close: () => setOpenMenu(null) })}</div>
+          ) : null}
+        </div>
 
         <div className={styles.trailing}>
           {variant === 'wide' ? <span className={styles.hint}>{text.submitHint}</span> : null}

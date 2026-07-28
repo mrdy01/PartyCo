@@ -38,8 +38,10 @@ export {
 
 export {
   runAgent,
+  AGENT_PERMISSIONS,
   type AgentAdapter,
   type AgentEvent,
+  type AgentPermission,
   type AgentRequest,
   type TextEvent,
   type ToolEvent,
@@ -48,6 +50,13 @@ export {
   type CancelledEvent,
   type RunOptions,
 } from './engine.ts';
+
+export {
+  CAPABILITIES,
+  findCapability,
+  type ModelChoice,
+  type ProviderCapability,
+} from './catalog.ts';
 
 export { detectCli, detectAll, type CliDetection } from './detect.ts';
 

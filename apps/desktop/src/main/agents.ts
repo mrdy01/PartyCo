@@ -2,6 +2,8 @@ import { ipcMain, safeStorage, type IpcMainInvokeEvent, type WebContents } from 
 import { mkdir, open, readFile, realpath, rename, rm, stat } from 'node:fs/promises';
 import { isAbsolute, join, sep } from 'node:path';
 import {
+  AGENT_PERMISSIONS,
+  CAPABILITIES,
   POLICY_NEEDS_CONSENT,
   POLICY_SELECTABLE,
   PROVIDERS,
@@ -11,13 +13,22 @@ import {
   findProvider,
   runAgent,
   type AgentEvent,
+  type AgentPermission,
   type AuthMode,
   type CliDetection,
   type PolicyStatus,
+  type ProviderCapability,
   type ProviderPolicy,
 } from '@partyco/agents';
+import {
+  readAgentSettings,
+  writeAgentSettings,
+  type AgentSettings,
+} from './agent-settings.ts';
 import { platformPaths } from './platform.ts';
 import { currentWorkspaceRoot } from './workspace.ts';
+
+export type { AgentSettings } from './agent-settings.ts';
 
 /**
  * The main-process side of the provider layer.
@@ -62,6 +73,14 @@ export interface AgentPolicyCatalog {
   providers: readonly ProviderPolicy[];
   selectable: Readonly<Record<PolicyStatus, boolean>>;
   needsConsent: Readonly<Record<PolicyStatus, boolean>>;
+  /**
+   * What each provider may actually be asked for — models and permission modes.
+   *
+   * Carried over IPC rather than imported by the renderer, even though it is static data with no
+   * Node in it. `@partyco/agents` reaches `node:child_process` through its own barrel, and a renderer
+   * import of that barrel is how Node ends up inside web content.
+   */
+  capabilities: readonly ProviderCapability[];
 }
 
 /** One turn, as the renderer asks for it. Nothing here is trusted until `parseRunRequest` says so. */
@@ -79,6 +98,13 @@ export interface AgentRunRequest {
    */
   cwd: string;
   model?: string | undefined;
+  /**
+   * How much the agent may do without asking. Absent means the CLI's own default.
+   *
+   * Validated against a closed list below rather than passed through, because this is the one field
+   * whose value — not its flag — decides authority, and `planSpawn` only ever inspects flags.
+   */
+  agentMode?: AgentPermission | undefined;
 }
 
 /** What the renderer sends. The `runId` is the preload's business. */
@@ -219,7 +245,7 @@ function describe(cause: unknown): string {
 function parseRunRequest(raw: unknown): IpcResult<AgentRunRequest> {
   if (!isRecord(raw)) return fail('Некорректный запрос: ожидался объект.');
 
-  const { runId, providerId, mode, prompt, cwd, model } = raw;
+  const { runId, providerId, mode, prompt, cwd, model, agentMode } = raw;
 
   if (typeof runId !== 'string' || !RUN_ID.test(runId)) {
     return fail('Некорректный идентификатор рана.');
@@ -249,6 +275,22 @@ function parseRunRequest(raw: unknown): IpcResult<AgentRunRequest> {
     return fail('Некорректный идентификатор модели.');
   }
 
+  /*
+   * The permission mode is checked against the list, not against a shape.
+   *
+   * `MODEL_ID` above is a pattern, because a model id is an open set nobody here can enumerate. A
+   * permission is the opposite: three values exist, and a fourth arriving over IPC means either a
+   * bug or a renderer that is no longer ours. The vendor CLI would happily accept
+   * `bypassPermissions`, and nothing else between here and argv would object — `planSpawn` reads
+   * flags, and this value carries no dash. So this is the boundary that has to say no.
+   */
+  if (
+    agentMode !== undefined &&
+    (typeof agentMode !== 'string' || !AGENT_PERMISSIONS.includes(agentMode as AgentPermission))
+  ) {
+    return fail('Неизвестный режим агента.');
+  }
+
   return succeed({
     runId,
     providerId: provider.id,
@@ -256,6 +298,7 @@ function parseRunRequest(raw: unknown): IpcResult<AgentRunRequest> {
     prompt,
     cwd,
     ...(typeof model === 'string' ? { model } : {}),
+    ...(typeof agentMode === 'string' ? { agentMode: agentMode as AgentPermission } : {}),
   });
 }
 
@@ -675,6 +718,7 @@ async function streamRun(
         prompt: request.prompt,
         cwd: request.cwd,
         ...(request.model === undefined ? {} : { model: request.model }),
+        ...(request.agentMode === undefined ? {} : { agentMode: request.agentMode }),
       },
       mode: request.mode,
       ...(apiKey === undefined ? {} : { apiKey }),
@@ -731,7 +775,40 @@ export function registerAgentIpc(): void {
       providers: PROVIDERS,
       selectable: POLICY_SELECTABLE,
       needsConsent: POLICY_NEEDS_CONSENT,
+      capabilities: CAPABILITIES,
     }),
+  );
+
+  /**
+   * What the member picked on the composer chips, and the way to change it.
+   *
+   * A preference rather than a secret, so unlike a key it travels both ways — but it is still
+   * re-validated on the way in and on the way back off disk, because the value it carries decides
+   * how much authority a run has.
+   */
+  ipcMain.handle('agents:settings', async (): Promise<IpcResult<AgentSettings>> => {
+    try {
+      return succeed(await readAgentSettings());
+    } catch (cause) {
+      return fail(describe(cause));
+    }
+  });
+
+  ipcMain.handle(
+    'agents:setSettings',
+    async (_event: IpcMainInvokeEvent, raw: unknown): Promise<IpcResult<AgentSettings>> => {
+      if (!isRecord(raw)) return fail('Некорректные настройки агента.');
+      try {
+        return succeed(
+          await writeAgentSettings({
+            agentMode: raw['agentMode'] as AgentPermission,
+            models: (raw['models'] ?? {}) as Record<string, string>,
+          }),
+        );
+      } catch (cause) {
+        return fail(describe(cause));
+      }
+    },
   );
 
   ipcMain.handle(

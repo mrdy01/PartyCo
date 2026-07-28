@@ -25,7 +25,13 @@
  *    never show a login screen and never offer to log them in.
  */
 
-import type { AgentAdapter, AgentEvent, AgentRequest, ErrorEvent } from '../engine.ts';
+import type {
+  AgentAdapter,
+  AgentEvent,
+  AgentPermission,
+  AgentRequest,
+  ErrorEvent,
+} from '../engine.ts';
 
 /* ------------------------------------------------------------------ *
  * Arguments
@@ -77,8 +83,35 @@ export function buildArgs(request: AgentRequest): string[] {
   const model = request.model?.trim();
   if (model) args.push('--model', asValue(model));
 
+  // `--permission-mode`: "Permission mode to use for the session (choices: acceptEdits, auto,
+  // bypassPermissions, manual, dontAsk, plan)" — read off `claude --help` of the installed 2.1.220,
+  // and echoed back by the CLI itself in its `system`/`init` line as `permissionMode`.
+  //
+  // A table lookup, never `asValue(request.agentMode)`. Three of the vendor's six values must never
+  // leave this process: `bypassPermissions` is `--dangerously-skip-permissions` renamed, and
+  // `manual`/`dontAsk` wait for an answer from a person a `-p` run does not have. A lookup makes
+  // them unreachable by construction — an unknown key yields `undefined` and emits nothing — rather
+  // than by a filter somebody has to remember to keep in step. It also closes the gap `planSpawn`
+  // cannot see: that guard inspects tokens beginning with `-`, and a permission value has no dash.
+  const permission = request.agentMode === undefined ? undefined : PERMISSION_FLAG[request.agentMode];
+  if (permission) args.push('--permission-mode', permission);
+
   return args;
 }
+
+/**
+ * PartyCo's three modes to the vendor's spelling, and nothing else.
+ *
+ * The kebab-case side is the product's vocabulary (`AGENT_PERMISSIONS` in `engine.ts`, and the same
+ * spelling `packages/ui` has used since the first agent panel); the camelCase side is Claude Code's.
+ * This is the only place in the repository where the two meet, so a rename on either side breaks
+ * here and nowhere else.
+ */
+const PERMISSION_FLAG: Readonly<Record<AgentPermission, string>> = {
+  plan: 'plan',
+  'accept-edits': 'acceptEdits',
+  auto: 'auto',
+};
 
 /**
  * Every flag this file can emit, for the Windows interpreter check in `planSpawn`.
@@ -86,7 +119,13 @@ export function buildArgs(request: AgentRequest): string[] {
  * Written out rather than derived from `buildArgs`, because a list derived from the thing it guards
  * would agree with any change made to it — including a mistaken one.
  */
-export const OWN_FLAGS: readonly string[] = ['-p', '--output-format', '--verbose', '--model'];
+export const OWN_FLAGS: readonly string[] = [
+  '-p',
+  '--output-format',
+  '--verbose',
+  '--model',
+  '--permission-mode',
+];
 
 /* ------------------------------------------------------------------ *
  * Stream parsing

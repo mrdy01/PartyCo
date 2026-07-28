@@ -6,6 +6,7 @@ import type {
   AgentPolicyCatalog,
   AgentRunInput,
   AgentRunOutcome,
+  AgentSettings,
   AgentStreamMessage,
   IpcResult,
 } from '../main/agents.ts';
@@ -70,6 +71,7 @@ export type {
   AgentPolicyCatalog,
   AgentRunInput,
   AgentRunOutcome,
+  AgentSettings,
   IpcResult,
 } from '../main/agents.ts';
 
@@ -113,6 +115,9 @@ export interface AgentsBridge {
    * this bridge exists to make impossible.
    */
   keyStatus(): Promise<IpcResult<AgentKeyReport>>;
+  /** The remembered composer choices — permission mode and model per provider. */
+  settings(): Promise<IpcResult<AgentSettings>>;
+  setSettings(next: AgentSettings): Promise<IpcResult<AgentSettings>>;
 }
 
 export interface PartyCoBridge {
@@ -208,6 +213,9 @@ const agents: AgentsBridge = {
   setKey: (providerId, key) =>
     ipcRenderer.invoke('agents:setKey', providerId, key) as Promise<IpcResult<AgentKeyReport>>,
   keyStatus: () => ipcRenderer.invoke('agents:keyStatus') as Promise<IpcResult<AgentKeyReport>>,
+  settings: () => ipcRenderer.invoke('agents:settings') as Promise<IpcResult<AgentSettings>>,
+  setSettings: (next) =>
+    ipcRenderer.invoke('agents:setSettings', next) as Promise<IpcResult<AgentSettings>>,
 };
 
 /**

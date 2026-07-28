@@ -418,7 +418,7 @@ test('a refused transport never reaches a spawn', async () => {
 
 /** Flags each adapter is allowed to emit. Anything else in flag position is an injection. */
 const FLAG_ALLOWLIST = new Map([
-  [claudeAdapter, new Set(['-p', '--output-format', '--verbose', '--model'])],
+  [claudeAdapter, new Set(['-p', '--output-format', '--verbose', '--model', '--permission-mode'])],
   [codexAdapter, new Set(['--json', '--color', '--cd', '--sandbox', '--model'])],
 ]);
 
@@ -447,6 +447,10 @@ test('no prompt and no model can turn into a CLI flag', () => {
       for (const request of [
         { prompt: hostileText, cwd: 'C:\\work', model: 'claude-sonnet-4-6' },
         { prompt: 'обычный вопрос', cwd: 'C:\\work', model: hostileText },
+        // The permission mode is the third thing that reaches argv from outside this package, so it
+        // gets the same treatment as the other two rather than being trusted for being an enum in
+        // TypeScript — the renderer is web content and the type disappears at runtime.
+        { prompt: 'обычный вопрос', cwd: 'C:\\work', agentMode: hostileText },
       ]) {
         const args = adapter.buildArgs(request);
         for (const token of flagTokens(args)) {
@@ -531,24 +535,193 @@ test('the prompt reaches stdin for every adapter, and the stream is closed after
   }
 });
 
-test('no adapter ever emits a flag that disables a vendor safeguard', () => {
+/**
+ * Every token, not only the ones that look like flags — and that widening is the point.
+ *
+ * This test used to walk `flagTokens(args)`, i.e. tokens starting with `-`. So did `planSpawn`. Both
+ * were written when the only untrusted things reaching argv were a prompt and a model id, and a
+ * dangerous *value* did not exist. `--permission-mode` created one: `bypassPermissions` is the old
+ * `--dangerously-skip-permissions` wearing a name with no dash in it, and it would have walked
+ * through this assertion, through `planSpawn`, and into the CLI without one guard objecting.
+ *
+ * The adapter's lookup table is what actually stops it. This is the test that would have noticed if
+ * the table were ever replaced by a passthrough.
+ */
+test('no adapter ever emits a flag OR A VALUE that disables a vendor safeguard', () => {
   const never = [
     'dangerously',
     'skip-permissions',
     'bypass-approvals',
+    'bypasspermissions',
+    'danger-full-access',
+    'dontask',
     'yolo',
     '--bare',
     'skip-git-repo-check',
     'mcp-config',
     'settings',
   ];
+  const requests = [
+    { prompt: 'привет', cwd: 'C:\\work', model: 'sonnet' },
+    // Values TypeScript forbids and a compromised renderer would not. Cast away the type on purpose:
+    // the guarantee under test is a runtime one.
+    ...['bypassPermissions', 'dontAsk', 'manual', 'plan', 'accept-edits', 'auto'].map((agentMode) => ({
+      prompt: 'привет',
+      cwd: 'C:\\work',
+      agentMode,
+    })),
+  ];
   for (const adapter of FLAG_ALLOWLIST.keys()) {
-    const args = adapter.buildArgs({ prompt: 'привет', cwd: 'C:\\work', model: 'sonnet' });
-    for (const token of flagTokens(args)) {
-      for (const forbidden of never) {
-        assert.ok(!token.includes(forbidden), `${adapter.providerId} emitted ${token}`);
+    for (const request of requests) {
+      for (const token of adapter.buildArgs(request)) {
+        const lowered = token.toLowerCase();
+        for (const forbidden of never) {
+          assert.ok(
+            !lowered.includes(forbidden),
+            `${adapter.providerId} emitted «${token}» for ${JSON.stringify(request.agentMode)}`,
+          );
+        }
       }
     }
+  }
+});
+
+test('the claude adapter emits only the three sanctioned permission values', () => {
+  const sanctioned = new Set(['plan', 'acceptEdits', 'auto']);
+  const everything = [
+    'plan',
+    'accept-edits',
+    'auto',
+    'bypassPermissions',
+    'dontAsk',
+    'manual',
+    'acceptEdits', // the vendor spelling, which is not our vocabulary and must not be accepted
+    '',
+    'PLAN',
+    '--permission-mode',
+  ];
+  for (const agentMode of everything) {
+    const args = claudeAdapter.buildArgs({ prompt: 'привет', cwd: 'C:\\work', agentMode });
+    const at = args.indexOf('--permission-mode');
+    if (at === -1) continue;
+    assert.ok(
+      sanctioned.has(args[at + 1]),
+      `«${agentMode}» reached the CLI as the permission «${args[at + 1]}»`,
+    );
+  }
+});
+
+test('an unknown agent mode changes the command line not at all', () => {
+  for (const adapter of FLAG_ALLOWLIST.keys()) {
+    const plain = adapter.buildArgs({ prompt: 'привет', cwd: 'C:\\work' });
+    for (const agentMode of ['bypassPermissions', 'dontAsk', 'manual', 'PLAN', '', 'nonsense']) {
+      assert.deepEqual(
+        adapter.buildArgs({ prompt: 'привет', cwd: 'C:\\work', agentMode }),
+        plain,
+        `${adapter.providerId}: «${agentMode}» altered argv instead of being ignored`,
+      );
+    }
+  }
+});
+
+test('codex ignores the agent mode entirely, rather than approximating it with a sandbox', () => {
+  const plain = codexAdapter.buildArgs({ prompt: 'привет', cwd: 'C:\\work' });
+  for (const agentMode of ['plan', 'accept-edits', 'auto']) {
+    assert.deepEqual(
+      codexAdapter.buildArgs({ prompt: 'привет', cwd: 'C:\\work', agentMode }),
+      plain,
+      `codex changed its sandbox for «${agentMode}» — permission policy and sandbox scope are ` +
+        'different axes and this adapter may not silently equate them',
+    );
+  }
+});
+
+test('the model menu is ordered lightest to heaviest, because the order is the information', async () => {
+  const { findCapability } = await import('./src/catalog.ts');
+  const anthropic = findCapability('anthropic');
+
+  // Locked deliberately. The list once read opus, fable, sonnet, haiku — which put the most
+  // expensive and slowest model second and left the reader no way to tell which direction is
+  // «больше». A menu whose order carries meaning has to fail when the meaning is edited away.
+  assert.deepEqual(
+    anthropic?.models.map((model) => model.id),
+    ['haiku', 'sonnet', 'opus', 'fable'],
+    'fastest and cheapest first, most capable and most expensive last',
+  );
+
+  for (const model of anthropic?.models ?? []) {
+    assert.ok(model.note.length > 0, `${model.id} has no note to choose by`);
+    // Prices are true of metered API billing and not of the delegated-CLI path this product mostly
+    // runs on. A precise number about the wrong billing model is worse than none.
+    assert.ok(!/[$₽]|\bMTok\b/i.test(model.note), `${model.id} quotes a price at the member`);
+  }
+});
+
+test('the catalogue never offers a row the adapter cannot emit', async () => {
+  const { CAPABILITIES } = await import('./src/catalog.ts');
+  const { findAdapter } = await import('./src/index.ts');
+
+  for (const capability of CAPABILITIES) {
+    const adapter = findAdapter(capability.providerId);
+    if (!adapter) {
+      // A provider with no adapter must offer nothing at all — otherwise the menu is a list of
+      // choices with nothing behind any of them.
+      assert.equal(capability.models.length, 0, `${capability.providerId}: models without an adapter`);
+      assert.equal(capability.agentModes.length, 0, `${capability.providerId}: modes without an adapter`);
+      continue;
+    }
+
+    const plain = adapter.buildArgs({ prompt: 'привет', cwd: 'C:\\work' });
+
+    for (const model of capability.models) {
+      const args = adapter.buildArgs({ prompt: 'привет', cwd: 'C:\\work', model: model.id });
+      const at = args.indexOf('--model');
+      assert.notEqual(at, -1, `${capability.providerId}: «${model.id}» produced no --model`);
+      assert.equal(args[at + 1], model.id, `${capability.providerId}: «${model.id}» was altered`);
+    }
+
+    for (const agentMode of capability.agentModes) {
+      const args = adapter.buildArgs({ prompt: 'привет', cwd: 'C:\\work', agentMode });
+      assert.notEqual(
+        args.indexOf('--permission-mode'),
+        -1,
+        `${capability.providerId} lists «${agentMode}» but its adapter emits nothing for it`,
+      );
+    }
+
+    // The other direction: an empty list must mean the adapter genuinely does nothing with a mode,
+    // not that somebody forgot to fill the list in.
+    if (capability.agentModes.length === 0) {
+      for (const agentMode of ['plan', 'accept-edits', 'auto']) {
+        assert.deepEqual(
+          adapter.buildArgs({ prompt: 'привет', cwd: 'C:\\work', agentMode }),
+          plain,
+          `${capability.providerId} offers no modes yet its argv changes for «${agentMode}»`,
+        );
+      }
+      assert.ok(
+        typeof capability.modesNote === 'string' && capability.modesNote.length > 0,
+        `${capability.providerId} offers no modes and does not say why`,
+      );
+    }
+  }
+});
+
+test('the three sanctioned modes each reach the claude CLI as exactly one flag', () => {
+  for (const [agentMode, expected] of [
+    ['plan', 'plan'],
+    ['accept-edits', 'acceptEdits'],
+    ['auto', 'auto'],
+  ]) {
+    const args = claudeAdapter.buildArgs({ prompt: 'привет', cwd: 'C:\\work', agentMode });
+    const at = args.indexOf('--permission-mode');
+    assert.notEqual(at, -1, `«${agentMode}» emitted no --permission-mode at all`);
+    assert.equal(args[at + 1], expected);
+    assert.equal(
+      args.filter((token) => token === '--permission-mode').length,
+      1,
+      'the flag must appear once, not once per call site',
+    );
   }
 });
 
@@ -625,6 +798,42 @@ test('on Windows a .cmd wrapper is started through cmd.exe with an argv we assem
   // And the reason any of this is allowed: the question is not on that command line.
   assert.equal(child.stdin.written, 'привет');
   assert.equal(child.stdin.ended, true);
+});
+
+/**
+ * The Windows half of adding a flag, which is the half that breaks silently.
+ *
+ * `planSpawn` refuses to hand `cmd.exe` any argv token starting with `-` that the adapter did not
+ * declare in `OWN_FLAGS`. Forget that list and this is what happens: every run through an npm `.cmd`
+ * shim is refused with «в аргументах оказался флаг, которого движок не собирал» — on Windows only,
+ * while a macOS machine and a Windows `.exe` install keep working, because `planSpawn` returns
+ * before the check for a directly executable file. So the flag has to be proved here, on the
+ * interpreter path, and not only in `buildArgs`.
+ */
+test('a permission mode survives the Windows interpreter path and lands quoted like every other token', async () => {
+  for (const [agentMode, expected] of [
+    ['plan', 'plan'],
+    ['accept-edits', 'acceptEdits'],
+    ['auto', 'auto'],
+  ]) {
+    const { calls, child } = await runWith({
+      platform: 'win32',
+      binaryPath: NPM_SHIM,
+      request: { prompt: 'привет', cwd: 'C:\\work', agentMode },
+    });
+
+    assert.equal(calls.length, 1, `${agentMode}: refused instead of started`);
+    const [call] = calls;
+    assert.equal(
+      call.args[3],
+      `""${NPM_SHIM}" "-p" "--output-format" "stream-json" "--verbose" "--permission-mode" "${expected}""`,
+      `${agentMode}: the interpreter line is not what the adapter built`,
+    );
+    assert.equal(call.args.length, 4);
+    assert.equal(call.options.windowsVerbatimArguments, true);
+    // Still the precondition for the whole exception: the question is not on that command line.
+    assert.equal(child.stdin.written, 'привет');
+  }
 });
 
 test('a prompt made entirely of interpreter syntax runs anyway, because it is not on the command line', async () => {

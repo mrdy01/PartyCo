@@ -17,6 +17,7 @@ import type { ConversationItem, ProjectMember, ProviderSetupItem, WorkStep } fro
 import type {
   AgentAuthMode,
   AgentEvent,
+  AgentPermission,
   AgentRun,
   TranscriptEntry,
   WorkspaceInfo,
@@ -98,6 +99,13 @@ export function useConversation(
   self: ProjectMember,
   providers: readonly ProviderSetupItem[],
   providersReady: boolean,
+  /**
+   * What the composer chips currently say, and therefore what the next turn runs under.
+   *
+   * Passed in rather than read here, because the chips own it and a turn must go out under exactly
+   * what the person can see. Reading it from a second source would let the two disagree.
+   */
+  chips: { agentMode: AgentPermission; models: Readonly<Record<string, string>> },
 ): ConversationModel {
   const [history, setHistory] = useState<readonly TranscriptEntry[]>([]);
   /**
@@ -221,6 +229,13 @@ export function useConversation(
           mode: target.mode,
           prompt: trimmed,
           cwd: workspace.root,
+          // Stated, not left to the CLI's default. «Сначала план» used to be a description of what
+          // happened to be true — nobody passed a permission flag, and a non-interactive run has no
+          // one to answer a write prompt. Now the words on the chip are the argv.
+          agentMode: chips.agentMode,
+          // Absent ⇒ the CLI picks, and the chip says «выбирает CLI» rather than naming a model
+          // nobody chose.
+          ...(chips.models[target.providerId] ? { model: chips.models[target.providerId] } : {}),
         },
         (event: AgentEvent) => setLive((current) => (current ? reduce(current, event) : current)),
       );
@@ -238,7 +253,7 @@ export function useConversation(
           });
         });
     },
-    [workspace, target, append],
+    [workspace, target, append, chips.agentMode, chips.models],
   );
 
   const cancel = useCallback(() => {

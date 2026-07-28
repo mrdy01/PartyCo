@@ -33,6 +33,7 @@ export type {
   AgentRun,
   AgentRunInput,
   AgentRunOutcome,
+  AgentSettings,
   AgentsBridge,
   IpcResult,
   PartyCoBridge,
@@ -56,6 +57,9 @@ export type {
 
 export type {
   AgentEvent,
+  AgentPermission,
+  ModelChoice,
+  ProviderCapability,
   CliDetection,
   ErrorEvent as AgentErrorEvent,
   PolicyStatus,

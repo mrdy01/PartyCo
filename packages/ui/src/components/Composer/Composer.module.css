@@ -160,7 +160,8 @@
   color: var(--pc-text-3);
 }
 
-.modeSlot {
+/* The positioning context a chip menu hangs from. One per chip that can open one. */
+.slot {
   position: relative;
   display: inline-flex;
   min-width: 0;
